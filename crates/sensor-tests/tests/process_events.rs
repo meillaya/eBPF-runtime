@@ -2785,3 +2785,365 @@ fn coverage_manifest_denies_pid_only_or_path_only_attribution() {
         "identity.bpf.c coverage manifest MUST deny container-name-only attribution",
     );
 }
+
+// ===========================================================================
+// task 17: shared ring-buffer sequencing and loss accounting
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+mod saturation {
+    use super::{must, repo_root};
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    fn saturation_fixture_dir() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/saturation")
+    }
+
+    fn supported_load_schema_path() -> PathBuf {
+        repo_root().join("bench/schemas/supported-load.v1.json")
+    }
+
+    fn saturation_sh_path() -> PathBuf {
+        repo_root().join("bench/saturation.sh")
+    }
+
+    fn load_saturation_fixture(name: &str) -> serde_json::Value {
+        let path = saturation_fixture_dir().join(format!("{name}.json"));
+        let text = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+        serde_json::from_str(&text)
+            .unwrap_or_else(|e| panic!("invalid JSON in {}: {e}", path.display()))
+    }
+
+    #[test]
+    fn supported_load_schema_is_present_and_is_the_published_contract() {
+        let path = supported_load_schema_path();
+        must(
+            path.exists(),
+            &format!(
+                "supported-load schema MUST be present at {}",
+                path.display()
+            ),
+        );
+        let text = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+        let json: serde_json::Value = serde_json::from_str(&text)
+            .unwrap_or_else(|e| panic!("supported-load schema is not valid JSON: {e}"));
+        must(
+            json.get("properties").is_some(),
+            "supported-load schema MUST define `properties`",
+        );
+        let props = json.get("properties").unwrap();
+        must(
+            props.get("default_rate_events_per_sec_per_cpu").is_some(),
+            "supported-load schema MUST define default_rate_events_per_sec_per_cpu",
+        );
+        let rate = props
+            .get("default_rate_events_per_sec_per_cpu")
+            .and_then(|p| p.get("default"))
+            .and_then(|v| v.as_i64())
+            .expect("default_rate_events_per_sec_per_cpu.default MUST be an integer");
+        must(
+            rate == 1000,
+            &format!(
+                "supported-load schema default_rate_events_per_sec_per_cpu.default MUST be 1000 (got: {rate})"
+            ),
+        );
+    }
+
+    #[test]
+    fn supported_pass_fixture_has_zero_failures_and_no_gap() {
+        let v = load_saturation_fixture("supported_pass");
+        must(
+            v.get("verdict").and_then(|x| x.as_str()) == Some("passed"),
+            "supported_pass fixture verdict MUST be 'passed'",
+        );
+        must(
+            v.get("failure_count").and_then(|x| x.as_i64()) == Some(0),
+            "supported_pass fixture failure_count MUST be 0",
+        );
+        must(
+            v.get("gap_start").and_then(|x| x.as_i64()) == Some(0),
+            "supported_pass fixture gap_start MUST be 0",
+        );
+        must(
+            v.get("gap_end").and_then(|x| x.as_i64()) == Some(0),
+            "supported_pass fixture gap_end MUST be 0",
+        );
+        must(
+            v.get("diagnostic_emit_attempted").and_then(|x| x.as_bool()) == Some(false),
+            "supported_pass fixture diagnostic_emit_attempted MUST be false (no failures detected)",
+        );
+    }
+
+    #[test]
+    fn saturation_shed_fixture_has_nonzero_failures_and_no_gap() {
+        let v = load_saturation_fixture("saturation_shed");
+        must(
+            v.get("verdict").and_then(|x| x.as_str())
+                == Some("saturation-detected-no-critical-loss"),
+            "saturation_shed fixture verdict MUST be 'saturation-detected-no-critical-loss'",
+        );
+        must(
+            v.get("failure_count").and_then(|x| x.as_i64()) == Some(47),
+            "saturation_shed fixture failure_count MUST be 47",
+        );
+        must(
+            v.get("gap_start").and_then(|x| x.as_i64()) == Some(0),
+            "saturation_shed fixture gap_start MUST be 0 (head-drop preserves ordering)",
+        );
+        must(
+            v.get("gap_end").and_then(|x| x.as_i64()) == Some(0),
+            "saturation_shed fixture gap_end MUST be 0",
+        );
+        must(
+            v.get("diagnostic_emit_attempted").and_then(|x| x.as_bool()) == Some(true),
+            "saturation_shed fixture diagnostic_emit_attempted MUST be true (failures > 0)",
+        );
+    }
+
+    #[test]
+    fn gap_detected_fixture_has_gap_marks_failure() {
+        let v = load_saturation_fixture("gap_detected");
+        must(
+            v.get("verdict").and_then(|x| x.as_str()) == Some("failed"),
+            "gap_detected fixture verdict MUST be 'failed'",
+        );
+        let gap_start = v
+            .get("gap_start")
+            .and_then(|x| x.as_i64())
+            .expect("gap_start MUST be an integer");
+        let gap_end = v
+            .get("gap_end")
+            .and_then(|x| x.as_i64())
+            .expect("gap_end MUST be an integer");
+        must(
+            gap_start != 0,
+            &format!("gap_detected fixture gap_start MUST be non-zero (got: {gap_start})"),
+        );
+        must(
+            gap_end != 0,
+            &format!("gap_detected fixture gap_end MUST be non-zero (got: {gap_end})"),
+        );
+        must(
+            gap_end > gap_start,
+            "gap_detected fixture gap_end MUST be > gap_start",
+        );
+        let failure_count = v
+            .get("failure_count")
+            .and_then(|x| x.as_i64())
+            .expect("failure_count MUST be an integer");
+        must(
+            failure_count > 0,
+            &format!(
+                "gap_detected fixture failure_count MUST be > 0 (got: {failure_count})"
+            ),
+        );
+    }
+
+    #[test]
+    fn false_zero_loss_fixture_marks_false_zero_loss_even_when_failures_zero() {
+        let v = load_saturation_fixture("false_zero_loss");
+        must(
+            v.get("verdict").and_then(|x| x.as_str()) == Some("false-zero-loss"),
+            "false_zero_loss fixture verdict MUST be 'false-zero-loss'",
+        );
+        must(
+            v.get("failure_count").and_then(|x| x.as_i64()) == Some(0),
+            "false_zero_loss fixture failure_count MUST be 0 (silent drop path)",
+        );
+        let gap_start = v
+            .get("gap_start")
+            .and_then(|x| x.as_i64())
+            .expect("gap_start MUST be an integer");
+        let gap_end = v
+            .get("gap_end")
+            .and_then(|x| x.as_i64())
+            .expect("gap_end MUST be an integer");
+        must(
+            gap_start != 0,
+            "false_zero_loss fixture gap_start MUST be non-zero (kernel silently dropped events)",
+        );
+        must(
+            gap_end != 0,
+            "false_zero_loss fixture gap_end MUST be non-zero",
+        );
+    }
+
+    #[test]
+    fn saturation_oversize_ring_fixture_causes_harness_to_refuse() {
+        let sh = saturation_sh_path();
+        must(
+            sh.exists(),
+            &format!("bench/saturation.sh MUST be present at {}", sh.display()),
+        );
+        let schema = supported_load_schema_path();
+        must(
+            schema.exists(),
+            &format!("supported-load schema MUST be present at {}", schema.display()),
+        );
+
+        let out_dir = std::env::temp_dir().join(format!(
+            "saturation-test-oversize-{}",
+            std::process::id()
+        ));
+        let _ = fs::create_dir_all(&out_dir);
+
+        let output = Command::new(&sh)
+            .arg("--schema")
+            .arg(&schema)
+            .arg("--ring-size")
+            .arg("33554432")
+            .arg("--out")
+            .arg(&out_dir)
+            .output()
+            .expect("failed to spawn bench/saturation.sh");
+
+        let exit_code = output.status.code().unwrap_or(-1);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        must(
+            exit_code == 1,
+            &format!(
+                "saturation harness MUST exit 1 when --ring-size is above the schema maximum (exit_code={exit_code}, stderr={stderr})"
+            ),
+        );
+        must(
+            stderr.contains("MUST be in [1024, 16777216]"),
+            &format!(
+                "saturation harness MUST name the ring-size bound in its diagnostic (stderr={stderr})"
+            ),
+        );
+
+        let _ = fs::remove_dir_all(&out_dir);
+    }
+
+    #[test]
+    fn schema_corruption_causes_harness_to_refuse() {
+        let sh = saturation_sh_path();
+        let schema = supported_load_schema_path();
+        must(sh.exists(), "bench/saturation.sh MUST be present");
+        must(schema.exists(), "supported-load schema MUST be present");
+
+        let text = fs::read_to_string(&schema).expect("read schema");
+        let corrupted = text.replacen("\"default\": 1000", "\"default\": 0", 1);
+        must(
+            corrupted != text,
+            "schema corruption substitution must actually change the file",
+        );
+        let tmp_schema = std::env::temp_dir().join(format!(
+            "supported-load-corrupt-{}.json",
+            std::process::id()
+        ));
+        fs::write(&tmp_schema, &corrupted).expect("write corrupted schema");
+
+        let out_dir = std::env::temp_dir().join(format!(
+            "saturation-test-corrupt-{}",
+            std::process::id()
+        ));
+        let _ = fs::create_dir_all(&out_dir);
+
+        let output = Command::new(&sh)
+            .arg("--schema")
+            .arg(&tmp_schema)
+            .arg("--out")
+            .arg(&out_dir)
+            .output()
+            .expect("failed to spawn bench/saturation.sh");
+
+        let exit_code = output.status.code().unwrap_or(-1);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        let _ = fs::remove_file(&tmp_schema);
+        let _ = fs::remove_dir_all(&out_dir);
+
+        must(
+            exit_code == 1,
+            &format!(
+                "saturation harness MUST exit 1 when the schema is corrupted (exit_code={exit_code}, stderr={stderr}, stdout={stdout})"
+            ),
+        );
+        must(
+            stderr.contains("default_rate_events_per_sec_per_cpu")
+                || stdout.contains("default_rate_events_per_sec_per_cpu"),
+            &format!(
+                "saturation harness MUST name the corrupted field in its diagnostic (stderr={stderr}, stdout={stdout})"
+            ),
+        );
+    }
+
+    #[test]
+    fn verdict_enum_has_exactly_four_values() {
+        let fixtures = [
+            "supported_pass",
+            "saturation_shed",
+            "gap_detected",
+            "false_zero_loss",
+        ];
+        let mut observed: Vec<String> = Vec::new();
+        for name in fixtures {
+            let v = load_saturation_fixture(name);
+            let verdict = v
+                .get("verdict")
+                .and_then(|x| x.as_str())
+                .unwrap_or_else(|| panic!("{name} fixture is missing 'verdict'"))
+                .to_string();
+            must(
+                !observed.contains(&verdict),
+                &format!(
+                    "{name} fixture verdict '{verdict}' is duplicated; each verdict enum value must have exactly one fixture"
+                ),
+            );
+            observed.push(verdict);
+        }
+        observed.sort();
+        let mut expected = vec![
+            "passed".to_string(),
+            "saturation-detected-no-critical-loss".to_string(),
+            "failed".to_string(),
+            "false-zero-loss".to_string(),
+        ];
+        expected.sort();
+        must(
+            observed == expected,
+            &format!(
+                "verdict enum coverage drifted: observed={observed:?} expected={expected:?}"
+            ),
+        );
+    }
+
+    #[test]
+    fn per_cpu_failure_count_field_is_present_in_verdict_fixtures() {
+        let fixtures = [
+            "supported_pass",
+            "saturation_shed",
+            "gap_detected",
+            "false_zero_loss",
+        ];
+        for name in fixtures {
+            let v = load_saturation_fixture(name);
+            let arr = v
+                .get("percpu_failure_count")
+                .and_then(|x| x.as_array())
+                .unwrap_or_else(|| {
+                    panic!("{name} fixture MUST expose 'percpu_failure_count' as an array")
+                });
+            must(
+                !arr.is_empty(),
+                &format!(
+                    "{name} fixture percpu_failure_count MUST contain at least one CPU's failure count (got 0 entries)"
+                ),
+            );
+            for entry in arr {
+                must(
+                    entry.is_i64() || entry.is_u64(),
+                    &format!(
+                        "{name} fixture percpu_failure_count entries MUST be integers (got: {entry:?})"
+                    ),
+                );
+            }
+        }
+    }
+}
+

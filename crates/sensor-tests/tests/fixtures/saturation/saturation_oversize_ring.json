@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "kind": "input-config",
+  "schema_path": "bench/schemas/supported-load.v1.json",
+  "ring_size_bytes": 33554432,
+  "cpu_count": 4,
+  "sample_duration_seconds": 60,
+  "default_rate_events_per_sec_per_cpu": 1000,
+  "expected_harness_exit_code": 1,
+  "expected_diagnostic_substring": "MUST be in [1024, 16777216]",
+  "rationale": "NOT a verdict fixture: this is an INPUT config the harness MUST refuse with exit 1. Ring size 33554432 (32 MiB) exceeds the schema's documented maximum of 16777216 (16 MiB); the harness's --ring-size range check rejects it with a diagnostic that names the field and the allowed bound. The harness refuses to start when this config is presented via --ring-size. A privileged runner (task 53+) MUST reject the same way."
+}

@@ -47,6 +47,11 @@ name = "record-identity-fixtures"
 path = "src/bin/record-identity-fixtures.rs"
 required-features = []
 
+[[bin]]
+name = "record-saturation-fixtures"
+path = "src/bin/record-saturation-fixtures.rs"
+required-features = []
+
 
 # `bpf-build` is a runtime dep of the `record-fixtures`,
 # `record-file-fixtures`, `record-network-fixtures`, and
@@ -67,3 +72,4 @@ bpf-build = { path = "../bpf-build" }
 event-abi = { path = "../event-abi" }
 
 [dev-dependencies]
+serde_json = "1.0"

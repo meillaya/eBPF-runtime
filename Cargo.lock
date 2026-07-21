@@ -1569,6 +1569,7 @@ version = "0.1.0"
 dependencies = [
  "bpf-build",
  "event-abi",
+ "serde_json",
 ]
 
 [[package]]
