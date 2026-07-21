@@ -120,6 +120,20 @@ pub enum Valid {
     FileMode = 0x20000,
     FileDenySource = 0x40000,
     FileErrno = 0x80000,
+    // TASK-13 additions — see header comment block in
+    // bpf/include/event_abi.h. The nine NET_* validity bits at
+    // 0x100000..0x10000000 (bits 20..28) cover the network-sensor
+    // payload fields (dst_ip, dst_port, cookie, family, peer_ip,
+    // peer_port, fd, old_state, new_state).
+    NetDstIp = 0x0010_0000,
+    NetDstPort = 0x0020_0000,
+    NetCookie = 0x0040_0000,
+    NetFamily = 0x0080_0000,
+    NetPeerIp = 0x0100_0000,
+    NetPeerPort = 0x0200_0000,
+    NetFd = 0x0400_0000,
+    NetOldState = 0x0800_0000,
+    NetNewState = 0x1000_0000,
 }
 
 /// Deny-source enum for FILE_OPEN events; mirrors the C
@@ -151,8 +165,26 @@ pub enum FileDenySource {
 pub const FILE_RESULT_HAS_ERRNO: u8 = 0x01;
 pub const FILE_RESULT_OWN_LSM: u8 = 0x02;
 
-/// v1 producer MUST NOT set bits above bit 19.
-pub const VALID_V1_ALLOWED_MASK: u32 = 0x000F_FFFF;
+/// Per-payload (network-result-namespace) flag bits. TASK-13
+/// reserves `NetResultFlagNonblocking` (O_NONBLOCK observed on the
+/// file descriptor at connect-issue time) and
+/// `NetResultFlagEinprogress` (connect syscall returned -EINPROGRESS).
+/// Consumers MUST classify "connect succeeded" on the result event,
+/// not on the EINPROGRESS flag — the flag is metadata for correlation
+/// with socket-cookie state, not a success signal.
+pub const NET_RESULT_FLAG_NONBLOCKING: u8 = 0x01;
+pub const NET_RESULT_FLAG_EINPROGRESS: u8 = 0x02;
+
+/// v1 producer MUST NOT set bits above bit 28.
+pub const VALID_V1_ALLOWED_MASK: u32 = 0x1FFF_FFFF;
+
+/// Network-payload layout constants. Mirror `bpf/include/event_abi.h`.
+pub const NET_IPV6_LEN: usize = 16;
+pub const NET_IPV4_LEN: usize = 4;
+pub const NET_PAYLOAD_LEN: usize = 80;
+/// Standard address families the network sensor records.
+pub const AF_INET_VAL: u32 = 2;
+pub const AF_INET6_VAL: u32 = 10;
 
 /// Required bits for a v1 process event: pid_tgid + cgroup_id + boot_id + task_start.
 pub const VALID_REQUIRED: u32 = 0x0000_0001 | 0x0000_0002 | 0x0000_0004 | 0x0000_0400;
@@ -212,3 +244,148 @@ impl Header {
         }
     }
 }
+
+/// TCP socket-state enum (mirrors `enum kernel_v1_tcp_state` in
+/// `bpf/include/event_abi.h`). The integer values are stable
+/// across C/Rust builds. `TcpNone = 0xff` is the "not a TCP socket"
+/// sentry for UDP and RAW sockets where the kernel doesn't track a
+/// TCP state.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
+pub enum TcpState {
+    Established = 1,
+    SynSent = 2,
+    SynRecv = 3,
+    FinWait1 = 4,
+    FinWait2 = 5,
+    TimeWait = 6,
+    Close = 7,
+    CloseWait = 8,
+    LastAck = 9,
+    Listen = 10,
+    Closing = 11,
+    NewSynRecv = 12,
+    None = 0xff,
+}
+
+impl TcpState {
+    /// Map a single byte from the wire to a `TcpState`. Unknown
+    /// values round to `None` so the consumer never panics on a
+    /// future kernel that adds a new TCP state.
+    pub fn from_byte(byte: u8) -> Self {
+        match byte {
+            1 => Self::Established,
+            2 => Self::SynSent,
+            3 => Self::SynRecv,
+            4 => Self::FinWait1,
+            5 => Self::FinWait2,
+            6 => Self::TimeWait,
+            7 => Self::Close,
+            8 => Self::CloseWait,
+            9 => Self::LastAck,
+            10 => Self::Listen,
+            11 => Self::Closing,
+            12 => Self::NewSynRecv,
+            _ => Self::None,
+        }
+    }
+}
+
+/// Network-payload layout (mirrors `struct kernel_v1_network_payload`
+/// in `bpf/include/event_abi.h`). The structs use
+/// `#[repr(C, packed)]` so the byte layout matches the C
+/// `__attribute__((packed))` producer byte-for-byte. Consumers
+/// dispatch on `header.event_kind` and read the relevant sub-fields.
+/// `#[allow(dead_code)]` is applied because not every field is read
+/// by every test.
+///
+/// Field access through these structs is `unsafe { core::ptr::read()
+/// }` from an aligned scratch buffer — see the `process_events.rs`
+/// decoder helpers. The struct shapes are the documented source of
+/// truth for byte offsets; the size constants below mirror the C
+/// `_Static_assert` checks.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub struct NetworkConnectAttempt {
+    pub family: u32,
+    pub _pad0: u32,
+    /// 16-byte IP buffer; IPv4 stored in the leading 4 bytes,
+    /// network byte order on the wire.
+    pub dst_ip: [u8; NET_IPV6_LEN],
+    /// Destination port in network byte order.
+    pub dst_port: u32,
+}
+
+/// Mirror of `struct network_connect_result_payload`. The `errno_`
+/// field carries the raw errno (zero on success; -ECONNREFUSED is
+/// 111; -EINPROGRESS is 115).
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub struct NetworkConnectResult {
+    pub cookie: u64,
+    pub family: u32,
+    pub _pad0: u32,
+    pub dst_ip: [u8; NET_IPV6_LEN],
+    pub dst_port: u32,
+    pub errno_: i32,
+    pub flags: u8,
+    pub _pad1: [u8; 3],
+}
+
+/// Mirror of `struct network_accept_attempt_payload`.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub struct NetworkAcceptAttempt {
+    pub peer_ip: [u8; NET_IPV6_LEN],
+    pub peer_port: u32,
+    pub _pad0: u32,
+}
+
+/// Mirror of `struct network_accept_result_payload`. The `fd`
+/// field is meaningful only when >= 0; a refused accept leaves
+/// `errno_` non-zero and `fd < 0`, and the sensor MUST NOT mark
+/// `NetFd` valid in that case.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub struct NetworkAcceptResult {
+    pub cookie: u64,
+    pub family: u32,
+    pub _pad0: u32,
+    pub peer_ip: [u8; NET_IPV6_LEN],
+    pub peer_port: u32,
+    pub errno_: i32,
+    pub fd: i32,
+    pub _pad1: u32,
+}
+
+/// Mirror of `struct network_state_payload`. `old_state == new_state`
+/// is reserved for the consumer to drop; the sensor emits only
+/// genuine state transitions.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub struct NetworkState {
+    pub cookie: u64,
+    pub family: u32,
+    pub _pad0: u32,
+    pub old_state: u8,
+    pub new_state: u8,
+    pub _pad1: [u8; 6],
+}
+
+/// Compile-time size assertions. Mirror the C header's
+/// `_Static_assert` lines. Drift between the Rust and C sizes
+/// fails `cargo build`.
+const _: () = {
+    assert!(core::mem::size_of::<NetworkConnectAttempt>() == 28);
+    assert!(core::mem::size_of::<NetworkConnectResult>() == 44);
+    assert!(core::mem::size_of::<NetworkAcceptAttempt>() == 24);
+    assert!(core::mem::size_of::<NetworkAcceptResult>() == 48);
+    assert!(core::mem::size_of::<NetworkState>() == 24);
+    assert!(NET_PAYLOAD_LEN == 80);
+};

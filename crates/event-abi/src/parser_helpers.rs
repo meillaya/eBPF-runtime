@@ -63,6 +63,16 @@ pub fn format_valids(valids: u32) -> String {
         (Valid::FileMode as u32, "file_mode"),
         (Valid::FileDenySource as u32, "file_deny_source"),
         (Valid::FileErrno as u32, "file_errno"),
+        // TASK-13 additions — the network-sensor payload-bits.
+        (Valid::NetDstIp as u32, "net_dst_ip"),
+        (Valid::NetDstPort as u32, "net_dst_port"),
+        (Valid::NetCookie as u32, "net_cookie"),
+        (Valid::NetFamily as u32, "net_family"),
+        (Valid::NetPeerIp as u32, "net_peer_ip"),
+        (Valid::NetPeerPort as u32, "net_peer_port"),
+        (Valid::NetFd as u32, "net_fd"),
+        (Valid::NetOldState as u32, "net_old_state"),
+        (Valid::NetNewState as u32, "net_new_state"),
     ];
     let mut s = String::new();
     for (bit, name) in names {

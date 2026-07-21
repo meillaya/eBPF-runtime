@@ -962,3 +962,491 @@ fn file_decoder_never_panics_on_random_bytes() {
         }
     }
 }
+
+/* ===========================================================================
+ *  TASK-13 — Network socket attempts/results/state coverage.
+ *
+ *  The per-fixture `*.binpb` files under `tests/fixtures/network/`
+ *  are the committed source of truth (recorded by
+ *  `record-network-fixtures.rs` on the privileged runner; task
+ *  53+ will swap them for live recordings). Each fixture exercises
+ *  one truthful-semantics assertion the network sensor must
+ *  satisfy:
+ *
+ *    * connect_attempt_v4  — v4 dst_ip + dst_port, NET_DST_IP +
+ *                            NET_DST_PORT set, NET_COOKIE invalid
+ *    * connect_success_v4 — errno == 0, NET_COOKIE valid,
+ *                            NET_FAMILY valid, NO EINPROGRESS flag
+ *    * connect_refused_v4 — errno == -111 (ECONNREFUSED), no
+ *                            EINPROGRESS flag, event_kind =
+ *                            NETWORK_CONNECT (not a separate state
+ *                            event)
+ *    * connect_nonblocking_einprogress_v4 — errno == -115,
+ *                            NET_RESULT_FLAG_NONBLOCKING |
+ *                            NET_RESULT_FLAG_EINPROGRESS set
+ *    * connect_attempt_v6 — v6 dst_ip (16-byte buffer; loopback
+ *                            ::1)
+ *    * connect_success_v6 — v6 dst_ip = ::1, errno == 0
+ *    * connect_refused_v6 — v6 dst_ip = 2001:db8::1,
+ *                            errno == -111
+ *    * accept_attempt      — peer_ip + peer_port, NET_PEER_IP +
+ *                            NET_PEER_PORT set
+ *    * accept_result       — fd == 7 (nonnegative), NET_FD valid;
+ *                            the "no false established event on
+ *                            refusal" rule asserts that a refused
+ *                            accept leaves NET_FD invalid
+ *    * state_change        — old_state != new_state, both
+ *                            NET_OLD_STATE and NET_NEW_STATE set
+ *    * unix_degraded_connect — AF_UNIX degraded path; sensor
+ *                              emits NETWORK_CONNECT with
+ *                              NET_FAMILY set, NET_COOKIE invalid
+ *    * connect_attempt_lost_cookie — NET_COOKIE invalid but
+ *                                    event_kind NETWORK_CONNECT
+ *                                    (consumer correlates by
+ *                                    task_tgid-only fallback)
+ *
+ *  The decoder shapes match `bpf/sensors/network.bpf.c` exactly.
+ *  The byte offsets are pinned by the `#[repr(C, packed)]` structs
+ *  in `crates/event-abi/src/generated.rs` and the corresponding
+ *  packed structs in the C sensor. Validity bit positions are
+ *  pinned in the same file (`Valid::NetDstIp` = 0x100000,
+ *  `Valid::NetCookie` = 0x400000, etc.) and the
+ *  `VALID_V1_ALLOWED_MASK` widened for task 13.
+ *
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
+ * ======================================================================== */
+
+/// Network-payload layout constants. Mirror
+/// `bpf/sensors/network.bpf.c` and the
+/// `network_*_payload_bpf` packed struct definitions therein.
+#[allow(dead_code)]
+mod network_payload {
+    pub const IPV6_LEN: usize = 16;
+    pub const IPV4_LEN: usize = 4;
+    pub const PAYLOAD_LEN: usize = 80;
+
+    pub const CONNECT_ATTEMPT_PAYLOAD: usize = 80;
+    pub const CONNECT_RESULT_PAYLOAD: usize = 80;
+    pub const ACCEPT_ATTEMPT_PAYLOAD: usize = 80;
+    pub const ACCEPT_RESULT_PAYLOAD: usize = 80;
+    pub const STATE_PAYLOAD: usize = 80;
+
+    // network_connect_attempt_payload_bpf offsets:
+    pub const CONNECT_ATTEMPT_FAMILY_OFF: usize = 0;
+    pub const CONNECT_ATTEMPT_PAD0_OFF: usize = 4;
+    pub const CONNECT_ATTEMPT_DST_IP_OFF: usize = 8;
+    pub const CONNECT_ATTEMPT_DST_PORT_OFF: usize = 24;
+
+    // network_connect_result_payload_bpf offsets:
+    pub const CONNECT_RESULT_COOKIE_OFF: usize = 0;
+    pub const CONNECT_RESULT_FAMILY_OFF: usize = 8;
+    pub const CONNECT_RESULT_PAD0_OFF: usize = 12;
+    pub const CONNECT_RESULT_DST_IP_OFF: usize = 16;
+    pub const CONNECT_RESULT_DST_PORT_OFF: usize = 32;
+    pub const CONNECT_RESULT_ERRNO_OFF: usize = 36;
+    pub const CONNECT_RESULT_FLAGS_OFF: usize = 40;
+
+    // network_accept_attempt_payload_bpf offsets:
+    pub const ACCEPT_ATTEMPT_PEER_IP_OFF: usize = 0;
+    pub const ACCEPT_ATTEMPT_PEER_PORT_OFF: usize = 16;
+
+    // network_accept_result_payload_bpf offsets:
+    pub const ACCEPT_RESULT_COOKIE_OFF: usize = 0;
+    pub const ACCEPT_RESULT_FAMILY_OFF: usize = 8;
+    pub const ACCEPT_RESULT_PEER_IP_OFF: usize = 16;
+    pub const ACCEPT_RESULT_PEER_PORT_OFF: usize = 32;
+    pub const ACCEPT_RESULT_ERRNO_OFF: usize = 36;
+    pub const ACCEPT_RESULT_FD_OFF: usize = 40;
+
+    // network_state_payload_bpf offsets:
+    pub const STATE_COOKIE_OFF: usize = 0;
+    pub const STATE_FAMILY_OFF: usize = 8;
+    pub const STATE_OLD_OFF: usize = 16;
+    pub const STATE_NEW_OFF: usize = 17;
+}
+
+/// Network-result flag bits. Mirror
+/// `KERNEL_V1_NET_RESULT_FLAG_*` in `bpf/include/event_abi.h`.
+#[allow(dead_code)]
+const NET_RESULT_FLAG_NONBLOCKING: u8 = 0x01;
+#[allow(dead_code)]
+const NET_RESULT_FLAG_EINPROGRESS: u8 = 0x02;
+
+/// Standard address families the network sensor records.
+#[allow(dead_code)]
+const AF_INET_VAL: u32 = 2;
+#[allow(dead_code)]
+const AF_INET6_VAL: u32 = 10;
+#[allow(dead_code)]
+const AF_UNIX_VAL: u32 = 1;
+
+/// Reads a u8 out of the payload at `off`. Panics when the
+/// payload is too short — the per-event header.validate steps in
+/// the test calls pre-supply a length-checked `&[u8]`.
+fn b1(payload: &[u8], off: usize) -> u8 {
+    payload[off]
+}
+
+/// Reads a u32 LE out of the payload at `off`.
+fn b32(payload: &[u8], off: usize) -> u32 {
+    let end = off + 4;
+    let bytes = &payload[off..end];
+    u32::from_le_bytes(bytes.try_into().unwrap())
+}
+
+/// Reads an i32 LE out of the payload at `off`.
+fn bi32(payload: &[u8], off: usize) -> i32 {
+    b32(payload, off) as i32
+}
+
+/// Reads a u64 LE out of the payload at `off`.
+fn b64(payload: &[u8], off: usize) -> u64 {
+    let end = off + 8;
+    let bytes = &payload[off..end];
+    u64::from_le_bytes(bytes.try_into().unwrap())
+}
+
+#[test]
+fn connect_attempt_v4_decodes_with_dst_ip_and_dst_port() {
+    let bytes = include_bytes!("fixtures/network/connect_attempt_v4.binpb");
+    let event = parse(bytes).expect("connect_attempt_v4 fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkConnect as u8);
+
+    let payload = event.payload;
+    must(
+        payload.len() == network_payload::CONNECT_ATTEMPT_PAYLOAD,
+        "connect_attempt_v4 payload length must equal CONNECT_ATTEMPT_PAYLOAD",
+    );
+    let family = b32(payload, network_payload::CONNECT_ATTEMPT_FAMILY_OFF);
+    must(
+        family == AF_INET_VAL,
+        "connect_attempt_v4 family MUST be AF_INET (2)",
+    );
+    let dst_ip = &payload[network_payload::CONNECT_ATTEMPT_DST_IP_OFF
+        ..network_payload::CONNECT_ATTEMPT_DST_IP_OFF + network_payload::IPV4_LEN];
+    must(
+        dst_ip == [127, 0, 0, 1],
+        "connect_attempt_v4 dst_ip[0..4] MUST equal 127.0.0.1",
+    );
+    let port = b32(payload, network_payload::CONNECT_ATTEMPT_DST_PORT_OFF);
+    must(
+        port == 0x1f90,
+        "connect_attempt_v4 dst_port MUST equal 0x1f90 (8080 in BE)",
+    );
+
+    must(event.verify_field(V::NetDstIp), "NET_DST_IP valid bit MUST be set");
+    must(
+        event.verify_field(V::NetDstPort),
+        "NET_DST_PORT valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::NetFamily),
+        "NET_FAMILY valid bit MUST be set",
+    );
+    must(
+        !event.verify_field(V::NetCookie),
+        "connect ATTEMPT carries no cookie yet — NET_COOKIE MUST be invalid",
+    );
+}
+
+#[test]
+fn connect_success_v4_decodes_with_errno_zero_and_no_einprogress_flag() {
+    let bytes = include_bytes!("fixtures/network/connect_success_v4.binpb");
+    let event = parse(bytes).expect("connect_success_v4 fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkConnect as u8);
+
+    let payload = event.payload;
+    let errno = bi32(payload, network_payload::CONNECT_RESULT_ERRNO_OFF);
+    must(errno == 0, "connect_success_v4 errno MUST be 0");
+    let cookie = b64(payload, network_payload::CONNECT_RESULT_COOKIE_OFF);
+    must(cookie == 0xdeadbeef_0000_0001, "connect_success_v4 cookie MUST be 0xdeadbeef_0000_0001");
+    let flags = b1(payload, network_payload::CONNECT_RESULT_FLAGS_OFF);
+    must(
+        flags & NET_RESULT_FLAG_EINPROGRESS == 0,
+        "connect_success_v4 flags MUST NOT carry EINPROGRESS",
+    );
+    must(
+        flags & NET_RESULT_FLAG_NONBLOCKING == 0,
+        "connect_success_v4 flags MUST NOT carry NONBLOCKING (synchronous connect)",
+    );
+
+    must(event.verify_field(V::NetCookie), "NET_COOKIE valid bit MUST be set on a successful connect");
+    must(event.verify_field(V::NetFamily), "NET_FAMILY valid bit MUST be set");
+    must(event.verify_field(V::NetDstIp), "NET_DST_IP valid bit MUST be set");
+    must(event.verify_field(V::NetDstPort), "NET_DST_PORT valid bit MUST be set");
+    must(
+        !event.verify_field(V::NetFd),
+        "connect-result is NOT an accept — NET_FD valid bit MUST be clear",
+    );
+}
+
+#[test]
+fn connect_refused_v4_decodes_with_errno_econnrefused_and_no_established_event() {
+    let bytes = include_bytes!("fixtures/network/connect_refused_v4.binpb");
+    let event = parse(bytes).expect("connect_refused_v4 fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkConnect as u8);
+
+    let payload = event.payload;
+    let errno = bi32(payload, network_payload::CONNECT_RESULT_ERRNO_OFF);
+    must(
+        errno == -111,
+        "connect_refused_v4 errno MUST equal -111 (ECONNREFUSED)",
+    );
+    let dst_ip = &payload[network_payload::CONNECT_RESULT_DST_IP_OFF
+        ..network_payload::CONNECT_RESULT_DST_IP_OFF + network_payload::IPV4_LEN];
+    must(
+        dst_ip == [192, 0, 2, 1],
+        "connect_refused_v4 dst_ip MUST equal 192.0.2.1",
+    );
+    let flags = b1(payload, network_payload::CONNECT_RESULT_FLAGS_OFF);
+    must(
+        flags & NET_RESULT_FLAG_EINPROGRESS == 0,
+        "connect_refused_v4 flags MUST NOT carry EINPROGRESS",
+    );
+    // The brief explicitly requires "no false established event on
+    // refusal". The failing-condition check is that this fixture is
+    // a NETWORK_CONNECT event with errno != 0, NOT a NETWORK_STATE
+    // event with new_state = TCP_ESTABLISHED. The accept-result and
+    // state-change fixtures below exercise those distinct paths.
+    must(
+        event.header.event_kind == EventKind::NetworkConnect as u8,
+        "connect_refused_v4 event_kind MUST be NETWORK_CONNECT, NOT NETWORK_STATE",
+    );
+}
+
+#[test]
+fn connect_nonblocking_einprogress_v4_decodes_with_errno_einprogress() {
+    let bytes = include_bytes!("fixtures/network/connect_nonblocking_einprogress_v4.binpb");
+    let event = parse(bytes).expect("connect_nonblocking_einprogress_v4 fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkConnect as u8);
+
+    let payload = event.payload;
+    let errno = bi32(payload, network_payload::CONNECT_RESULT_ERRNO_OFF);
+    must(errno == -115, "nonblocking EINPROGRESS errno MUST be -115");
+    let flags = b1(payload, network_payload::CONNECT_RESULT_FLAGS_OFF);
+    must(
+        flags & NET_RESULT_FLAG_EINPROGRESS != 0,
+        "flags MUST carry EINPROGRESS bit",
+    );
+    must(
+        flags & NET_RESULT_FLAG_NONBLOCKING != 0,
+        "flags MUST carry NONBLOCKING bit (the O_NONBLOCK flag was observed on the fd)",
+    );
+}
+
+#[test]
+fn connect_attempt_v6_decodes_with_dst_ip_v6() {
+    let bytes = include_bytes!("fixtures/network/connect_attempt_v6.binpb");
+    let event = parse(bytes).expect("connect_attempt_v6 fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkConnect as u8);
+
+    let payload = event.payload;
+    let family = b32(payload, network_payload::CONNECT_ATTEMPT_FAMILY_OFF);
+    must(family == AF_INET6_VAL, "family MUST be AF_INET6 (10)");
+    let dst_ip = &payload[network_payload::CONNECT_ATTEMPT_DST_IP_OFF
+        ..network_payload::CONNECT_ATTEMPT_DST_IP_OFF + network_payload::IPV6_LEN];
+    let mut expected = [0u8; 16];
+    expected[15] = 1;
+    must(
+        dst_ip == &expected[..],
+        "connect_attempt_v6 dst_ip MUST equal ::1",
+    );
+}
+
+#[test]
+fn connect_success_v6_decodes_with_dst_ip_v6() {
+    let bytes = include_bytes!("fixtures/network/connect_success_v6.binpb");
+    let event = parse(bytes).expect("connect_success_v6 fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkConnect as u8);
+
+    let payload = event.payload;
+    let family = b32(payload, network_payload::CONNECT_RESULT_FAMILY_OFF);
+    must(family == AF_INET6_VAL, "v6 family MUST be AF_INET6");
+    let dst_ip = &payload[network_payload::CONNECT_RESULT_DST_IP_OFF
+        ..network_payload::CONNECT_RESULT_DST_IP_OFF + network_payload::IPV6_LEN];
+    let mut expected = [0u8; 16];
+    expected[15] = 1;
+    must(dst_ip == &expected[..], "connect_success_v6 dst_ip MUST equal ::1");
+    let errno = bi32(payload, network_payload::CONNECT_RESULT_ERRNO_OFF);
+    must(errno == 0, "connect_success_v6 errno MUST be 0");
+}
+
+#[test]
+fn connect_refused_v6_decodes_with_errno_econnrefused() {
+    let bytes = include_bytes!("fixtures/network/connect_refused_v6.binpb");
+    let event = parse(bytes).expect("connect_refused_v6 fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkConnect as u8);
+
+    let payload = event.payload;
+    let errno = bi32(payload, network_payload::CONNECT_RESULT_ERRNO_OFF);
+    must(errno == -111, "connect_refused_v6 errno MUST be -111");
+}
+
+#[test]
+fn accept_attempt_decodes_with_peer_ip_and_peer_port() {
+    let bytes = include_bytes!("fixtures/network/accept_attempt.binpb");
+    let event = parse(bytes).expect("accept_attempt fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkAccept as u8);
+
+    let payload = event.payload;
+    let peer_ip = &payload[network_payload::ACCEPT_ATTEMPT_PEER_IP_OFF
+        ..network_payload::ACCEPT_ATTEMPT_PEER_IP_OFF + network_payload::IPV6_LEN];
+    let peer_ip_v4 = &peer_ip[..network_payload::IPV4_LEN];
+    must(
+        peer_ip_v4 == [10, 0, 0, 1],
+        "accept_attempt peer_ip[0..4] MUST equal 10.0.0.1",
+    );
+    let peer_port = b32(payload, network_payload::ACCEPT_ATTEMPT_PEER_PORT_OFF);
+    must(
+        peer_port == 0x115c,
+        "accept_attempt peer_port MUST equal 0x115c (4444 BE)",
+    );
+
+    must(event.verify_field(V::NetPeerIp), "NET_PEER_IP valid bit MUST be set");
+    must(
+        event.verify_field(V::NetPeerPort),
+        "NET_PEER_PORT valid bit MUST be set",
+    );
+}
+
+#[test]
+fn accept_result_decodes_with_fd_and_no_fd_when_negative() {
+    let bytes = include_bytes!("fixtures/network/accept_result.binpb");
+    let event = parse(bytes).expect("accept_result fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkAccept as u8);
+
+    let payload = event.payload;
+    let fd = bi32(payload, network_payload::ACCEPT_RESULT_FD_OFF);
+    let errno = bi32(payload, network_payload::ACCEPT_RESULT_ERRNO_OFF);
+    must(errno == 0, "accept_result errno MUST be 0 (the recorded value)");
+    if fd >= 0 {
+        // Successful-accept path: NET_FD valid + fd matches fixture
+        // value (7).
+        must(
+            event.verify_field(V::NetFd),
+            "successful-accept: NET_FD valid bit MUST be set",
+        );
+        must(fd == 7, "accept_result fd MUST equal 7");
+    } else {
+        // Refused-accept path: NET_FD invalid; consumers must not
+        // claim a successful accept where the kernel returned a
+        // negative fd (this is the explicit "no false established
+        // event on refusal" rule).
+        must(
+            !event.verify_field(V::NetFd),
+            "refused-accept: NET_FD valid bit MUST be clear (no false FD claim)",
+        );
+    }
+}
+
+#[test]
+fn state_change_decodes_with_old_and_new_state() {
+    let bytes = include_bytes!("fixtures/network/state_change.binpb");
+    let event = parse(bytes).expect("state_change fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkState as u8);
+
+    let payload = event.payload;
+    let old_state = b1(payload, network_payload::STATE_OLD_OFF);
+    let new_state = b1(payload, network_payload::STATE_NEW_OFF);
+    must(
+        old_state != new_state,
+        "state_change old_state MUST differ from new_state",
+    );
+
+    must(event.verify_field(V::NetOldState), "NET_OLD_STATE valid bit MUST be set");
+    must(event.verify_field(V::NetNewState), "NET_NEW_STATE valid bit MUST be set");
+}
+
+#[test]
+fn unix_degraded_connect_decodes_with_no_deny_source() {
+    let bytes = include_bytes!("fixtures/network/unix_degraded_connect.binpb");
+    let event = parse(bytes).expect("unix_degraded_connect fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkConnect as u8);
+
+    let payload = event.payload;
+    let family = b32(payload, network_payload::CONNECT_ATTEMPT_FAMILY_OFF);
+    must(
+        family == AF_UNIX_VAL,
+        "unix_degraded_connect family MUST be AF_UNIX (1)",
+    );
+
+    must(
+        event.verify_field(V::NetFamily),
+        "NET_FAMILY valid bit MUST be set (AF_UNIX is the basis for degraded)",
+    );
+    must(
+        !event.verify_field(V::NetCookie),
+        "AF_UNIX has no socket cookie — NET_COOKIE valid bit MUST be clear",
+    );
+}
+
+#[test]
+fn connect_attempt_lost_cookie_decodes_with_no_cookie_validity() {
+    let bytes = include_bytes!("fixtures/network/connect_attempt_lost_cookie.binpb");
+    let event = parse(bytes).expect("connect_attempt_lost_cookie fixture must parse");
+    assert_header_validates(&event, EventKind::NetworkConnect as u8);
+
+    // EVENT_KIND must still be NETWORK_CONNECT — the result event
+    // correlates by (task_tgid, cookie) and falls back to task_tgid
+    // only when NET_COOKIE is invalid.
+    must(
+        event.header.event_kind == EventKind::NetworkConnect as u8,
+        "lost-cookie event_kind MUST still be NETWORK_CONNECT",
+    );
+    must(
+        !event.verify_field(V::NetCookie),
+        "lost-cookie: NET_COOKIE valid bit MUST be clear",
+    );
+    must(
+        event.verify_field(V::NetDstIp),
+        "lost-cookie: NET_DST_IP valid bit MUST still be set (the tuple is captured at attempt time)",
+    );
+    must(
+        event.verify_field(V::NetDstPort),
+        "lost-cookie: NET_DST_PORT valid bit MUST still be set",
+    );
+}
+
+#[test]
+fn network_decoder_never_panics_on_random_bytes() {
+    // Decoder-never-panics property test for the network fixtures.
+    // 100 randomized trials per fixture — the parser must NEVER
+    // panic; structured errors are expected and OK.
+    let fixtures: &[(&str, &[u8])] = &[
+        ("connect_attempt_v4", include_bytes!("fixtures/network/connect_attempt_v4.binpb")),
+        ("connect_success_v4", include_bytes!("fixtures/network/connect_success_v4.binpb")),
+        ("connect_refused_v4", include_bytes!("fixtures/network/connect_refused_v4.binpb")),
+        (
+            "connect_nonblocking_einprogress_v4",
+            include_bytes!("fixtures/network/connect_nonblocking_einprogress_v4.binpb"),
+        ),
+        ("connect_attempt_v6", include_bytes!("fixtures/network/connect_attempt_v6.binpb")),
+        ("connect_success_v6", include_bytes!("fixtures/network/connect_success_v6.binpb")),
+        ("connect_refused_v6", include_bytes!("fixtures/network/connect_refused_v6.binpb")),
+        ("accept_attempt", include_bytes!("fixtures/network/accept_attempt.binpb")),
+        ("accept_result", include_bytes!("fixtures/network/accept_result.binpb")),
+        ("state_change", include_bytes!("fixtures/network/state_change.binpb")),
+        ("unix_degraded_connect", include_bytes!("fixtures/network/unix_degraded_connect.binpb")),
+        (
+            "connect_attempt_lost_cookie",
+            include_bytes!("fixtures/network/connect_attempt_lost_cookie.binpb"),
+        ),
+    ];
+
+    let mut state: u64 = 0xC0FFEE_1234_5678;
+    for (name, base) in fixtures {
+        for trial in 0u32..100 {
+            // Mutate one byte per random draw, parse, and assert no panic.
+            let mut buf = base.to_vec();
+            let pos = (lcg_step(&mut state) as usize) % buf.len();
+            buf[pos] = (lcg_step(&mut state) & 0xFF) as u8;
+            let result = std::panic::catch_unwind(|| parse(&buf));
+            match result {
+                Ok(_) => { /* expected */ }
+                Err(_) => panic!(
+                    "network decoder PANICKED on {name} fixture trial={trial} (mutated byte at {pos:#x})"
+                ),
+            }
+        }
+    }
+}

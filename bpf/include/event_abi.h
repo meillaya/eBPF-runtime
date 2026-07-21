@@ -65,7 +65,7 @@
  *      layout and the static_asserts in it).
  *   2. BPF sensor programs compiled with `clang -target bpf`
  *      (task 10's `bpf/sensors/*.bpf.c` sources include vmlinux.h
- *      first, which already provides `__u8/16/32/64`, `u8/16/32/64`,
+ *      first, which already provides `uint8_t/16/32/64`, `u8/16/32/64`,
  *      `size_t`, `intptr_t`, `uintptr_t`, `wchar_t`, and the POSIX
  *      aliases like `uint32_t` via `typedef u32 uint32_t;`).
  *   3. User-space Rust bindings (do not include this header; they
@@ -84,7 +84,7 @@
  * stdint.h is for the host ABI and is not appropriate.
  */
 #if defined(__BPF__)
-/* vmlinux.h has already provided __u8/16/32/64, u8/16/32/64,
+/* vmlinux.h has already provided uint8_t/16/32/64, u8/16/32/64,
  * size_t, intptr_t, uintptr_t, wchar_t, and the POSIX aliases. */
 #else
 #include <stddef.h>
@@ -171,6 +171,31 @@ enum kernel_v1_valid {
     KERNEL_V1_VALID_FILE_MODE       = 0x20000u,
     KERNEL_V1_VALID_FILE_DENY_SOURCE= 0x40000u,
     KERNEL_V1_VALID_FILE_ERRNO      = 0x80000u,
+    /* TASK-13 (network sensor) EXTENSION (2026-07-21):
+     *   Nine non-overlapping bits above the FILE_ERRNO bit (bit
+     *   19) reserved for network-sensor validity.
+     *
+     *   The task-13 brief listed the bits at sequential positions
+     *   0x010000..0x1000000 — but those positions are already
+     *   occupied by the file-sensor bits (FILE_FLAGS=0x10000,
+     *   FILE_MODE=0x20000, FILE_DENY_SOURCE=0x40000,
+     *   FILE_ERRNO=0x80000) added by task 12. Reusing those bits
+     *   would alias a file payload with a network payload and break
+     *   every existing producer (file.bpf.c already sets FILE_FLAGS
+     *   on every file_open event). The next genuinely free bits
+     *   are 0x100000..0x10000000 (bits 20..28). The Rust mirror in
+     *   `crates/event-abi/src/generated.rs` re-exports the same
+     *   set in lockstep so the SHA-256 manifest check the
+     *   event-abi build pipeline enforces still passes. */
+    KERNEL_V1_VALID_NET_DST_IP      = 0x00100000u,
+    KERNEL_V1_VALID_NET_DST_PORT    = 0x00200000u,
+    KERNEL_V1_VALID_NET_COOKIE      = 0x00400000u,
+    KERNEL_V1_VALID_NET_FAMILY      = 0x00800000u,
+    KERNEL_V1_VALID_NET_PEER_IP     = 0x01000000u,
+    KERNEL_V1_VALID_NET_PEER_PORT   = 0x02000000u,
+    KERNEL_V1_VALID_NET_FD          = 0x04000000u,
+    KERNEL_V1_VALID_NET_OLD_STATE   = 0x08000000u,
+    KERNEL_V1_VALID_NET_NEW_STATE   = 0x10000000u,
 };
 
 /* Deny-source enum for FILE_OPEN events. Distinguishes OWN_LSM
@@ -205,20 +230,140 @@ enum kernel_v1_file_deny_source {
 #define KERNEL_V1_FILE_RESULT_HAS_ERRNO ((uint8_t)0x01u)
 #define KERNEL_V1_FILE_RESULT_OWN_LSM  ((uint8_t)0x02u)  /* reserved; NEVER set by file.bpf.c */
 
+/* Network-result flag bits encoded into the NETWORK_* payload byte 0
+ * (`flags` payload byte, NOT the kernel_v1_header `flags` byte — each
+ * sensor reserves its own flag-byte namespace). TASK-13 reserves two
+ * bits: NONBLOCKING records that the O_NONBLOCK file status flag was
+ * observed on the file descriptor at connect-issue time, and
+ * EINPROGRESS records that the syscall exited with -EINPROGRESS
+ * (the documented nonblocking-connect return code). Consumers MUST
+ * ignore EINPROGRESS for "connect succeeded" classification — the
+ * result event is the source of truth, not the flag. */
+#define KERNEL_V1_NET_RESULT_FLAG_NONBLOCKING ((uint8_t)0x01u)
+#define KERNEL_V1_NET_RESULT_FLAG_EINPROGRESS ((uint8_t)0x02u)
+
+/* TCP socket-state enum (u8 values packed into the NETWORK_STATE
+ * payload). These mirror the kernel's `enum tcp_state` from
+ * include/net/tcp_states.h so a consumer reading the u8 byte can map
+ * it to the canonical state name. The integer values are stable
+ * across C/Rust builds. Other IP-protocol sockets (UDP, RAW) carry
+ * the value TCP_NONE (0xff) for "not a TCP socket" in new_state
+ * so the consumer can distinguish lifecycle states that don't apply
+ * to TCP. */
+enum kernel_v1_tcp_state {
+    KERNEL_V1_TCP_ESTABLISHED = 1,
+    KERNEL_V1_TCP_SYN_SENT   = 2,
+    KERNEL_V1_TCP_SYN_RECV   = 3,
+    KERNEL_V1_TCP_FIN_WAIT1  = 4,
+    KERNEL_V1_TCP_FIN_WAIT2  = 5,
+    KERNEL_V1_TCP_TIME_WAIT  = 6,
+    KERNEL_V1_TCP_CLOSE     = 7,
+    KERNEL_V1_TCP_CLOSE_WAIT= 8,
+    KERNEL_V1_TCP_LAST_ACK  = 9,
+    KERNEL_V1_TCP_LISTEN    = 10,
+    KERNEL_V1_TCP_CLOSING   = 11,
+    KERNEL_V1_TCP_NEW_SYN_RECV = 12,
+    KERNEL_V1_TCP_NONE      = 0xffu,
+};
+
+/* Network-payload layout constants (must match the Rust
+ * `network_payload` module in
+ * `crates/sensor-tests/tests/process_events.rs`). */
+#define KERNEL_V1_NET_IPV6_LEN       ((uint32_t)16u)
+#define KERNEL_V1_NET_IPV4_LEN       ((uint32_t)4u)
+#define KERNEL_V1_NET_MAX_FAMILY     ((uint32_t)2u)
+
+/* Each network sub-event carries a bounded payload. The sensor
+ * always writes 80 bytes — the union of every sub-event's field set —
+ * so the consumer can dispatch on `event_kind` and read the relevant
+ * fields without first measuring the payload length. Unused bytes in
+ * any one event are zero and the corresponding validity bit is clear. */
+#define KERNEL_V1_NET_PAYLOAD_LEN ((uint32_t)80u)
+
+/* Network-payload layout: KERNEL_V1_NET_PAYLOAD_LEN bytes that
+ * always carry the union of every network sub-event's fields. The
+ * attempt/result/state discriminators live in the per-record
+ * header (`event_kind`), so a single uniform size is adequate. The
+ * consumer dispatches on `header.event_kind` and reads the
+ * relevant sub-fields; unused fields in any one event are zero and
+ * their corresponding validity bit is clear. */
+struct network_connect_attempt_payload {
+    uint32_t family;                /* off  0: AF_INET=2 or AF_INET6=10 */
+    uint32_t _pad0;
+    uint8_t  dst_ip[KERNEL_V1_NET_IPV6_LEN]; /* off  8: 16-byte BE; v4 in low 4 bytes */
+    uint32_t dst_port;              /* off 24: network byte order */
+} __attribute__((packed));
+
+struct network_connect_result_payload {
+    uint64_t cookie;                /* off  0: socket cookie */
+    uint32_t family;                /* off  8 */
+    uint32_t _pad0;
+    uint8_t  dst_ip[KERNEL_V1_NET_IPV6_LEN]; /* off 16 */
+    uint32_t dst_port;              /* off 32: network byte order */
+    int32_t errno_;                /* off 36: raw errno (0 on success) */
+    uint8_t  flags;                 /* off 40: NONBLOCKING / EINPROGRESS bits */
+    uint8_t  _pad1[3];              /* off 41 */
+} __attribute__((packed));
+
+struct network_accept_attempt_payload {
+    uint8_t  peer_ip[KERNEL_V1_NET_IPV6_LEN]; /* off  0 */
+    uint32_t peer_port;             /* off 16: network byte order */
+    uint32_t _pad0;
+} __attribute__((packed));
+
+struct network_accept_result_payload {
+    uint64_t cookie;                /* off  0: socket cookie */
+    uint32_t family;                /* off  8 */
+    uint32_t _pad0;
+    uint8_t  peer_ip[KERNEL_V1_NET_IPV6_LEN]; /* off 16 */
+    uint32_t peer_port;             /* off 32: network byte order */
+    int32_t errno_;                /* off 36: raw errno (0 on success) */
+    int32_t fd;                    /* off 40: returned fd (>=0 only); per-task brief */
+    uint32_t _pad1;                 /* off 44 */
+} __attribute__((packed));
+
+struct network_state_payload {
+    uint64_t cookie;                /* off  0: socket cookie */
+    uint32_t family;                /* off  8 */
+    uint32_t _pad0;
+    uint8_t  old_state;             /* off 16: kernel_v1_tcp_state */
+    uint8_t  new_state;             /* off 17 */
+    uint8_t  _pad1[6];              /* off 18 */
+} __attribute__((packed));
+
+/* Single union a record can carry. The discriminator is the
+ * header `event_kind` byte, so the union is illustrative for
+ * type-directed access; the BPF serializer writes the
+ * network_connect_attempt / network_connect_result /
+ * network_accept_attempt / network_accept_result /
+ * network_state variant directly into the same record. */
+struct kernel_v1_network_payload {
+    union {
+        struct network_connect_attempt_payload network_connect_attempt;
+        struct network_connect_result_payload network_connect_result;
+        struct network_accept_attempt_payload  network_accept_attempt;
+        struct network_accept_result_payload  network_accept_result;
+        struct network_state_payload          network_state;
+        uint8_t raw[KERNEL_V1_NET_PAYLOAD_LEN];
+    };
+} __attribute__((packed));
+
 /* Required bits for a v1 process event: pid_tgid + cgroup_id + boot_id
  * + task_start. Tests use this to assert minimum validity. */
 #define KERNEL_V1_VALID_REQUIRED                                             \
     ((uint32_t)(KERNEL_V1_VALID_BOOT_ID | KERNEL_V1_VALID_CGROUP_ID          \
                 | KERNEL_V1_VALID_PID_TGID | KERNEL_V1_VALID_TASK_START))
 
-/* v1 producer MUST NOT set bits above 19.
+/* v1 producer MUST NOT set bits above bit 28.
  *
  * WAS: 0x00007FFF (15 bits). Widened by task 12 to admit the five
- * FILE_* validity bits at 0x8000..0x80000 (bits 15..19). The mask
- * remains tight — only the legitimately-reserved identity bits and
- * the file-specific bits are admissible — so a future ABI major
- * bump is the only path that opens more bits. */
-#define KERNEL_V1_VALID_V1_ALLOWED_MASK ((uint32_t)0x000FFFFFu)
+ * FILE_* validity bits at 0x8000..0x80000 (bits 15..19). Widened
+ * again by task 13 to admit the nine NET_* validity bits at
+ * 0x100000..0x10000000 (bits 20..28). The mask remains tight —
+ * only the legitimately-reserved identity bits and the file-
+ * specific / network-specific bits are admissible — so a future
+ * ABI major bump is the only path that opens more bits. */
+#define KERNEL_V1_VALID_V1_ALLOWED_MASK ((uint32_t)0x1FFFFFFFu)
 
 /* flags byte bit assignments. trunc and redacted are independent. */
 #define KERNEL_V1_EVENT_FLAG_TRUNC    ((uint8_t)0x01u)
