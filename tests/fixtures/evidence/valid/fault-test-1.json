@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "lsm_fail_open",
+  "subject": {
+    "id": "agent/node-a",
+    "role": "node-agent",
+    "cluster": "us1"
+  },
+  "fault": {
+    "kind": "kill_switch",
+    "params": { "via": "grpc" }
+  },
+  "expected": "deny_disabled_within_5000ms",
+  "observed": "deny_disabled_within_312ms",
+  "pass_fail": true,
+  "replay_cmd": "scripts/kill-switch.sh --via grpc --subject agent/node-a"
+}

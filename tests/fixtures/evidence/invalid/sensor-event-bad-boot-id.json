@@ -1,0 +1,37 @@
+{
+  "boot_id": "not-a-uuid",
+  "node_name": "priv-runner-01",
+  "agent_generation": "agent-core@0.1.0+6bc1e73",
+  "event_id": "11111111-2222-3333-4444-555555555555/process.bpf/42",
+  "schema_version": 1,
+  "bpf_link_id": "12345",
+  "sensor": "process.bpf",
+  "event": "EXEC_RESULT",
+  "kfuncs_used": ["bpf_task_start_time"],
+  "valids": {
+    "cgroup_id": true,
+    "task_start_time_ns": true
+  },
+  "seq": 42,
+  "ts_monotonic_ns": 1234567890123,
+  "ts_wall": "2026-07-21T00:00:00.123Z",
+  "pid_tgid": 281474976710656,
+  "task_start_time_ns": 1234560000000,
+  "cgroup_id": 9999,
+  "mount_ns_id": 0,
+  "pid_ns_id": 4026531836,
+  "net_ns_id": 4026531992,
+  "user_ns_id": 0,
+  "uts_ns_id": 0,
+  "ipc_ns_id": 0,
+  "time_ns_id": 0,
+  "payload": {
+    "kind": "exec_result_args",
+    "json": {
+      "argv0": "/usr/bin/true",
+      "argv_len": 13,
+      "truncated": false,
+      "result": "SUCCESS"
+    }
+  }
+}

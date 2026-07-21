@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kernel-v1.local/schemas/evidence-fault-test.v1.schema.json",
+  "version": 1,
+  "title": "kernel-v1 fault-test evidence (v1)",
+  "description": "Structured result of a single auth/durability/protocol fault-injection case (SPIRE SVID rotation, OIDC/RBAC negative, gRPC backpressure, Kafka/ClickHouse durability, LSM fail-open, etc.). Each row binds the unit under test, the injected fault, the expected behaviour, the observed behaviour, a pass/fail verdict, and an optional replay command so a reviewer can reproduce the exact case.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "subject",
+    "fault",
+    "expected",
+    "observed",
+    "pass_fail"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Bumped on backward-incompatible shape changes. Currently always 1.",
+      "const": 1
+    },
+    "kind": {
+      "description": "Fault-test class. Stable set: spire_svid_rotation, oidc_rbac, grpc_backpressure, kafka_durability, clickhouse_durability, sqlcipher_durability, lsm_fail_open, policy_replay, policy_stale, policy_disconnect, ring_full, loader_crash, service_restart, host_reboot, rollback.",
+      "type": "string",
+      "enum": [
+        "spire_svid_rotation",
+        "oidc_rbac",
+        "grpc_backpressure",
+        "kafka_durability",
+        "clickhouse_durability",
+        "sqlcipher_durability",
+        "lsm_fail_open",
+        "policy_replay",
+        "policy_stale",
+        "policy_disconnect",
+        "ring_full",
+        "loader_crash",
+        "service_restart",
+        "host_reboot",
+        "rollback"
+      ]
+    },
+    "subject": {
+      "description": "The unit under test. Always an object so later tests can add fields without bumping the schema.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "description": "Stable subject identifier (e.g. 'spire-agent/us1', 'kafka-broker-01', 'agent/node-a').",
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "description": "Subject role (e.g. 'spire-agent', 'kafka-broker', 'control-plane').",
+          "type": "string"
+        },
+        "cluster": {
+          "description": "Cluster identifier when the subject is per-cluster.",
+          "type": "string"
+        }
+      }
+    },
+    "fault": {
+      "description": "Injected fault. 'kind' is a stable token (e.g. 'kill_broker', 'revoke_svid', 'partition_stream', 'fill_disk'); 'params' carries fault-kind-specific arguments. The pair (kind, params) MUST be enough for the replay_cmd to reproduce the case.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "params": {
+          "description": "Free-form parameters for the fault. Schema intentionally loose to accommodate new fault kinds without bumping the version.",
+          "type": "object"
+        }
+      }
+    },
+    "expected": {
+      "description": "Expected outcome as a stable string (e.g. 'deny_disabled_within_5000ms', 'grpc_deadline_observed', 'replay_rejected_with_stale_digest', 'rollback_converges_to_lkg'). Reviewers MUST be able to test the observed string against this expectation without parsing natural language.",
+      "type": "string",
+      "minLength": 1
+    },
+    "observed": {
+      "description": "Observed outcome as a stable string. Must be one of the strings documented for the fault kind so a reviewer can compare them by exact-match.",
+      "type": "string",
+      "minLength": 1
+    },
+    "pass_fail": {
+      "description": "True iff observed satisfies the contract documented for (kind, expected). The test runner is responsible for the comparison; reviewers can re-run replay_cmd to verify.",
+      "type": "boolean"
+    },
+    "replay_cmd": {
+      "description": "Optional shell command that, when executed, reproduces the fault and observes the same outcome. Reviewers re-run this in CI to prove the verdict is not flaky.",
+      "type": "string"
+    }
+  },
+  "examples": [
+    {
+      "schema_version": 1,
+      "kind": "spire_svid_rotation",
+      "subject": {
+        "id": "spire-agent/node-a",
+        "role": "spire-agent",
+        "cluster": "us1"
+      },
+      "fault": {
+        "kind": "revoke_svid",
+        "params": { "selector_id": "spiffe://kernel-v1.local/ns/default/sa/node-agent", "ttl_seconds": 60 }
+      },
+      "expected": "next_svid_observed_within_30000ms",
+      "observed": "next_svid_observed_within_18421ms",
+      "pass_fail": true,
+      "replay_cmd": "scripts/spire-rotate.sh --selector-id spiffe://kernel-v1.local/ns/default/sa/node-agent --ttl 60"
+    },
+    {
+      "schema_version": 1,
+      "kind": "lsm_fail_open",
+      "subject": { "id": "agent/node-a", "role": "node-agent" },
+      "fault": { "kind": "kill_switch", "params": { "via": "grpc" } },
+      "expected": "deny_disabled_within_5000ms",
+      "observed": "deny_disabled_within_312ms",
+      "pass_fail": true,
+      "replay_cmd": "scripts/kill-switch.sh --via grpc --subject agent/node-a"
+    }
+  ]
+}

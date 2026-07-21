@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kernel-v1.local/schemas/evidence-task.v1.schema.json",
+  "version": 1,
+  "title": "kernel-v1 task evidence (v1)",
+  "description": "Machine-verifiable evidence ledger entry for a single task execution. Binds task identity, plan, session, commit, timestamps, verdict, every command and its exit status, environment hashes, written assertions, and artifact digests. Reviewers must reject any acceptance claim that is not anchored to a conforming artifact of this shape. Prose logs, screenshots, or narrative summaries alone never constitute passing evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "plan",
+    "session_id",
+    "started_at",
+    "verdict",
+    "commands",
+    "assertions",
+    "environment",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Bumped on backward-incompatible shape changes. Currently always 1.",
+      "const": 1
+    },
+    "task_id": {
+      "description": "Plan task identifier. Format: task-<n>[-<slug>].",
+      "type": "string",
+      "pattern": "^task-[0-9]+(-[a-z0-9-]+)?$"
+    },
+    "plan": {
+      "description": "Repo-relative path to the approved Prometheus plan that owns this task.",
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "description": "Stable session identifier from the agent/orchestrator that produced this evidence row.",
+      "type": "string",
+      "minLength": 1
+    },
+    "commit": {
+      "description": "Optional 40-char hex Git commit hash that introduced the change. Required when evidence is captured post-commit.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "started_at": {
+      "description": "RFC3339 wall-clock timestamp marking when the task started.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "description": "RFC3339 wall-clock timestamp marking when the task ended. Optional until the run is complete.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "verdict": {
+      "description": "Final verdict on the task. 'confirmed' iff every acceptance criterion and QA scenario passed; 'false-positive' iff a claimed pass was disproved; 'needs-fix' iff a defect blocks acceptance; 'needs-human-review' iff a human operator must decide; 'inconclusive' iff evidence is insufficient.",
+      "type": "string",
+      "enum": ["confirmed", "false-positive", "needs-fix", "needs-human-review", "inconclusive"]
+    },
+    "commands": {
+      "description": "Ordered list of every shell command the task ran, with the expected and observed exit status plus truncated stdout/stderr. Reviewers MUST be able to replay any command from the recorded cmd + exit_code and reproduce the same verdict.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "cmd",
+          "expected_exit_code",
+          "actual_exit_code",
+          "stdout_excerpt",
+          "stderr_excerpt"
+        ],
+        "properties": {
+          "name": {
+            "description": "Short human-readable label (e.g. 'acceptance_valid_dir').",
+            "type": "string",
+            "minLength": 1
+          },
+          "cmd": {
+            "description": "Exact shell command as invoked (argv plus arguments, no shell metachars unless quoted).",
+            "type": "string",
+            "minLength": 1
+          },
+          "expected_exit_code": {
+            "description": "Exit status the acceptance criterion publishes for this command.",
+            "type": "integer"
+          },
+          "actual_exit_code": {
+            "description": "Exit status actually observed when the command was run for evidence.",
+            "type": "integer"
+          },
+          "stdout_excerpt": {
+            "description": "Truncated stdout (capped at 4096 chars) for reviewers; full log stored in <attemptDir>/.",
+            "type": "string",
+            "maxLength": 4096
+          },
+          "stderr_excerpt": {
+            "description": "Truncated stderr (capped at 4096 chars) for reviewers; full log stored in <attemptDir>/.",
+            "type": "string",
+            "maxLength": 4096
+          }
+        }
+      }
+    },
+    "assertions": {
+      "description": "Human-readable assertion strings. Each entry asserts exactly one observable (e.g. 'task-1.json validates against evidence-task.v1.schema.json'). Reviewers must be able to map each assertion to a recorded command and its exit status.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "environment": {
+      "description": "Reproducible environment snapshot. Records kernel/arch/os identity plus every toolchain hash required to re-derive the environment deterministically. Nested objects intentionally keep additionalProperties=true to accommodate host variation without bumping the schema.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kernel_version",
+        "arch",
+        "os_release",
+        "kernel_btf_sha256",
+        "cachix_devenv_version",
+        "libbpf_soname",
+        "bpftool_version",
+        "clang_version",
+        "rustc_version",
+        "sqlcipher_version",
+        "bpf_lsm_active",
+        "unprivileged_bpf_disabled"
+      ],
+      "properties": {
+        "kernel_version": {
+          "description": "Kernel release string from `uname -r`.",
+          "type": "string",
+          "minLength": 1
+        },
+        "arch": {
+          "description": "Architecture string from `uname -m`.",
+          "type": "string",
+          "minLength": 1
+        },
+        "os_release": {
+          "description": "Pretty OS release string from /etc/os-release PRETTY_NAME or equivalent.",
+          "type": "string",
+          "minLength": 1
+        },
+        "kernel_btf_sha256": {
+          "description": "Lower-case hex SHA-256 of /sys/kernel/btf/vmlinux on the host that produced this evidence.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "cachix_devenv_version": {
+          "description": "Pinned devenv/Cachix version recorded in devenv.lock; 'unpinned' when no lock is present.",
+          "type": "string",
+          "minLength": 1
+        },
+        "libbpf_soname": {
+          "description": "libbpf SONAME reported by the toolchain (e.g. 'libbpf.so.1'); 'unavailable' when not installed.",
+          "type": "string",
+          "minLength": 1
+        },
+        "bpftool_version": {
+          "description": "Output of `bpftool version` (first line); 'unavailable' when not installed.",
+          "type": "string",
+          "minLength": 1
+        },
+        "clang_version": {
+          "description": "Output of `clang --version` (first line); 'unavailable' when not installed.",
+          "type": "string",
+          "minLength": 1
+        },
+        "rustc_version": {
+          "description": "Output of `rustc --version` (first line); 'unavailable' when not installed.",
+          "type": "string",
+          "minLength": 1
+        },
+        "sqlcipher_version": {
+          "description": "Output of `sqlcipher --version`; 'unavailable' when not installed.",
+          "type": "string",
+          "minLength": 1
+        },
+        "bpf_lsm_active": {
+          "description": "True iff 'bpf' is in /sys/kernel/security/lsm on the host that produced this evidence.",
+          "type": "boolean"
+        },
+        "unprivileged_bpf_disabled": {
+          "description": "Value of /proc/sys/kernel/unprivileged_bpf_disabled: 0 = unprivileged BPF allowed, 1 = temporarily disabled, 2 = permanently disabled.",
+          "type": "integer",
+          "enum": [0, 1, 2]
+        }
+      }
+    },
+    "artifacts": {
+      "description": "Every artifact the task produced that a reviewer must inspect (schemas, fixtures, logs, scripts). Each entry binds a relative path to its SHA-256, byte size, and kind so reviewers can prove integrity.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "size", "kind"],
+        "properties": {
+          "path": {
+            "description": "Repo-relative path to the artifact.",
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "description": "Lower-case hex SHA-256 of the file at path.",
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "size": {
+            "description": "Byte size of the file at path.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "kind": {
+            "description": "Artifact kind for downstream tooling.",
+            "type": "string",
+            "enum": ["text", "json", "prom", "html", "csv", "md", "log", "bin"]
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema_version": 1,
+      "task_id": "task-1",
+      "plan": ".omo/plans/ebpf-runtime-security-observability.md",
+      "session_id": "ses_example0000000000000000",
+      "commit": "6bc1e732929f08263b4777855410deaf117ea929",
+      "started_at": "2026-07-21T00:00:00Z",
+      "ended_at": "2026-07-21T00:00:30Z",
+      "verdict": "confirmed",
+      "commands": [
+        {
+          "name": "workspace_init",
+          "cmd": "git rev-parse --is-inside-work-tree",
+          "expected_exit_code": 0,
+          "actual_exit_code": 0,
+          "stdout_excerpt": "true\n",
+          "stderr_excerpt": ""
+        }
+      ],
+      "assertions": [
+        "git rev-parse --is-inside-work-tree printed 'true'"
+      ],
+      "environment": {
+        "kernel_version": "7.1.3-2-cachyos",
+        "arch": "x86_64",
+        "os_release": "CachyOS Linux",
+        "kernel_btf_sha256": "cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37",
+        "cachix_devenv_version": "unpinned",
+        "libbpf_soname": "libbpf.so.1",
+        "bpftool_version": "7.5.0",
+        "clang_version": "clang version 19.1.7",
+        "rustc_version": "rustc 1.95.0",
+        "sqlcipher_version": "SQLCipher version 4.5.4",
+        "bpf_lsm_active": true,
+        "unprivileged_bpf_disabled": 2
+      },
+      "artifacts": [
+        {
+          "path": "Cargo.toml",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "size": 256,
+          "kind": "text"
+        }
+      ]
+    }
+  ]
+}

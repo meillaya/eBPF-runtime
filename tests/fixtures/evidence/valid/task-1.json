@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "task_id": "task-1",
+  "plan": ".omo/plans/ebpf-runtime-security-observability.md",
+  "session_id": "ses_kernel_v1_task5_evidence_ledger",
+  "commit": "6bc1e732929f08263b4777855410deaf117ea929",
+  "started_at": "2026-07-21T00:00:00Z",
+  "ended_at": "2026-07-21T00:05:00Z",
+  "verdict": "confirmed",
+  "commands": [
+    {
+      "name": "workspace_init",
+      "cmd": "git rev-parse --is-inside-work-tree",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "true\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "cargo_metadata",
+      "cmd": "cargo metadata --no-deps --format-version 1",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "{\"packages\":[],\"workspace_members\":[],\"workspace_default_members\":[],\"resolve_nodes\":[],\"target_directory\":\"/home/mei/projects/kernels/kernel-v1/target\",\"workspace_root\":\"/home/mei/projects/kernels/kernel-v1\",\"version\":1}\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "license_layout",
+      "cmd": "test -f LICENSE-APACHE -a -f LICENSE-MIT -a -d bpf -a -d web -a -d deploy",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": ""
+    }
+  ],
+  "assertions": [
+    "git rev-parse --is-inside-work-tree printed 'true'",
+    "cargo metadata --no-deps --format-version 1 exited 0",
+    "LICENSE-APACHE and LICENSE-MIT exist; bpf/, web/, deploy/ directories exist",
+    "synthetic task evidence validates against evidence-task.v1.schema.json"
+  ],
+  "environment": {
+    "kernel_version": "7.1.3-2-cachyos",
+    "arch": "x86_64",
+    "os_release": "CachyOS Linux (rolling)",
+    "kernel_btf_sha256": "cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37",
+    "cachix_devenv_version": "unpinned",
+    "libbpf_soname": "libbpf.so.1",
+    "bpftool_version": "7.5.0",
+    "clang_version": "clang version 19.1.7",
+    "rustc_version": "rustc 1.95.0 (18b6e5d51 2026-01-29)",
+    "sqlcipher_version": "SQLCipher version 4.5.4",
+    "bpf_lsm_active": true,
+    "unprivileged_bpf_disabled": 2
+  },
+  "artifacts": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "4f2c696f8ba696bd3633c54f9738345c17711c5d7edf028ece484e939463a4e0",
+      "size": 50,
+      "kind": "text"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "132fbc7d82a416a9225e75a2a46d6cf851d4ce4203a2308fa6981688cb3139bf",
+      "size": 586,
+      "kind": "text"
+    },
+    {
+      "path": "README.md",
+      "sha256": "99a7e5669c890da48c3ccb727d43b7aa27fcdfec9e02f24524e8530c04105833",
+      "size": 5647,
+      "kind": "md"
+    },
+    {
+      "path": "schemas/evidence-task.v1.schema.json",
+      "sha256": "27c06f8fade338b4a9c9d7ad0f71185ca1c4902861365d031c0b5c7059100cf0",
+      "size": 10658,
+      "kind": "json"
+    },
+    {
+      "path": "scripts/validate-evidence.sh",
+      "sha256": "e43725c6c31ed9272a8756d71e4df3f1aea457db8b022c112c8043110348cb8d",
+      "size": 8086,
+      "kind": "text"
+    }
+  ]
+}
