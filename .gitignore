@@ -1,0 +1,33 @@
+# Build artifacts
+/target/
+**/target/
+
+# devenv / direnv / preflight caches
+.devenv/
+.direnv/
+.preflight/
+
+# start-work / boulder artifacts (task 1+ workflow scratch)
+/.omo/start-work/
+/.omo/boulder.json
+
+# Prometheus orchestration session bookkeeping (ephemeral, not part of the workspace)
+/.omo/run-continuation/
+
+# Nix `nix build` / `nix run` symlink outputs
+result
+result-*
+
+# Editor / IDE / OS metadata
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Web build outputs (UI package)
+/web/node_modules/
+/web/dist/
+
+# codegraph cache symlink (per-host, not part of the workspace)
+/.codegraph
