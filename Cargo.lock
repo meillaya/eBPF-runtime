@@ -177,6 +177,10 @@ version = "0.1.0"
 dependencies = [
  "bpf-build",
  "libbpf-rs",
+ "libc",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
 ]
 
 [[package]]

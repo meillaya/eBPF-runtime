@@ -4,34 +4,67 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.95.0"
 description = "kernel-v1 BPF object loader: opens embedded per-arch CO-RE objects and prepares them for the load/attach manager (task 18)."
-# GPL-2.0-only is the kernel-side license policy that this crate
-# preserves. The crate is the user-space loader that hosts the BPF
-# program objects at runtime; the kernel's BPF licensing rules
-# require any LSM- or struct_ops-attached program to be
-# GPL-compatible, and we mirror that on the user-space side that
-# loads them. See README.md §Licensing & SPDX policy for the
-# full rationale.
-license = "GPL-2.0-only"
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
+# User-space Rust remains under the dual Apache-2.0 OR MIT terms
+# declared at the repo root. The kernel-side BPF programs the
+# loader hosts are separately governed by their own SPDX
+# identifiers (GPL-2.0-only for LSM/struct_ops; tracing/perf-event
+# hooks accept the more permissive MIT/Apache-2.0). The README
+# §Licensing & SPDX policy documents the split; the loader itself
+# never embeds a BPF program's license text, only its bytes.
+license = "Apache-2.0 OR MIT"
 publish = false
 
 [lib]
 name = "bpf_loader"
 path = "src/lib.rs"
 
+[[bin]]
+# Emits the per-sensor CoverageMatrix JSON document. Wired into
+# `cargo run -p bpf-loader --bin coverage-as-json`, which task 18
+# uses as both the happy-QA check (jq on schema_version == 1) and
+# the loader state inspector on a privileged runner (task 53+).
+# Output is the canonical contract that
+# `bench/coverage-matrix.json` must match at release time.
+name = "coverage-as-json"
+path = "src/bin/coverage_as_json.rs"
+
 [features]
 default = []
-# The default `libbpf-rs` feature pulls in `libbpf-sys/vendored-libbpf`,
-# which builds the vendored libbpf C library at compile time. We
-# pin `vendored` to true so the loader is fully self-contained on
-# any host with a C compiler (rustup brings cc).
+# The `libbpf-rs` crate is built with the `vendored` feature so the
+# runtime loader compiles a hermetic copy of libbpf at build time
+# instead of linking against the host's system libbpf.so.1. This
+# keeps the loader's verifier-ABI stable across kernel versions
+# and across hosts that ship an older system libbpf.
 vendored-libbpf = ["libbpf-rs/vendored"]
 
 [dependencies]
 # libbpf-rs 0.26 is the pinned version; it must match
 # libbpf-cargo 0.26 in crates/bpf-build so the runtime loader and
 # the build pipeline share the same libbpf struct ABI.
-libbpf-rs = "0.26"
+libbpf-rs = { version = "0.26", features = ["vendored"] }
 bpf-build = { path = "../bpf-build" }
+
+# libc is pulled in so the loader can issue direct syscalls (for
+# example to query /proc/self/status or to manage BPF-related file
+# descriptors when libbpf-rs cannot). The vendored-feature build
+# chain brings libc transitively; declaring it explicitly makes the
+# loader's contract with nix-shaped syscalls auditable.
+libc = "0.2"
+
+# serde + serde_json power the CoverageMatrix JSON contract. The
+# schema is documented as part of the release-time contract and is
+# pinned via the schema_anchor in every task evidence row.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# thiserror carries the typed `LoaderError` enum so callers get a
+# `Display` impl without depending on libbpf-rs's opaque error
+# directly. The library stays free of `unwrap`/`panic` (plan guardrail).
+# Pinned to the 2.x line so the workspace's `deny.toml` doesn't add a
+# `multiple-versions` warning (libbpf-cargo already pulls 2.0.x transitively).
+thiserror = "2"
 
 # bpf-build is also a build-time dependency so `bpf-loader/build.rs`
 # can call `bpf_build::build()` to ensure the per-arch .o files
@@ -39,3 +72,12 @@ bpf-build = { path = "../bpf-build" }
 # embeds them via `include_bytes!`.
 [build-dependencies]
 bpf-build = { path = "../bpf-build" }
+
+# The integration harness lives in `tests/loader.rs`. It exercises
+# the CoverageMatrix contract, the partial-failure cleanup path,
+# and the never-pin-deny-links invariant — the three behavioural
+# clauses the plan named as "must" for task 18.
+[dev-dependencies]
+# serde_json is needed for the JSON-schema assertion in the
+# `coverage_matrix_serializes_to_valid_json` host-side test.
+serde_json = "1"
