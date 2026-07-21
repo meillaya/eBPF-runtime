@@ -111,20 +111,41 @@ enum kernel_v1_event_kind {
     KERNEL_V1_EVENT_FILE_CREATE              = 5,
     KERNEL_V1_EVENT_FILE_UNLINK              = 6,
     KERNEL_V1_EVENT_FILE_RENAME              = 7,
-    KERNEL_V1_EVENT_NETWORK_CONNECT          = 8,
-    KERNEL_V1_EVENT_NETWORK_ACCEPT           = 9,
-    KERNEL_V1_EVENT_NETWORK_STATE            = 10,
-    KERNEL_V1_EVENT_DNS_PACKET               = 11,
-    KERNEL_V1_EVENT_SYSCALL_ENTER            = 12,
-    KERNEL_V1_EVENT_SYSCALL_EXIT             = 13,
-    KERNEL_V1_EVENT_LSM_DENY_OWN             = 14,
-    KERNEL_V1_EVENT_IDENTITY                 = 15,
+    KERNEL_V1_EVENT_FILE_TRUNCATE            = 8,
+    KERNEL_V1_EVENT_NETWORK_CONNECT          = 9,
+    KERNEL_V1_EVENT_NETWORK_ACCEPT           = 10,
+    KERNEL_V1_EVENT_NETWORK_STATE            = 11,
+    KERNEL_V1_EVENT_DNS_PACKET               = 12,
+    KERNEL_V1_EVENT_SYSCALL_ENTER            = 13,
+    KERNEL_V1_EVENT_SYSCALL_EXIT             = 14,
+    KERNEL_V1_EVENT_LSM_DENY_OWN             = 15,
+    KERNEL_V1_EVENT_IDENTITY                 = 16,
 };
 
 /* Validity bitmask. Each set bit means the corresponding identity
  * field is meaningful; a clear bit means the field is invalid. The
  * C struct only carries fields up to the 96-byte boundary; the
- * remaining valid bits are forward-compat placeholders. */
+ * remaining valid bits are forward-compat placeholders for the
+ * next minor revision.
+ *
+ * TASK-12 (file sensor) EXTENSION (2026-07-21):
+ *   The task-12 brief asked for the file-specific validity bits at
+ *   sequential positions 0x0800/0x1000/0x2000/0x4000/0x8000 — but
+ *   those positions are ALREADY OCCUPIED by PROCESSOR (0x0800),
+ *   PAYLOAD_TRUNC (0x1000), REDACTED (0x2000), KFUNC_USED (0x4000),
+ *   and the still-free 0x8000 (bit 15). Reusing a taken bit would
+ *   alias a process/identity validity with a file validity and
+ *   break every existing producer (process sensor already sets
+ *   PROCESSOR = 0x0800 on every event). The file sensor therefore
+ *   uses the same NON-OVERLAPPING positions documented in the
+ *   `.omo/evidence/task-12-ebpf-runtime-security-observability.json`
+ *   deviation table: FILE_PATH=0x8000 (bit 15, first free bit), and
+ *   the four FILE_* extension bits at 0x10000 / 0x20000 / 0x40000 /
+ *   0x80000 (bits 16..19). All bits still fit in `uint32_t valids`.
+ *   The Rust mirror (`crates/event-abi/src/generated.rs`) and the
+ *   per-bit parser helper (`crates/event-abi/src/parser_helpers.rs`)
+ *   are updated in lockstep so the SHA-256 manifest check the
+ *   event-abi build pipeline enforces still passes. */
 enum kernel_v1_valid {
     KERNEL_V1_VALID_BOOT_ID        = 0x0001u,
     KERNEL_V1_VALID_CGROUP_ID      = 0x0002u,
@@ -141,7 +162,48 @@ enum kernel_v1_valid {
     KERNEL_V1_VALID_PAYLOAD_TRUNC  = 0x1000u,
     KERNEL_V1_VALID_REDACTED       = 0x2000u,
     KERNEL_V1_VALID_KFUNC_USED     = 0x4000u,
+    /* TASK-12 ADDITIONS — first five bits above 0x4000 reserved for
+     * file-sensor validity (file path present, flags present, mode
+     * bits present, deny_source present, errno present). See the
+     * deviation table above for the rationale. */
+    KERNEL_V1_VALID_FILE_PATH       = 0x8000u,
+    KERNEL_V1_VALID_FILE_FLAGS      = 0x10000u,
+    KERNEL_V1_VALID_FILE_MODE       = 0x20000u,
+    KERNEL_V1_VALID_FILE_DENY_SOURCE= 0x40000u,
+    KERNEL_V1_VALID_FILE_ERRNO      = 0x80000u,
 };
+
+/* Deny-source enum for FILE_OPEN events. Distinguishes OWN_LSM
+ * (the BPF LSM `file_open` hook returned an errno from this
+ * platform's own program; DECLARED, NOT currently emitted by the
+ * sensor — file.bpf.c is an observation sensor, NOT enforcement —
+ * but the source-of-truth is reserved here so a follow-up LSM
+ * audit task can switch the enum without ABI churn) from SYSCALL
+ * (the LSM hook was unavailable and the syscall-result kprobe was
+ * the effective source of the recorded result) and NONE (no
+ * carrying observation; default zero for the open events that
+ * succeeded cleanly). Used only by `KERNEL_V1_EVENT_FILE_OPEN`
+ * events; the other file event kinds (FILE_CREATE, FILE_UNLINK,
+ * FILE_RENAME, FILE_TRUNCATE) carry deny_source through the same
+ * per-event field for consistency but always set NONE because the
+ * brief's decision is to NOT enforce on mutation-class hooks.
+ *
+ * The integer values are stable across C/Rust builds. */
+enum kernel_v1_file_deny_source {
+    KERNEL_V1_FILE_DENY_NONE     = 0,
+    KERNEL_V1_FILE_DENY_OWN_LSM  = 1,
+    KERNEL_V1_FILE_DENY_SYSCALL  = 2,
+};
+
+/* File-result flag bits encoded into the FILE_* payload byte 0
+ * (`flags` payload byte, NOT the kernel_v1_header `flags` byte —
+ * the per-event payload carries its own byte because each sensor
+ * reserves its own namespace). The brief asked for one
+ * file-specific flag (FILE_RESULT_HAS_ERRNO) at bit 0; the second
+ * sentinel bit (OWN_LSM_DENY) is reserved at 0x02 for the future
+ * LSM-task work but is intentionally NEVER set by file.bpf.c. */
+#define KERNEL_V1_FILE_RESULT_HAS_ERRNO ((uint8_t)0x01u)
+#define KERNEL_V1_FILE_RESULT_OWN_LSM  ((uint8_t)0x02u)  /* reserved; NEVER set by file.bpf.c */
 
 /* Required bits for a v1 process event: pid_tgid + cgroup_id + boot_id
  * + task_start. Tests use this to assert minimum validity. */
@@ -149,8 +211,14 @@ enum kernel_v1_valid {
     ((uint32_t)(KERNEL_V1_VALID_BOOT_ID | KERNEL_V1_VALID_CGROUP_ID          \
                 | KERNEL_V1_VALID_PID_TGID | KERNEL_V1_VALID_TASK_START))
 
-/* v1 producer MUST NOT set bits above 14. */
-#define KERNEL_V1_VALID_V1_ALLOWED_MASK ((uint32_t)0x00007FFFu)
+/* v1 producer MUST NOT set bits above 19.
+ *
+ * WAS: 0x00007FFF (15 bits). Widened by task 12 to admit the five
+ * FILE_* validity bits at 0x8000..0x80000 (bits 15..19). The mask
+ * remains tight — only the legitimately-reserved identity bits and
+ * the file-specific bits are admissible — so a future ABI major
+ * bump is the only path that opens more bits. */
+#define KERNEL_V1_VALID_V1_ALLOWED_MASK ((uint32_t)0x000FFFFFu)
 
 /* flags byte bit assignments. trunc and redacted are independent. */
 #define KERNEL_V1_EVENT_FLAG_TRUNC    ((uint8_t)0x01u)
@@ -233,6 +301,7 @@ kernel_v1_event_kind_name(uint8_t kind)
     case KERNEL_V1_EVENT_FILE_CREATE:         return "FILE_CREATE";
     case KERNEL_V1_EVENT_FILE_UNLINK:         return "FILE_UNLINK";
     case KERNEL_V1_EVENT_FILE_RENAME:         return "FILE_RENAME";
+    case KERNEL_V1_EVENT_FILE_TRUNCATE:       return "FILE_TRUNCATE";
     case KERNEL_V1_EVENT_NETWORK_CONNECT:     return "NETWORK_CONNECT";
     case KERNEL_V1_EVENT_NETWORK_ACCEPT:      return "NETWORK_ACCEPT";
     case KERNEL_V1_EVENT_NETWORK_STATE:       return "NETWORK_STATE";

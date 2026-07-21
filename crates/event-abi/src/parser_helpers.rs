@@ -55,6 +55,14 @@ pub fn format_valids(valids: u32) -> String {
         (Valid::PayloadTrunc as u32, "payload_trunc"),
         (Valid::Redacted as u32, "redacted"),
         (Valid::KfuncUsed as u32, "kfunc_used"),
+        // TASK-12 additions — the `Valid` enum carries five new file
+        // bits at positions 0x8000..0x80000; format them here so the
+        // diagnostic surfaces the new file-sensor validity bits.
+        (Valid::FilePath as u32, "file_path"),
+        (Valid::FileFlags as u32, "file_flags"),
+        (Valid::FileMode as u32, "file_mode"),
+        (Valid::FileDenySource as u32, "file_deny_source"),
+        (Valid::FileErrno as u32, "file_errno"),
     ];
     let mut s = String::new();
     for (bit, name) in names {

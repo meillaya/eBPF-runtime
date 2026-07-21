@@ -43,6 +43,18 @@ pub const PAYLOAD_MAX: usize = 4096;
 /// `enum kernel_v1_event_kind` and the proto `EventKind` in
 /// `proto/kernel/v1/events/v1/events.proto`. `repr(u8)` matches the
 /// on-the-wire `uint8_t` slot at header offset 16.
+///
+/// TASK-12 (file sensor) EXTENSION (2026-07-21):
+///   `FileTruncate = 8` was appended by task 12, shifting
+///   `NetworkConnect` and every enum value above it by +1. The
+///   shift was chosen over appending at value 16 because the brief
+///   requires FILE_OPEN/CREATE/UNLINK/RENAME (already at 4..7 from
+///   the original allocation) to remain contiguous with the
+///   truncation mutation; the consumer-side `parse.rs` test was
+///   updated to match the new positions, and the proto enum
+///   (`proto/kernel/v1/events/v1/events.proto`) is updated as part
+///   of the task-12 follow-up patch so all four layouts (C enum,
+///   Rust enum, parse.rs match arms, proto enum) stay in lockstep.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EventKind {
@@ -54,14 +66,15 @@ pub enum EventKind {
     FileCreate = 5,
     FileUnlink = 6,
     FileRename = 7,
-    NetworkConnect = 8,
-    NetworkAccept = 9,
-    NetworkState = 10,
-    DnsPacket = 11,
-    SyscallEnter = 12,
-    SyscallExit = 13,
-    LsmDenyOwn = 14,
-    Identity = 15,
+    FileTruncate = 8,
+    NetworkConnect = 9,
+    NetworkAccept = 10,
+    NetworkState = 11,
+    DnsPacket = 12,
+    SyscallEnter = 13,
+    SyscallExit = 14,
+    LsmDenyOwn = 15,
+    Identity = 16,
 }
 
 impl EventKind {
@@ -75,6 +88,14 @@ impl EventKind {
 /// C struct only carries fields up to the 96-byte boundary; the
 /// remaining valid bits (NS_USER/UTS/IPC/TIME, KFUNC_USED) are
 /// forward-compat placeholders for the next minor revision.
+///
+/// TASK-12 (file sensor) EXTENSION (2026-07-21):
+///   Added `FilePath`, `FileFlags`, `FileMode`, `FileDenySource`,
+///   `FileErrno` at non-overlapping positions 0x8000..0x80000
+///   (bits 15..19). See the matching block in
+///   `bpf/include/event_abi.h` for the deviation rationale —
+///   the brief-specified positions 0x0800..0x8000 would alias
+///   `Processor`/`PayloadTrunc`/`Redacted`/`KfuncUsed` (bit 11..14).
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Valid {
@@ -93,10 +114,45 @@ pub enum Valid {
     PayloadTrunc = 0x1000,
     Redacted = 0x2000,
     KfuncUsed = 0x4000,
+    // TASK-12 additions — see header comment block in bpf/include/event_abi.h
+    FilePath = 0x8000,
+    FileFlags = 0x10000,
+    FileMode = 0x20000,
+    FileDenySource = 0x40000,
+    FileErrno = 0x80000,
 }
 
-/// v1 producer MUST NOT set bits above bit 14.
-pub const VALID_V1_ALLOWED_MASK: u32 = 0x0000_7FFF;
+/// Deny-source enum for FILE_OPEN events; mirrors the C
+/// `enum kernel_v1_file_deny_source` (task 12).
+///
+/// - `None` — no observation; the default-zero value.
+/// - `OwnLsm` — the BPF LSM `file_open` hook would have returned a
+///   non-zero, but file.bpf.c is observation-only and never sets
+///   this bit at emit time. The slot is reserved for the future
+///   audit-only LSM task (per the approved plan's enforcement
+///   contract).
+/// - `Syscall` — the LSM hook was unavailable on the host and the
+///   kprobe fallback (`__x64_sys_openat2` / `__arm64_sys_openat2`)
+///   was the effective source of the recorded result.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FileDenySource {
+    None = 0,
+    OwnLsm = 1,
+    Syscall = 2,
+}
+
+/// Per-payload (file-result-namespace) flag bits. These live in the
+/// FILE_* payload's `flags` byte, NOT in `kernel_v1_header.flags` —
+/// each sensor reserves its own flag-byte namespace. `task 12` only
+/// emits `FileResultHasErrno` (when the underlying syscall returned
+/// a non-zero); `FileResultOwnLsm` is reserved for future LSM work
+/// and is intentionally never set by file.bpf.c.
+pub const FILE_RESULT_HAS_ERRNO: u8 = 0x01;
+pub const FILE_RESULT_OWN_LSM: u8 = 0x02;
+
+/// v1 producer MUST NOT set bits above bit 19.
+pub const VALID_V1_ALLOWED_MASK: u32 = 0x000F_FFFF;
 
 /// Required bits for a v1 process event: pid_tgid + cgroup_id + boot_id + task_start.
 pub const VALID_REQUIRED: u32 = 0x0000_0001 | 0x0000_0002 | 0x0000_0004 | 0x0000_0400;
@@ -143,14 +199,15 @@ impl Header {
             5 => "FILE_CREATE",
             6 => "FILE_UNLINK",
             7 => "FILE_RENAME",
-            8 => "NETWORK_CONNECT",
-            9 => "NETWORK_ACCEPT",
-            10 => "NETWORK_STATE",
-            11 => "DNS_PACKET",
-            12 => "SYSCALL_ENTER",
-            13 => "SYSCALL_EXIT",
-            14 => "LSM_DENY_OWN",
-            15 => "IDENTITY",
+            8 => "FILE_TRUNCATE",
+            9 => "NETWORK_CONNECT",
+            10 => "NETWORK_ACCEPT",
+            11 => "NETWORK_STATE",
+            12 => "DNS_PACKET",
+            13 => "SYSCALL_ENTER",
+            14 => "SYSCALL_EXIT",
+            15 => "LSM_DENY_OWN",
+            16 => "IDENTITY",
             _ => "UNKNOWN_KIND",
         }
     }

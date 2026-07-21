@@ -29,8 +29,9 @@ pub mod generated;
 mod parser_helpers;
 
 pub use generated::{
-    EventKind, Header, Valid, EVENT_FLAG_REDACTED, EVENT_FLAG_TRUNC, HEADER_LEN, PAYLOAD_MAX,
-    SCHEMA_MAJOR, SCHEMA_MINOR, VALID_REQUIRED, VALID_V1_ALLOWED_MASK,
+    EventKind, FileDenySource, Header, Valid, EVENT_FLAG_REDACTED, EVENT_FLAG_TRUNC,
+    FILE_RESULT_HAS_ERRNO, FILE_RESULT_OWN_LSM, HEADER_LEN, PAYLOAD_MAX, SCHEMA_MAJOR,
+    SCHEMA_MINOR, VALID_REQUIRED, VALID_V1_ALLOWED_MASK,
 };
 pub use parser_helpers::{
     compute_record_len, format_valids, is_redacted, is_truncated, verify_field,

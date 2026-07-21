@@ -3,17 +3,17 @@ name = "sensor-tests"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.95.0"
-description = "kernel-v1 sensor harness integration tests (task 11 — process lifecycle decoder fixtures)."
+description = "kernel-v1 sensor harness integration tests (task 11 — process lifecycle decoder fixtures; task 12 — file-sensor fixtures)."
 license = "Apache-2.0 OR MIT"
 publish = false
 
 # This crate has no library surface: it exists purely so that
 # `cargo test -p sensor-tests --test process_events` can decode the
-# committed `.binpb` fixtures under `tests/fixtures/process/` and
-# assert the task-11 acceptance criteria. The recorder helper that
-# generates fresh fixtures from a privileged runner is exposed as a
-# separate `[[bin]]` (NOT invoked by `cargo test`; see
-# `src/bin/record-fixtures.rs`).
+# committed `.binpb` fixtures under `tests/fixtures/{process,file}/`
+# and assert the task-11 + task-12 acceptance criteria. The recorder
+# helpers that generate fresh fixtures from a privileged runner are
+# exposed as separate `[[bin]]`s (NOT invoked by `cargo test`;
+# see `src/bin/record-fixtures.rs` and `src/bin/record-file-fixtures.rs`).
 autolib = false
 autobins = false
 
@@ -22,18 +22,24 @@ name = "record-fixtures"
 path = "src/bin/record-fixtures.rs"
 required-features = []
 
+[[bin]]
+name = "record-file-fixtures"
+path = "src/bin/record-file-fixtures.rs"
+required-features = []
+
 [dependencies]
-# `bpf-build` is a runtime dep of the `record-fixtures` bin only
-# (NOT used by `cargo test`). Pulling it here means `cargo test`
-# also compiles the bin, which triggers `bpf-build`'s own build.rs
-# (clang + bpftool + placeholder.bpf.c compile). That is the
-# intended behaviour: the bin's `cargo check` + compile is a
-# smoke test that the wiring the privileged runner will use (task 53+)
-# still type-checks. The pinned vmlinux.h digest check in
-# `bpf-build`'s `EXPECTED_SHA256` runs at the bpf-build crate's own
-# `build()` invocation (which `record-fixtures` calls at runtime),
-# NOT at compile time, so `cargo test` succeeds on a host whose
-# /sys/kernel/btf/vmlinux digest differs from the pin.
+# `bpf-build` is a runtime dep of the `record-fixtures` and
+# `record-file-fixtures` bins only (NOT used by `cargo test`).
+# Pulling it here means `cargo test` also compiles the bins,
+# which triggers `bpf-build`'s own build.rs (clang + bpftool +
+# placeholder.bpf.c compile). That is the intended behaviour:
+# the bins' `cargo check` + compile is a smoke test that the
+# wiring the privileged runner will use (task 53+) still
+# type-checks. The pinned vmlinux.h digest check in
+# `bpf-build`'s `EXPECTED_SHA256` runs at the bpf-build crate's
+# own `build()` invocation (which `record-fixtures` calls at
+# runtime), NOT at compile time, so `cargo test` succeeds on a
+# host whose /sys/kernel/btf/vmlinux digest differs from the pin.
 bpf-build = { path = "../bpf-build" }
 
 [dev-dependencies]
