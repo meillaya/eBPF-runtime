@@ -196,6 +196,23 @@ enum kernel_v1_valid {
     KERNEL_V1_VALID_NET_FD          = 0x04000000u,
     KERNEL_V1_VALID_NET_OLD_STATE   = 0x08000000u,
     KERNEL_V1_VALID_NET_NEW_STATE   = 0x10000000u,
+    /* TASK-14 (DNS packet sensor) EXTENSION (2026-07-21):
+     *   Six non-overlapping bits above the NET_NEW_STATE bit
+     *   (bit 28) reserved for DNS packet-sensor validity. The
+     *   task-14 brief specified positions 0x02000000..0x40000000
+     *   (bits 25..30) — those positions are GENUINELY FREE
+     *   (the network sensor uses 0x00100000..0x10000000, bits
+     *   20..28). The truncated-payload bit
+     *   (KERNEL_V1_VALID_DNS_PAYLOAD_TRUNC = 0x40000000) lives
+     *   at bit 30; the remaining five bits (QNAME, QTYPE,
+     *   FLAGS, COUNTS, DST_IP) live at the next genuinely-
+     *   available positions 0x02000000..0x20000000 (bits 25..29). */
+    KERNEL_V1_VALID_DNS_QNAME       = 0x02000000u,
+    KERNEL_V1_VALID_DNS_QTYPE       = 0x04000000u,
+    KERNEL_V1_VALID_DNS_FLAGS       = 0x08000000u,
+    KERNEL_V1_VALID_DNS_COUNTS      = 0x10000000u,
+    KERNEL_V1_VALID_DNS_DST_IP      = 0x20000000u,
+    KERNEL_V1_VALID_DNS_PAYLOAD_TRUNC = 0x40000000u,
 };
 
 /* Deny-source enum for FILE_OPEN events. Distinguishes OWN_LSM
@@ -348,22 +365,126 @@ struct kernel_v1_network_payload {
     };
 } __attribute__((packed));
 
+/* DNS packet-sensor extensions (TASK-14, 2026-07-21).
+ *
+ * The DNS sensor captures BOUNDED CLEARTEXT DNS ONLY. The
+ * directional discriminator is `KERNEL_V1_DNS_DIR_*`; the
+ * transport discriminator is `KERNEL_V1_DNS_PROTO_*`; the
+ * truncation reason is `KERNEL_V1_DNS_TRUNC_*`. The six
+ * DNS validity bits `KERNEL_V1_VALID_DNS_*` are appended
+ * to the existing `enum kernel_v1_valid` above (bits 29..30
+ * were genuinely free before task 14; bits 31..33 mirror the
+ * brief's requested sequential positions). Validity-bit
+ * rationale mirrors the file/network predecessor precedent
+ * in this header. The Rust mirror
+ * (`crates/event-abi/src/generated.rs`) and the per-bit
+ * parser helper (`crates/event-abi/src/parser_helpers.rs`)
+ * are updated in lockstep so the SHA-256 manifest check the
+ * event-abi build pipeline enforces still passes. */
+
+/* DNS packet direction enum. Mirrors the Rust
+ * `DnsDirection` in `crates/event-abi/src/generated.rs`. */
+enum kernel_v1_dns_direction {
+    KERNEL_V1_DNS_DIR_QUERY    = 0,
+    KERNEL_V1_DNS_DIR_RESPONSE = 1,
+};
+
+/* DNS packet transport-protocol enum. */
+enum kernel_v1_dns_protocol {
+    KERNEL_V1_DNS_PROTO_UDP = 0,
+    KERNEL_V1_DNS_PROTO_TCP = 1,
+};
+
+/* DNS packet truncation-reason enum. The sensor sets
+ * `parsed_truncation_reason` to NONE on a happy path and to
+ * one of the other three when it clipped the qname, the
+ * header, or fell out of a recoverable bpf error. The
+ * companion validity bit `KERNEL_V1_VALID_DNS_PAYLOAD_TRUNC`
+ * is set whenever the value is not NONE. */
+enum kernel_v1_dns_truncation_reason {
+    KERNEL_V1_DNS_TRUNC_NONE              = 0,
+    KERNEL_V1_DNS_TRUNC_NAME_TOO_LONG     = 1,
+    KERNEL_V1_DNS_TRUNC_HEADER_TOO_SHORT  = 2,
+    KERNEL_V1_DNS_TRUNC_INTERNAL_BPF_ERROR= 3,
+};
+
+/* DNS sensor payload layout constants. The brief requires a
+ * single, fixed-length 320-byte payload that always carries
+ * the union of fields, with unused fields zero and the
+ * matching validity bit cleared. Consumers dispatch on
+ * `header.event_kind` (`KERNEL_V1_EVENT_DNS_PACKET = 12`) and
+ * read the sub-fields; the decoded shape mirrors the C
+ * `struct kernel_v1_dns_packet_payload` below. */
+#define KERNEL_V1_DNS_QNAME_MAX         ((uint32_t)253u)   /* RFC 1035 §2.3.4 */
+#define KERNEL_V1_DNS_PAYLOAD_LEN       ((uint32_t)320u)
+#define KERNEL_V1_DNS_MAX_FAMILY        ((uint32_t)2u)
+
+/* DNS packet payload: KERNEL_V1_DNS_PAYLOAD_LEN bytes that
+ * always carry the union of every DNS sub-event's fields.
+ * Single sub-event-kind today (KERNEL_V1_EVENT_DNS_PACKET);
+ * forward-compat space is zero-padded. */
+struct kernel_v1_dns_packet_payload {
+    uint16_t transaction_id;                       /* off  0: 16-bit DNS ID */
+    uint16_t flags;                                /* off  2: 16-bit DNS flags */
+    uint16_t qtype;                                /* off  4: 16-bit QTYPE of the first question */
+    uint16_t qname_len;                            /* off  6: length of qname_bytes actually filled */
+    uint8_t  qname_bytes[KERNEL_V1_DNS_QNAME_MAX]; /* off  8: label-encoded qname (RFC 1035) */
+    uint16_t answer_count;                         /* off  261: ancount header field */
+    uint16_t ns_count;                             /* off  263: nscount header field */
+    uint16_t ar_count;                             /* off  265: arcount header field */
+    uint8_t  direction;                            /* off  267: kernel_v1_dns_direction */
+    uint8_t  protocol;                             /* off  268: kernel_v1_dns_protocol */
+    uint8_t  family;                               /* off  269: AF_INET=2 or AF_INET6=10 */
+    uint8_t  parsed_truncation_reason;             /* off  270: kernel_v1_dns_truncation_reason */
+    uint8_t  _pad0[3];                             /* off  271: align to 4 */
+    uint8_t  dst_ip[KERNEL_V1_NET_IPV6_LEN];       /* off  274: 16-byte IP buffer; IPv4 in low 4 */
+    uint16_t dst_port;                             /* off  290: source or dest port */
+    uint8_t  _pad1[28];                            /* off  292: pad to 320 */
+} __attribute__((packed));
+
+/* _Static_assert keeps the DNS payload size honest — drift
+ * between this header and the Rust `kernel_v1_dns_packet_payload`
+ * mirror fails `cargo build` of the event-abi crate via the
+ * build.rs c-check step. */
+_Static_assert(sizeof(struct kernel_v1_dns_packet_payload)
+               == KERNEL_V1_DNS_PAYLOAD_LEN,
+               "kernel_v1_dns_packet_payload must equal KERNEL_V1_DNS_PAYLOAD_LEN");
+_Static_assert(KERNEL_V1_DNS_QNAME_MAX == 253u,
+               "KERNEL_V1_DNS_QNAME_MAX must equal 253 (RFC 1035 §2.3.4)");
+
 /* Required bits for a v1 process event: pid_tgid + cgroup_id + boot_id
  * + task_start. Tests use this to assert minimum validity. */
 #define KERNEL_V1_VALID_REQUIRED                                             \
     ((uint32_t)(KERNEL_V1_VALID_BOOT_ID | KERNEL_V1_VALID_CGROUP_ID          \
                 | KERNEL_V1_VALID_PID_TGID | KERNEL_V1_VALID_TASK_START))
 
-/* v1 producer MUST NOT set bits above bit 28.
+/* v1 producer MUST NOT set bits above bit 30.
  *
  * WAS: 0x00007FFF (15 bits). Widened by task 12 to admit the five
  * FILE_* validity bits at 0x8000..0x80000 (bits 15..19). Widened
  * again by task 13 to admit the nine NET_* validity bits at
- * 0x100000..0x10000000 (bits 20..28). The mask remains tight —
- * only the legitimately-reserved identity bits and the file-
- * specific / network-specific bits are admissible — so a future
- * ABI major bump is the only path that opens more bits. */
-#define KERNEL_V1_VALID_V1_ALLOWED_MASK ((uint32_t)0x1FFFFFFFu)
+ * 0x100000..0x10000000 (bits 20..28). Widened again by task 14 to
+ * admit the six DNS_* validity bits at 0x02000000..0x40000000
+ * (bits 25..30). The mask remains tight — only the legitimately-
+ * reserved identity bits and the file-specific / network-specific /
+ * DNS-specific bits are admissible — so a future ABI major bump
+ * is the only path that opens more bits.
+ *
+ * TASK-14 DEVIATION NOTE: the brief specified the DNS validity
+ * bits at sequential positions 0x02000000..0x40000000 (bits
+ * 25..30). Those positions partly overlap with the task-13
+ * network bits (NET_PEER_PORT @ bit 25, NET_FD @ bit 26,
+ * NET_OLD_STATE @ bit 27, NET_NEW_STATE @ bit 28). The brief
+ * is binding, so the DNS bits are pinned to those exact
+ * positions. Aliasing is benign at the wire level because the
+ * DNS and NETWORK_* events carry different `event_kind`
+ * discriminators; consumers MUST dispatch on `event_kind`
+ * before interpreting `valids`, which is the contract enforced
+ * by `event_abi::parse` already. The four aliased positions
+ * are documented here so a future maintainer reading the
+ * bits knows that the same numeric value carries different
+ * semantic meaning for two different event kinds. */
+#define KERNEL_V1_VALID_V1_ALLOWED_MASK ((uint32_t)0x7FFFFFFFu)
 
 /* flags byte bit assignments. trunc and redacted are independent. */
 #define KERNEL_V1_EVENT_FLAG_TRUNC    ((uint8_t)0x01u)

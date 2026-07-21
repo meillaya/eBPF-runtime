@@ -134,6 +134,17 @@ pub enum Valid {
     NetFd = 0x0400_0000,
     NetOldState = 0x0800_0000,
     NetNewState = 0x1000_0000,
+    // TASK-14 DNS validity bits are NOT added to this enum because
+    // their brief-pinned positions (0x02000000..0x40000000, bits
+    // 25..30) overlap with the NET_* variants above; a Rust
+    // `#[repr(u32)]` enum disallows duplicate discriminants
+    // (E0081). The DNS bits exist as `pub const`s in the
+    // `dns_valid` module below so consumers can do
+    // `event.header.valids & dns_valid::QNAME != 0`. See the
+    // deviation note in `bpf/include/event_abi.h` for the C-side
+    // rationale; the consumer contract is identical because the
+    // DNS_* and NETWORK_* event kinds carry different
+    // `event_kind` discriminators.
 }
 
 /// Deny-source enum for FILE_OPEN events; mirrors the C
@@ -175,8 +186,15 @@ pub const FILE_RESULT_OWN_LSM: u8 = 0x02;
 pub const NET_RESULT_FLAG_NONBLOCKING: u8 = 0x01;
 pub const NET_RESULT_FLAG_EINPROGRESS: u8 = 0x02;
 
-/// v1 producer MUST NOT set bits above bit 28.
-pub const VALID_V1_ALLOWED_MASK: u32 = 0x1FFF_FFFF;
+/// v1 producer MUST NOT set bits above bit 30.
+///
+/// WAS: `0x0000_7FFF` (15 bits, task 11). Widened to `0x0001_FFFF`
+/// by task 12 (FILE_* bits 15..19), widened again to `0x1FFF_FFFF`
+/// by task 13 (NET_* bits 20..28), widened again to `0x7FFF_FFFF`
+/// by task 14 (DNS_* bits 25..30). See the matching block in
+/// `bpf/include/event_abi.h` for the deviation note on the bit
+/// positions the brief pinned.
+pub const VALID_V1_ALLOWED_MASK: u32 = 0x7FFF_FFFF;
 
 /// Network-payload layout constants. Mirror `bpf/include/event_abi.h`.
 pub const NET_IPV6_LEN: usize = 16;
@@ -378,6 +396,158 @@ pub struct NetworkState {
     pub _pad1: [u8; 6],
 }
 
+// ---------------------------------------------------------------------------
+// DNS packet sensor (TASK-14) — bounded cleartext-only capture
+// ---------------------------------------------------------------------------
+
+/// DNS validity bits as `pub const`s. The Rust `enum Valid`
+/// cannot host these (the brief-pinned positions alias the
+/// `Net*` variants and a Rust `#[repr(u32)]` enum rejects
+/// duplicate discriminants as E0081). Consumers do
+/// `event.header.valids & dns_valid::QNAME != 0` for the same
+/// effect `verify_field` provides on the non-DNS bits. The
+/// bit positions are the brief-pinned 0x02000000..0x40000000
+/// (bits 25..30) and they alias the `NetPeerPort`, `NetFd`,
+/// `NetOldState`, `NetNewState` positions by design; the
+/// consumer dispatcher in `event_abi::parse` keys on
+/// `event_kind` first, so the same numeric bit carries different
+/// meaning for `DNS_PACKET` vs `NETWORK_*` events.
+pub mod dns_valid {
+    /// QNAME was decoded and fits in `DNS_QNAME_MAX`.
+    pub const QNAME: u32 = 0x0200_0000;
+    /// QTYPE field is valid (first question's QTYPE was decoded).
+    pub const QTYPE: u32 = 0x0400_0000;
+    /// DNS header flags word (16-bit) was decoded.
+    pub const FLAGS: u32 = 0x0800_0000;
+    /// Header counts (qdcount/ancount/nscount/arcount) were decoded.
+    pub const COUNTS: u32 = 0x1000_0000;
+    /// Destination IP family + bytes were decoded from the skb.
+    pub const DST_IP: u32 = 0x2000_0000;
+    /// `parsed_truncation_reason != NONE` — payload was clipped.
+    pub const PAYLOAD_TRUNC: u32 = 0x4000_0000;
+}
+
+/// Maximum QNAME length per RFC 1035 §2.3.4 (one byte per label
+/// length, plus the final 0 byte). The BPF sensor clamps
+/// `qname_len` to this constant; anything longer is recorded as
+/// `KERNEL_V1_DNS_TRUNC_NAME_TOO_LONG` and the
+/// `DnsPayloadTrunc` validity bit is set.
+pub const DNS_QNAME_MAX: usize = 253;
+
+/// DNS packet payload length. The sensor always writes exactly
+/// this many bytes; unused fields are zero, the corresponding
+/// validity bit is clear.
+pub const DNS_PAYLOAD_LEN: usize = 320;
+
+/// DNS packet directional discriminator.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
+pub enum DnsDirection {
+    Query = 0,
+    Response = 1,
+}
+
+/// DNS packet transport-protocol discriminator.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
+pub enum DnsProtocol {
+    Udp = 0,
+    Tcp = 1,
+}
+
+/// DNS packet parsed-truncation-reason enum. Set by the sensor
+/// when it clipped the qname (`NAME_TOO_LONG`), the header was
+/// shorter than 12 bytes (`HEADER_TOO_SHORT`), or fell out of a
+/// recoverable BPF-error path (`INTERNAL_BPF_ERROR`). On a happy
+/// path the value is `None`.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
+pub enum DnsTruncationReason {
+    None = 0,
+    NameTooLong = 1,
+    HeaderTooShort = 2,
+    InternalBpfError = 3,
+}
+
+impl DnsDirection {
+    /// Map a single byte from the wire to a `DnsDirection`. Unknown
+    /// values round to `Query` because the default-zero value is
+    /// the documented Query sentinel.
+    pub fn from_byte(byte: u8) -> Self {
+        match byte {
+            1 => Self::Response,
+            _ => Self::Query,
+        }
+    }
+}
+
+impl DnsProtocol {
+    /// Map a single byte from the wire to a `DnsProtocol`. Unknown
+    /// values round to `Udp` because the default-zero value is
+    /// the documented UDP sentinel.
+    pub fn from_byte(byte: u8) -> Self {
+        match byte {
+            1 => Self::Tcp,
+            _ => Self::Udp,
+        }
+    }
+}
+
+impl DnsTruncationReason {
+    /// Map a single byte from the wire to a `DnsTruncationReason`.
+    /// Unknown values round to `InternalBpfError` so the consumer
+    /// records an explicit truncation reason rather than silently
+    /// accepting the default-zero `None`.
+    pub fn from_byte(byte: u8) -> Self {
+        match byte {
+            0 => Self::None,
+            1 => Self::NameTooLong,
+            2 => Self::HeaderTooShort,
+            _ => Self::InternalBpfError,
+        }
+    }
+
+    /// `True` iff the truncation flag (and the `DnsPayloadTrunc`
+    /// validity bit) should be set. Pairs with the C
+    /// `KERNEL_V1_DNS_TRUNC_*` enum at the producer side.
+    pub fn is_truncation(self) -> bool {
+        !matches!(self, Self::None)
+    }
+}
+
+/// Mirror of `struct kernel_v1_dns_packet_payload` in
+/// `bpf/include/event_abi.h`. The struct uses `#[repr(C, packed)]`
+/// so the byte layout matches the C `__attribute__((packed))`
+/// producer byte-for-byte. Consumers dispatch on
+/// `header.event_kind` (DNS_PACKET) and read these fields; unused
+/// fields in any one event are zero and the matching validity bit
+/// is clear. The size is 320 bytes by `_Static_assert` in the C
+/// header.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub struct DnsPacket {
+    pub transaction_id: u16,
+    pub flags: u16,
+    pub qtype: u16,
+    pub qname_len: u16,
+    pub qname_bytes: [u8; DNS_QNAME_MAX],
+    pub answer_count: u16,
+    pub ns_count: u16,
+    pub ar_count: u16,
+    pub direction: u8,
+    pub protocol: u8,
+    pub family: u8,
+    pub parsed_truncation_reason: u8,
+    pub _pad0: [u8; 3],
+    pub dst_ip: [u8; NET_IPV6_LEN],
+    pub dst_port: u16,
+    pub _pad1: [u8; 28],
+}
+
 /// Compile-time size assertions. Mirror the C header's
 /// `_Static_assert` lines. Drift between the Rust and C sizes
 /// fails `cargo build`.
@@ -388,4 +558,9 @@ const _: () = {
     assert!(core::mem::size_of::<NetworkAcceptResult>() == 48);
     assert!(core::mem::size_of::<NetworkState>() == 24);
     assert!(NET_PAYLOAD_LEN == 80);
+
+    // TASK-14 additions — DNS payload mirrors.
+    assert!(DNS_QNAME_MAX == 253);
+    assert!(DNS_PAYLOAD_LEN == 320);
+    assert!(core::mem::size_of::<DnsPacket>() == 320);
 };

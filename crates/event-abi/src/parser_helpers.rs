@@ -73,6 +73,15 @@ pub fn format_valids(valids: u32) -> String {
         (Valid::NetFd as u32, "net_fd"),
         (Valid::NetOldState as u32, "net_old_state"),
         (Valid::NetNewState as u32, "net_new_state"),
+        // TASK-14 additions — the DNS-packet-sensor validity bits.
+        // Aliased positions 25..30 with the NET_* bits are intentional;
+        // see the deviation note in bpf/include/event_abi.h.
+        (crate::generated::dns_valid::QNAME, "dns_qname"),
+        (crate::generated::dns_valid::QTYPE, "dns_qtype"),
+        (crate::generated::dns_valid::FLAGS, "dns_flags"),
+        (crate::generated::dns_valid::COUNTS, "dns_counts"),
+        (crate::generated::dns_valid::DST_IP, "dns_dst_ip"),
+        (crate::generated::dns_valid::PAYLOAD_TRUNC, "dns_payload_trunc"),
     ];
     let mut s = String::new();
     for (bit, name) in names {

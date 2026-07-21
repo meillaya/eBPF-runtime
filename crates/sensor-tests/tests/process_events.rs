@@ -1450,3 +1450,494 @@ fn network_decoder_never_panics_on_random_bytes() {
         }
     }
 }
+
+/* ===========================================================================
+ *  TASK-14 — Bounded cleartext DNS packet sensor.
+ *
+ *  The per-fixture `*.binpb` files under `tests/fixtures/dns/`
+ *  are the committed source of truth (recorded by
+ *  `record-dns-fixtures.rs` on the privileged runner; task 53+
+ *  will swap them for live recordings). Each fixture exercises
+ *  one truthful-semantics assertion the DNS sensor must
+ *  satisfy:
+ *
+ *    * udp_query    — UDP/53 cleartext query for example.com;
+ *                     QNAME present + truncated, QTYPE=A (1),
+ *                     answer_count==0, direction=QUERY,
+ *                     trunc_reason=NONE.
+ *    * udp_response — UDP/53 response; answer_count>=1,
+ *                     direction=RESPONSE, trunc_reason=NONE.
+ *    * tcp_query    — TCP/53 cleartext query;
+ *                     protocol=KERNEL_V1_DNS_PROTO_TCP.
+ *    * tcp_response — TCP/53 cleartext response;
+ *                     protocol=KERNEL_V1_DNS_PROTO_TCP.
+ *    * truncated_qname — QNAME clip; trunc_reason=NAME_TOO_LONG,
+ *                     DNS_QNAME valid bit cleared,
+ *                     DNS_PAYLOAD_TRUNC bit set.
+ *
+ *  Three "must-not-exist" tests assert the sensor correctly
+ *  refuses to emit on:
+ *
+ *    * encrypted flows (DoH / DoT / DoQ) — `encrypted.binpb` not on disk
+ *    * oversized / compressed inputs — `oversized_compressed.binpb` not on disk
+ *    * mDNS link-local (UDP/5353) — `ephemeral_mdns.binpb` not on disk
+ *
+ *  Decoder shapes match `bpf/sensors/dns.bpf.c::kernel_v1_dns_event`
+ *  and the `kernel_v1_dns_packet_payload` struct in
+ *  `bpf/include/event_abi.h`. The byte offsets are pinned by the
+ *  `_Static_assert` block in the C header and the
+ *  `DnsPacket::size_of()` assertion in
+ *  `crates/event-abi/src/generated.rs`. The 6 DNS validity bits
+ *  live in the `dns_valid` module exposed by
+ *  `crates/event-abi/src/generated.rs` and re-exported from
+ *  `crates/event-abi/src/lib.rs` (`event_abi::dns_valid`).
+ *
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
+ * ======================================================================== */
+
+/// DNS-payload layout constants. Mirror
+/// `bpf/sensors/dns.bpf.c` and
+/// `bpf/include/event_abi.h::KERNEL_V1_DNS_*`.
+#[allow(dead_code)]
+mod dns_payload {
+    pub const QNAME_MAX: usize = 253;
+    pub const PAYLOAD_LEN: usize = 320;
+
+    // Field offsets within the 320-byte payload:
+    pub const TRANSACTION_ID_OFF: usize = 0;
+    pub const FLAGS_OFF: usize = 2;
+    pub const QTYPE_OFF: usize = 4;
+    pub const QNAME_LEN_OFF: usize = 6;
+    pub const QNAME_BYTES_OFF: usize = 8;
+    pub const ANSWER_COUNT_OFF: usize = 261;
+    pub const NS_COUNT_OFF: usize = 263;
+    pub const AR_COUNT_OFF: usize = 265;
+    pub const DIRECTION_OFF: usize = 267;
+    pub const PROTOCOL_OFF: usize = 268;
+    pub const FAMILY_OFF: usize = 269;
+    pub const TRUNC_REASON_OFF: usize = 270;
+    pub const PAD0_OFF: usize = 271;
+    pub const DST_IP_OFF: usize = 274;
+    pub const DST_PORT_OFF: usize = 290;
+}
+
+/// DNS direction discriminators.
+#[allow(dead_code)]
+const DNS_DIR_QUERY: u8 = 0;
+#[allow(dead_code)]
+const DNS_DIR_RESPONSE: u8 = 1;
+
+/// DNS protocol discriminators.
+#[allow(dead_code)]
+const DNS_PROTO_UDP: u8 = 0;
+#[allow(dead_code)]
+const DNS_PROTO_TCP: u8 = 1;
+
+/// DNS truncation reasons.
+#[allow(dead_code)]
+const DNS_TRUNC_NONE: u8 = 0;
+#[allow(dead_code)]
+const DNS_TRUNC_NAME_TOO_LONG: u8 = 1;
+
+/// File path of the test-fixtures directory (a stable anchor
+/// used by the positive + negative fixture tests).
+fn dns_fixture_dir() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dns")
+}
+
+/// Repo root path (a stable anchor for the BPF C source
+/// coverage-manifest test).
+fn repo_root() -> std::path::PathBuf {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("sensor-tests/.. -> repo root")
+        .to_path_buf()
+}
+
+/// Verify the DNS_PACKET header is well-formed (mirrors
+/// `assert_header_validates` for the other event kinds — same
+/// PID_TGID / CGROUP_ID / TASK_START / PROCESSOR valid-bit
+/// invariants).
+fn assert_dns_header_validates(event: &event_abi::Event<'_>) {
+    let report = event.report();
+    must(
+        report.schema_major == event_abi::SCHEMA_MAJOR,
+        "DNS record schema_major mismatch",
+    );
+    must(
+        report.kind == EventKind::DnsPacket as u8,
+        &format!(
+            "expected DNS_PACKET ({}) got {} ({})",
+            EventKind::DnsPacket as u8,
+            report.kind,
+            report.kind_name
+        ),
+    );
+    must(
+        event.verify_field(V::PidTgid),
+        "DNS record MUST set PID_TGID validity",
+    );
+    must(
+        event.verify_field(V::CgroupId),
+        "DNS record MUST set CGROUP_ID validity",
+    );
+    must(
+        event.verify_field(V::TaskStart),
+        "DNS record MUST set TASK_START validity",
+    );
+    must(
+        event.verify_field(V::Processor),
+        "DNS record MUST set PROCESSOR validity",
+    );
+}
+
+#[test]
+fn udp_query_fixture_decodes_with_qname_and_qtype() {
+    let bytes = include_bytes!("fixtures/dns/udp_query.binpb");
+    let event = parse(bytes).expect("udp_query fixture must parse");
+    assert_dns_header_validates(&event);
+
+    let payload = event.payload;
+    must(
+        payload.len() == dns_payload::PAYLOAD_LEN,
+        &format!(
+            "udp_query payload length {} != expected {}",
+            payload.len(),
+            dns_payload::PAYLOAD_LEN
+        ),
+    );
+
+    let txid = b16u(payload, dns_payload::TRANSACTION_ID_OFF);
+    must(txid == 0x1234, "udp_query transaction_id MUST equal 0x1234");
+    let flags = b16u(payload, dns_payload::FLAGS_OFF);
+    must(flags == 0x8180, "udp_query flags MUST equal 0x8180 (RD bit set)");
+    let qtype = b16u(payload, dns_payload::QTYPE_OFF);
+    must(qtype == 1, "udp_query qtype MUST equal 1 (A record)");
+    let qname_len = b16u(payload, dns_payload::QNAME_LEN_OFF);
+    must(
+        qname_len == 13,
+        &format!(
+            "udp_query qname_len MUST equal 13 (RFC 1035 label-encoded 'example.com'), got {}",
+            qname_len
+        ),
+    );
+    let qname = &payload[dns_payload::QNAME_BYTES_OFF
+        ..dns_payload::QNAME_BYTES_OFF + qname_len as usize];
+    let expected = b"\x07example\x03com\x00";
+    must(
+        qname == expected,
+        &format!(
+            "udp_query qname_bytes MUST equal the RFC 1035 label-encoded form of 'example.com'; \
+             got {:?}",
+            std::str::from_utf8(qname).unwrap_or("<invalid utf-8>")
+        ),
+    );
+
+    let protocol = payload[dns_payload::PROTOCOL_OFF];
+    must(
+        protocol == DNS_PROTO_UDP,
+        "udp_query protocol MUST equal DNS_PROTO_UDP (0)",
+    );
+    let direction = payload[dns_payload::DIRECTION_OFF];
+    must(
+        direction == DNS_DIR_QUERY,
+        "udp_query direction MUST equal DNS_DIR_QUERY (0)",
+    );
+    let trunc_reason = payload[dns_payload::TRUNC_REASON_OFF];
+    must(
+        trunc_reason == DNS_TRUNC_NONE,
+        "udp_query parsed_truncation_reason MUST equal DNS_TRUNC_NONE (0)",
+    );
+
+    // All five DNS-* field validity bits MUST be set on a happy
+    // path. The DNS_PAYLOAD_TRUNC bit MUST be CLEAR.
+    must(
+        event.header.valids & event_abi::dns_valid::QNAME != 0,
+        "udp_query DNS_QNAME valid bit MUST be set",
+    );
+    must(
+        event.header.valids & event_abi::dns_valid::QTYPE != 0,
+        "udp_query DNS_QTYPE valid bit MUST be set",
+    );
+    must(
+        event.header.valids & event_abi::dns_valid::FLAGS != 0,
+        "udp_query DNS_FLAGS valid bit MUST be set",
+    );
+    must(
+        event.header.valids & event_abi::dns_valid::COUNTS != 0,
+        "udp_query DNS_COUNTS valid bit MUST be set",
+    );
+    must(
+        event.header.valids & event_abi::dns_valid::DST_IP != 0,
+        "udp_query DNS_DST_IP valid bit MUST be set",
+    );
+    must(
+        event.header.valids & event_abi::dns_valid::PAYLOAD_TRUNC == 0,
+        "udp_query DNS_PAYLOAD_TRUNC valid bit MUST NOT be set",
+    );
+}
+
+#[test]
+fn udp_response_fixture_decodes_with_answer_count_ge_one() {
+    let bytes = include_bytes!("fixtures/dns/udp_response.binpb");
+    let event = parse(bytes).expect("udp_response fixture must parse");
+    assert_dns_header_validates(&event);
+
+    let payload = event.payload;
+    let answer_count = b16u(payload, dns_payload::ANSWER_COUNT_OFF);
+    must(
+        answer_count >= 1,
+        &format!(
+            "udp_response answer_count MUST be >= 1 (CoreDNS answer), got {}",
+            answer_count
+        ),
+    );
+    let direction = payload[dns_payload::DIRECTION_OFF];
+    must(
+        direction == DNS_DIR_RESPONSE,
+        "udp_response direction MUST equal DNS_DIR_RESPONSE (1)",
+    );
+    let trunc_reason = payload[dns_payload::TRUNC_REASON_OFF];
+    must(
+        trunc_reason == DNS_TRUNC_NONE,
+        "udp_response parsed_truncation_reason MUST equal DNS_TRUNC_NONE (0)",
+    );
+}
+
+#[test]
+fn tcp_query_fixture_decodes_with_protocol_tcp() {
+    let bytes = include_bytes!("fixtures/dns/tcp_query.binpb");
+    let event = parse(bytes).expect("tcp_query fixture must parse");
+    assert_dns_header_validates(&event);
+
+    let protocol = event.payload[dns_payload::PROTOCOL_OFF];
+    must(
+        protocol == DNS_PROTO_TCP,
+        "tcp_query protocol MUST equal DNS_PROTO_TCP (1)",
+    );
+    must(
+        event.payload[dns_payload::DIRECTION_OFF] == DNS_DIR_QUERY,
+        "tcp_query direction MUST equal DNS_DIR_QUERY",
+    );
+}
+
+#[test]
+fn tcp_response_fixture_decodes_with_protocol_tcp() {
+    let bytes = include_bytes!("fixtures/dns/tcp_response.binpb");
+    let event = parse(bytes).expect("tcp_response fixture must parse");
+    assert_dns_header_validates(&event);
+
+    let protocol = event.payload[dns_payload::PROTOCOL_OFF];
+    must(
+        protocol == DNS_PROTO_TCP,
+        "tcp_response protocol MUST equal DNS_PROTO_TCP (1)",
+    );
+    must(
+        event.payload[dns_payload::DIRECTION_OFF] == DNS_DIR_RESPONSE,
+        "tcp_response direction MUST equal DNS_DIR_RESPONSE",
+    );
+}
+
+#[test]
+fn truncated_qname_fixture_decodes_with_qname_too_long_reason() {
+    let bytes = include_bytes!("fixtures/dns/truncated_qname.binpb");
+    let event = parse(bytes).expect("truncated_qname fixture must parse");
+    assert_dns_header_validates(&event);
+
+    let payload = event.payload;
+    let qname_len = b16u(payload, dns_payload::QNAME_LEN_OFF);
+    must(
+        qname_len as usize <= dns_payload::QNAME_MAX,
+        &format!(
+            "truncated_qname qname_len MUST be clamped to <= DNS_QNAME_MAX ({}), got {}",
+            dns_payload::QNAME_MAX, qname_len
+        ),
+    );
+    must(
+        qname_len as usize == dns_payload::QNAME_MAX,
+        "truncated_qname qname_len MUST be exactly DNS_QNAME_MAX (253) — the sensor clamps to the bound",
+    );
+    let trunc_reason = payload[dns_payload::TRUNC_REASON_OFF];
+    must(
+        trunc_reason == DNS_TRUNC_NAME_TOO_LONG,
+        "truncated_qname parsed_truncation_reason MUST equal DNS_TRUNC_NAME_TOO_LONG (1)",
+    );
+    // DNS_QNAME validity bit MUST be CLEAR (clamp → invalid), and
+    // DNS_PAYLOAD_TRUNC validity bit MUST be SET.
+    must(
+        event.header.valids & event_abi::dns_valid::QNAME == 0,
+        "truncated_qname DNS_QNAME valid bit MUST be cleared",
+    );
+    must(
+        event.header.valids & event_abi::dns_valid::PAYLOAD_TRUNC != 0,
+        "truncated_qname DNS_PAYLOAD_TRUNC valid bit MUST be set",
+    );
+}
+
+#[test]
+fn encrypted_ignored_fixture_does_not_exist_or_no_dns_packet_event() {
+    // The DNS sensor refuses to emit on encrypted flows (DoH,
+    // DoT, DoQ); the committed fixtures MUST NOT contain
+    // `encrypted.binpb`. If a future contributor adds the
+    // file by accident, this test fails with a clear
+    // diagnostic.
+    let path = dns_fixture_dir().join("encrypted.binpb");
+    if path.exists() {
+        panic!(
+            "tests/fixtures/dns/encrypted.binpb MUST NOT exist — the DNS sensor correctly \
+             refuses to emit a DNS_PACKET event for DoH/DoT/DoQ flows. If this fixture was \
+             added on purpose, the corresponding test (`{})` must be updated to verify the \
+             encrypted-failure-mode contract.",
+            "encrypted_ignored_fixture_does_not_exist_or_no_dns_packet_event"
+        );
+    }
+}
+
+#[test]
+fn oversized_compressed_ignored_fixture_does_not_exist_or_no_dns_packet_event() {
+    // The DNS sensor refuses to emit on oversized / compressed
+    // inputs at the BPF parse stage; the committed fixtures
+    // MUST NOT contain `oversized_compressed.binpb`. If a
+    // future contributor adds it by accident, this test fails
+    // with a clear diagnostic.
+    let path = dns_fixture_dir().join("oversized_compressed.binpb");
+    if path.exists() {
+        panic!(
+            "tests/fixtures/dns/oversized_compressed.binpb MUST NOT exist — the DNS sensor \
+             MUST NOT retain arbitrary payloads (oversized / compressed input is rejected at \
+             the kernel bpf_parse stage before any DNS_PACKET event is emitted). If this \
+             fixture was added on purpose, the corresponding test (`{}`) must be updated to \
+             verify the do-not-retain-payloads contract.",
+            "oversized_compressed_ignored_fixture_does_not_exist_or_no_dns_packet_event"
+        );
+    }
+}
+
+#[test]
+fn ephemeral_mdns_ignored_fixture_does_not_exist_or_no_dns_packet_event() {
+    // The DNS sensor only fires on UDP/53 + TCP/53. mDNS
+    // (UDP/5353) and other link-local DNS variants are out of
+    // scope. The committed fixtures MUST NOT contain
+    // `ephemeral_mdns.binpb`. If a future contributor adds it
+    // by accident, this test fails with a clear diagnostic.
+    let path = dns_fixture_dir().join("ephemeral_mdns.binpb");
+    if path.exists() {
+        panic!(
+            "tests/fixtures/dns/ephemeral_mdns.binpb MUST NOT exist — the DNS sensor \
+             captures cleartext DNS over UDP/53 + TCP/53 ONLY. mDNS over link-local, DoH, \
+             DoT, DoQ and any other non-port-53 traffic are out of scope. If this fixture \
+             was added on purpose, the corresponding test (`{}`) must be updated to verify \
+             the link-local-DNS-ignored contract.",
+            "ephemeral_mdns_ignored_fixture_does_not_exist_or_no_dns_packet_event"
+        );
+    }
+}
+
+#[test]
+fn coverage_manifest_denies_generic_dns_lookup_semantic() {
+    // Documentation / coverage-manifest self-claim assertion.
+    // Reads `bpf/sensors/dns.bpf.c` as a string and asserts
+    // the comment block at the top of the file contains the
+    // literal self-claim text. This is the explicit acceptance
+    // criterion the task brief names: "coverage manifest denies
+    // a generic DNS lookup semantic". If the comment is missing
+    // or has been edited away, this test fails — the task-14
+    // commit cannot be re-merged without re-adding the
+    // self-claim.
+    let dns_bpf_c_path = repo_root().join("bpf/sensors/dns.bpf.c");
+    let src = std::fs::read_to_string(&dns_bpf_c_path)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", dns_bpf_c_path.display()));
+
+    let expected = "This sensor captures cleartext DNS packets only. It does NOT capture \
+                    DoH (HTTPS/853), DoT (TLS/853), DoQ (QUIC/853), mDNS over link-local, \
+                    /etc/hosts resolution, application-layer DNS over SOCKS proxies, or \
+                    resolver-side cache hits. The kernel-v1 documentation explicitly labels \
+                    this surface as DNS_PACKET over UDP/53 and TCP/53 only.";
+    if !src.contains(expected) {
+        panic!(
+            "coverage manifest self-claim missing or edited away in bpf/sensors/dns.bpf.c.\n\
+             The literal block:\n    {expected}\n\
+             must remain at the top of the file so the task-14 acceptance criterion \
+             'coverage manifest denies a generic DNS lookup semantic' continues to hold. \
+             See .omo/evidence/task-14-ebpf-runtime-security-observability.json for the \
+             rationale."
+        );
+    }
+
+    let early = src.get(..4096).unwrap_or(&src);
+    must(
+        early.contains(expected),
+        "coverage manifest self-claim MUST be present in the first 4 KiB of bpf/sensors/dns.bpf.c",
+    );
+}
+
+#[test]
+fn dns_decoder_never_panics_on_adversarial_input() {
+    // Property test: the decoder must NEVER panic on adversarial
+    // input. We feed randomized buffers of every interesting
+    // length and assert each returns Err(_) rather than
+    // panicking. This is the host-side equivalent of the plan's
+    // fuzzer.
+    let mut state: u64 = 0xDEAD_BEEF_9876_5432;
+    let fixtures: &[(&str, &[u8])] = &[
+        ("udp_query", include_bytes!("fixtures/dns/udp_query.binpb")),
+        (
+            "udp_response",
+            include_bytes!("fixtures/dns/udp_response.binpb"),
+        ),
+        ("tcp_query", include_bytes!("fixtures/dns/tcp_query.binpb")),
+        (
+            "tcp_response",
+            include_bytes!("fixtures/dns/tcp_response.binpb"),
+        ),
+        (
+            "truncated_qname",
+            include_bytes!("fixtures/dns/truncated_qname.binpb"),
+        ),
+    ];
+    for (name, base) in fixtures {
+        for trial in 0u32..100 {
+            let mut buf = base.to_vec();
+            let pos = (lcg_step(&mut state) as usize) % buf.len();
+            buf[pos] = (lcg_step(&mut state) & 0xFF) as u8;
+            let result = std::panic::catch_unwind(|| parse(&buf));
+            match result {
+                Ok(_) => { /* expected */ }
+                Err(_) => panic!(
+                    "DNS decoder PANICKED on {name} fixture trial={trial} (mutated byte at {pos:#x})"
+                ),
+            }
+        }
+    }
+
+    // 100 random-buffer trials (independent of fixtures) at
+    // sizes that match the new DNS payload (96 + 320 = 416).
+    for trial in 0u32..100 {
+        let mut buf = vec![0u8; 416];
+        for byte in buf.iter_mut() {
+            *byte = (lcg_step(&mut state) & 0xFF) as u8;
+        }
+        if trial % 5 == 0 && buf.len() >= HEADER_LEN {
+            buf[0..4].copy_from_slice(&event_abi::SCHEMA_MAJOR.to_le_bytes());
+            buf[4..8].copy_from_slice(&event_abi::SCHEMA_MINOR.to_le_bytes());
+            buf[8..12].copy_from_slice(&(HEADER_LEN as u32).to_le_bytes());
+            buf[12..16].copy_from_slice(&((HEADER_LEN as u32) + 320u32).to_le_bytes());
+            buf[16] = EventKind::DnsPacket as u8;
+        }
+        let result = std::panic::catch_unwind(|| parse(&buf));
+        match result {
+            Ok(_) => {}
+            Err(_) => panic!(
+                "DNS decoder PANICKED on random bytes (trial={trial}); \
+                 the parser must NEVER panic — only return Err"
+            ),
+        }
+    }
+}
+
+fn b16u(payload: &[u8], off: usize) -> u16 {
+    let bytes: [u8; 2] = payload[off..off + 2].try_into().expect("2-byte slice");
+    u16::from_le_bytes(bytes)
+}

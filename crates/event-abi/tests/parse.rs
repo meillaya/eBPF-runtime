@@ -278,3 +278,92 @@ fn header_struct_size_matches_constant() {
     assert_eq!(core::mem::size_of::<Header>(), HEADER_LEN);
     assert_eq!(core::mem::align_of::<Header>(), 8);
 }
+
+// ---------------------------------------------------------------------------
+// TASK-14 — DNS packet sensor ABI additions.
+// ---------------------------------------------------------------------------
+
+use event_abi::{
+    dns_valid, DnsDirection, DnsPacket, DnsProtocol, DnsTruncationReason, DNS_PAYLOAD_LEN,
+    DNS_QNAME_MAX,
+};
+
+#[test]
+fn dns_payload_size_and_qname_max_match_c_header() {
+    assert_eq!(DNS_PAYLOAD_LEN, 320);
+    assert_eq!(DNS_QNAME_MAX, 253);
+    assert_eq!(core::mem::size_of::<DnsPacket>(), DNS_PAYLOAD_LEN);
+}
+
+#[test]
+fn dns_payload_layout_matches_c_header_struct() {
+    let pkt: DnsPacket = unsafe { core::mem::zeroed() };
+    let bytes: &[u8] = unsafe {
+        core::slice::from_raw_parts(
+            (&pkt as *const DnsPacket) as *const u8,
+            core::mem::size_of::<DnsPacket>(),
+        )
+    };
+    assert_eq!(bytes.len(), DNS_PAYLOAD_LEN);
+    assert!(bytes.len() >= 8 + DNS_QNAME_MAX);
+    assert!(DNS_PAYLOAD_LEN >= 320);
+}
+
+#[test]
+fn dns_validity_bit_constants_match_brief() {
+    assert_eq!(dns_valid::QNAME, 0x0200_0000);
+    assert_eq!(dns_valid::QTYPE, 0x0400_0000);
+    assert_eq!(dns_valid::FLAGS, 0x0800_0000);
+    assert_eq!(dns_valid::COUNTS, 0x1000_0000);
+    assert_eq!(dns_valid::DST_IP, 0x2000_0000);
+    assert_eq!(dns_valid::PAYLOAD_TRUNC, 0x4000_0000);
+}
+
+#[test]
+fn dns_validity_bits_compose_into_valids() {
+    let all: u32 = dns_valid::QNAME
+        | dns_valid::QTYPE
+        | dns_valid::FLAGS
+        | dns_valid::COUNTS
+        | dns_valid::DST_IP
+        | dns_valid::PAYLOAD_TRUNC;
+    assert_eq!(all, 0x7E00_0000);
+}
+
+#[test]
+fn dns_enum_mapping_is_well_defined() {
+    assert_eq!(DnsDirection::from_byte(0) as u8, DnsDirection::Query as u8);
+    assert_eq!(DnsDirection::from_byte(1) as u8, DnsDirection::Response as u8);
+    assert_eq!(DnsDirection::from_byte(0xff) as u8, DnsDirection::Query as u8);
+    assert_eq!(DnsProtocol::from_byte(0) as u8, DnsProtocol::Udp as u8);
+    assert_eq!(DnsProtocol::from_byte(1) as u8, DnsProtocol::Tcp as u8);
+    assert_eq!(DnsProtocol::from_byte(0xff) as u8, DnsProtocol::Udp as u8);
+    assert_eq!(
+        DnsTruncationReason::from_byte(0) as u8,
+        DnsTruncationReason::None as u8
+    );
+    assert_eq!(
+        DnsTruncationReason::from_byte(1) as u8,
+        DnsTruncationReason::NameTooLong as u8
+    );
+    assert_eq!(
+        DnsTruncationReason::from_byte(2) as u8,
+        DnsTruncationReason::HeaderTooShort as u8
+    );
+    assert_eq!(
+        DnsTruncationReason::from_byte(0xff) as u8,
+        DnsTruncationReason::InternalBpfError as u8
+    );
+    assert!(!DnsTruncationReason::None.is_truncation());
+    assert!(DnsTruncationReason::NameTooLong.is_truncation());
+    assert!(DnsTruncationReason::HeaderTooShort.is_truncation());
+    assert!(DnsTruncationReason::InternalBpfError.is_truncation());
+}
+
+#[test]
+fn dns_packet_event_with_max_qname_parses() {
+    let buf = build_record(EventKind::DnsPacket, DNS_PAYLOAD_LEN, 0);
+    let ev = parse(&buf).expect("DNS_PACKET max-length payload must parse");
+    assert_eq!(ev.header.event_kind, EventKind::DnsPacket as u8);
+    assert_eq!(ev.payload.len(), DNS_PAYLOAD_LEN);
+}

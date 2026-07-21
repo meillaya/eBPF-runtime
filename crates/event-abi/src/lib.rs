@@ -29,10 +29,11 @@ pub mod generated;
 mod parser_helpers;
 
 pub use generated::{
-    EventKind, FileDenySource, Header, NetworkAcceptAttempt, NetworkAcceptResult,
-    NetworkConnectAttempt, NetworkConnectResult, NetworkState, TcpState, Valid,
-    EVENT_FLAG_REDACTED, EVENT_FLAG_TRUNC, FILE_RESULT_HAS_ERRNO, FILE_RESULT_OWN_LSM,
-    HEADER_LEN, NET_IPV4_LEN, NET_IPV6_LEN, NET_PAYLOAD_LEN, NET_RESULT_FLAG_EINPROGRESS,
+    dns_valid, DnsDirection, DnsPacket, DnsProtocol, DnsTruncationReason, EventKind,
+    FileDenySource, Header, NetworkAcceptAttempt, NetworkAcceptResult, NetworkConnectAttempt,
+    NetworkConnectResult, NetworkState, TcpState, Valid, EVENT_FLAG_REDACTED, EVENT_FLAG_TRUNC,
+    FILE_RESULT_HAS_ERRNO, FILE_RESULT_OWN_LSM, HEADER_LEN, DNS_PAYLOAD_LEN, DNS_QNAME_MAX,
+    NET_IPV4_LEN, NET_IPV6_LEN, NET_PAYLOAD_LEN, NET_RESULT_FLAG_EINPROGRESS,
     NET_RESULT_FLAG_NONBLOCKING, PAYLOAD_MAX, SCHEMA_MAJOR, SCHEMA_MINOR, VALID_REQUIRED,
     VALID_V1_ALLOWED_MASK, AF_INET_VAL, AF_INET6_VAL,
 };
