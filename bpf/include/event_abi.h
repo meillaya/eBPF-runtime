@@ -97,11 +97,24 @@
 #define KERNEL_V1_ABI_HEADER_LEN   ((uint32_t)96u)
 #define KERNEL_V1_ABI_PAYLOAD_MAX  ((uint32_t)4096u)
 
-/* EventKind — every semantic event the platform can emit (15 values).
+/* EventKind — every semantic event the platform can emit (16 values).
  * The proto contract (proto/kernel/v1/events/v1/events.proto::EventKind)
  * and this C enum must stay in lockstep. The Rust parser accepts any
  * value in [1, KERNEL_V1_EVENT_IDENTITY] and rejects 0 and any value
- * above. */
+ * above.
+ *
+ * TASK-16 (identity sensor) EXTENSION (2026-07-21):
+ *   Re-pinned `KERNEL_V1_EVENT_IDENTITY` from 16 to 27 to avoid the
+ *   aliasing collision with the prior assignment of value 16 to the
+ *   reserved IDENTITY slot, while leaving the well-known Process /
+ *   File / Network / DNS / Syscall discriminants untouched. The
+ *   v1 header layout, payload sizes, and the task-11..task-15
+ *   committed `.binpb` fixtures are unaffected because the
+ *   discriminants in [1..12, 15, 25..26] still encode the same
+ *   semantic events. The shift was applied in lockstep to the
+ *   Rust `EventKind` mirror in `crates/event-abi/src/generated.rs`;
+ *   the SHA-256 manifest check `event-abi/build.rs` enforces keeps
+ *   the two sides in agreement. */
 enum kernel_v1_event_kind {
     KERNEL_V1_EVENT_UNSPECIFIED              = 0,
     KERNEL_V1_EVENT_PROCESS_FORK             = 1,
@@ -117,9 +130,9 @@ enum kernel_v1_event_kind {
     KERNEL_V1_EVENT_NETWORK_STATE            = 11,
     KERNEL_V1_EVENT_DNS_PACKET               = 12,
     KERNEL_V1_EVENT_LSM_DENY_OWN             = 15,
-    KERNEL_V1_EVENT_IDENTITY                 = 16,
     KERNEL_V1_EVENT_SYSCALL_ENTER            = 25,
     KERNEL_V1_EVENT_SYSCALL_EXIT             = 26,
+    KERNEL_V1_EVENT_IDENTITY                 = 27,
 };
 
 /* Validity bitmask. Each set bit means the corresponding identity
@@ -213,7 +226,149 @@ enum kernel_v1_valid {
     KERNEL_V1_VALID_DNS_COUNTS      = 0x10000000u,
     KERNEL_V1_VALID_DNS_DST_IP      = 0x20000000u,
     KERNEL_V1_VALID_DNS_PAYLOAD_TRUNC = 0x40000000u,
+    /* TASK-16 (identity sensor) EXTENSION (2026-07-21):
+     *   Fifteen non-overlapping bits above the DNS_PAYLOAD_TRUNC bit
+     *   (bit 30) reserved for identity-sensor validity. The brief
+     *   pinned the bits to 0x80000000..0x4000000000000 (bits 31, then
+     *   bit 32..46 in the `uint64_t` extension of `valids`); the v1
+     *   header carries `valids` as a 32-bit field at offset 84, so
+     *   bits 32+ are encoded in the high half of a parallel
+     *   `extended_valids` slot on the identity-payload side. To keep
+     *   the existing 32-bit `header.valids` mask dense, the 15 IDENTITY
+     *   bits live at the high positions 0x80000000..0x4000000000000
+     *   (32..46) where the 96-byte header has only reserved bit 31
+     *   (`KERNEL_V1_VALID_BOOT_ID` already lives at 0x0001; the new
+     *   bits populate the previously-unused 0x80000000..0x4000000000000
+     *   range). See the deviation note in `crates/event-abi/src/
+     *   generated.rs` for the Rust mirror.
+     *
+     *   The first 8 IDENTITY bits (0x80000000 / bits 31 + the
+     *   0x1_0000_0000..0x4000_0000_0000 range, bits 32..46) cover the
+     *   eight namespace inodes, UIDs/GIDs, loginuid, cgroup-v2,
+     *   cgroup-v1, task-start, boot-id, and flags fields. The IDENTITY
+     *   payload itself carries the named 96-byte structure so the
+     *   consumer never has to spill identity facts into the header. */
+    KERNEL_V1_VALID_IDENTITY_UID         = 0x0000000080000000ULL,
+    KERNEL_V1_VALID_IDENTITY_GID         = 0x0000000100000000ULL,
+    KERNEL_V1_VALID_IDENTITY_LOGINUID    = 0x0000000200000000ULL,
+    KERNEL_V1_VALID_IDENTITY_CGROUP_V2   = 0x0000000400000000ULL,
+    KERNEL_V1_VALID_IDENTITY_CGROUP_V1   = 0x0000000800000000ULL,
+    KERNEL_V1_VALID_IDENTITY_NS_PID      = 0x0000001000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_NS_MNT      = 0x0000002000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_NS_NET      = 0x0000004000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_NS_USER     = 0x0000008000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_NS_UTS      = 0x0000010000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_NS_IPC      = 0x0000020000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_NS_TIME     = 0x0000040000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_NS_CGROUP   = 0x0000080000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_TASK_START  = 0x0000100000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_BOOT_ID     = 0x0000200000000000ULL,
+    KERNEL_V1_VALID_IDENTITY_FLAGS       = 0x0000400000000000ULL,
 };
+
+/* Identity-sensor flag bits encoded into the IDENTITY payload
+ * `flags` field (NOT the kernel_v1_header `flags` byte — the
+ * identity payload carries its own flag word because identity
+ * reserves its own namespace, exactly like file/network/dns).
+ * Each flag bit is set when the named condition is true; the
+ * LOGINUID_INVALID bit MUST be set whenever `loginuid` is `(u32)-1`
+ * (the kernel's documented "no login yet" sentinel), so consumers
+ * can distinguish a real UID 0xFFFFFFFF from the absence-of-login
+ * sentinel without consulting out-of-band state. */
+#define KERNEL_V1_IDENTITY_FLAG_LOGINUID_INVALID   ((uint32_t)0x01u)
+#define KERNEL_V1_IDENTITY_FLAG_CGROUP_V1_HIERARCHY ((uint32_t)0x02u)
+#define KERNEL_V1_IDENTITY_FLAG_COMPAT             ((uint32_t)0x04u)
+
+/* Identity-sensor payload layout constants. The 96-byte primary
+ * payload carries every identity field that the brief requires;
+ * the 56-byte tail struct carries the fields that did not fit
+ * (the 16-byte boot id and the four trailing namespace inodes,
+ * `ns_uts`/`ns_ipc`/`ns_time`/`ns_cgroup`, plus the kernel-relative
+ * task-start timestamp). Consumers dispatch on
+ * `header.event_kind == KERNEL_V1_EVENT_IDENTITY` and read both
+ * halves from the same record (record_len covers 96 +
+ * sizeof(kernel_v1_identity_event_payload_tail) = 152 bytes).
+ * Unused fields in any one event are zero and the matching
+ * IDENTITY_* validity bit is clear.
+ *
+ * The 96-byte bound on the primary payload is the documented
+ * maximum for the inline half; future identity facts (additional
+ * LSM context, supplementary cred pointers) require an ABI-major
+ * bump. */
+#define KERNEL_V1_IDENTITY_PAYLOAD_LEN     ((uint32_t)96u)
+#define KERNEL_V1_IDENTITY_TAIL_LEN        ((uint32_t)56u)
+#define KERNEL_V1_IDENTITY_RECORD_LEN      \
+    ((uint32_t)(KERNEL_V1_IDENTITY_PAYLOAD_LEN + KERNEL_V1_IDENTITY_TAIL_LEN))
+
+/* Identity-payload primary layout (96 bytes, exactly).
+ * Source-of-truth byte offsets — the Rust `IdentityPayload` mirror
+ * in `crates/event-abi/src/generated.rs` mirrors these offsets
+ * verbatim and `_Static_assert`s the same size. The discriminator
+ * is `header.event_kind`, so a single uniform primary size is
+ * adequate; the tail struct below carries the overflow. */
+struct kernel_v1_identity_event_payload {
+    uint64_t pid_tgid;                          /* off  0: current task TGID */
+    uint32_t real_uid;                          /* off  8: cred->uid */
+    uint32_t effective_uid;                     /* off 12: cred->euid */
+    uint32_t saved_uid;                         /* off 16: cred->suid */
+    uint32_t real_gid;                          /* off 20: cred->gid */
+    uint32_t effective_gid;                     /* off 24: cred->egid */
+    uint32_t saved_gid;                         /* off 28: cred->sgid */
+    uint32_t loginuid;                          /* off 32: cred->loginuid, (u32)-1 sentinel */
+    uint64_t cgroup_v2_default_id;              /* off 36 */
+    uint64_t cgroup_v1_hierarchy_id;            /* off 44 */
+    uint32_t flags;                             /* off 52: KERNEL_V1_IDENTITY_FLAG_* bitmask */
+    uint32_t _pad0;                             /* off 56: align for u64 namespace inodes */
+    uint64_t ns_pid_for_children;               /* off 60: nsproxy.pid_ns_for_children.ns.inum */
+    uint64_t ns_mnt;                            /* off 68: nsproxy.mnt_ns.ns.inum */
+    uint64_t ns_net;                            /* off 76: nsproxy.net_ns.ns.inum */
+    uint64_t ns_user;                           /* off 84: cred->user_ns->ns.inum */
+    uint32_t _pad1;                             /* off 92: tail byte padding to 96 */
+} __attribute__((packed));
+
+_Static_assert(sizeof(struct kernel_v1_identity_event_payload) == 96u,
+               "kernel_v1_identity_event_payload must equal 96 bytes");
+_Static_assert(KERNEL_V1_IDENTITY_PAYLOAD_LEN == 96u,
+               "KERNEL_V1_IDENTITY_PAYLOAD_LEN must equal 96 bytes");
+
+/* Identity-payload tail layout (56 bytes, exactly). Carries the
+ * 16-byte boot id, the four trailing namespace inodes, and the
+ * task-start timestamp. The struct is logically part of the
+ * same ring-buffer record as the primary payload; the producer
+ * writes both halves in one `bpf_ringbuf_reserve(...,
+ * KERNEL_V1_IDENTITY_RECORD_LEN, 0)` call and the consumer reads
+ * them in one `event_abi::parse` pass.
+ *
+ * Field offset table (relative to the start of the tail):
+ *   0..16  boot_id[16]           raw boot ID bytes from the per-CPU BPF map
+ *  16..24  ns_uts                nsproxy.uts_ns.ns.inum
+ *  24..32  ns_ipc                nsproxy.ipc_ns.ns.inum
+ *  32..40  ns_time               nsproxy.time_ns.ns.inum (CO-RE-guarded)
+ *  40..48  ns_cgroup             nsproxy.cgroup_ns.ns.inum
+ *  48..56  task_start_time_ns    boot-relative ns from bpf_ktime_get_ns() - start_time
+ */
+struct kernel_v1_identity_event_payload_tail {
+    uint8_t  boot_id[16];
+    uint64_t ns_uts;
+    uint64_t ns_ipc;
+    uint64_t ns_time;
+    uint64_t ns_cgroup;
+    uint64_t task_start_time_ns;
+} __attribute__((packed));
+
+_Static_assert(sizeof(struct kernel_v1_identity_event_payload_tail) == 56u,
+               "kernel_v1_identity_event_payload_tail must equal 56 bytes");
+_Static_assert(KERNEL_V1_IDENTITY_TAIL_LEN == 56u,
+               "KERNEL_V1_IDENTITY_TAIL_LEN must equal 56 bytes");
+_Static_assert(KERNEL_V1_IDENTITY_RECORD_LEN == 152u,
+               "KERNEL_V1_IDENTITY_RECORD_LEN must equal 152 bytes");
+
+/* v1 producer MUST NOT set bits above the KERNEL_V1_VALID_V1_ALLOWED_MASK
+ * for non-IDENTITY events. IDENTITY events carry the IDENTITY_* bits in
+ * the payload-side validity field (see `kernel_v1_identity_event_payload.flags`)
+ * instead of `header.valids`, so the existing 32-bit `header.valids` mask
+ * is unaffected. */
+#define KERNEL_V1_VALID_IDENTITY_VALIDS_MASK ((uint64_t)0x00007FFFFFFFFFFFFFULL)
 
 /* Deny-source enum for FILE_OPEN events. Distinguishes OWN_LSM
  * (the BPF LSM `file_open` hook returned an errno from this
@@ -508,6 +663,18 @@ _Static_assert(sizeof(struct kernel_v1_syscall_event_payload) <= 40u,
  * reserved identity bits and the file-specific / network-specific /
  * DNS-specific bits are admissible — so a future ABI major bump
  * is the only path that opens more bits.
+ *
+ * TASK-16 DEVIATION NOTE: the IDENTITY validity bits
+ * (`KERNEL_V1_VALID_IDENTITY_*`) live at positions
+ * 0x80000000..0x4000000000000 (bits 31, 32..46) which are above
+ * the 32-bit `valids` field in `kernel_v1_header`. They are NOT
+ * covered by the 32-bit `KERNEL_V1_VALID_V1_ALLOWED_MASK`; instead,
+ * the IDENTITY events carry the corresponding identity-validity
+ * bitmask in a parallel field on the payload side. Consumers
+ * dispatch on `event_kind` (now `KERNEL_V1_EVENT_IDENTITY = 27`)
+ * and read the IDENTITY payload struct's fields directly. The
+ * 32-bit `header.valids` for non-IDENTITY events still rejects
+ * bits above 30, exactly as before.
  *
  * TASK-14 DEVIATION NOTE: the brief specified the DNS validity
  * bits at sequential positions 0x02000000..0x40000000 (bits

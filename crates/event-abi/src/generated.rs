@@ -55,6 +55,15 @@ pub const PAYLOAD_MAX: usize = 4096;
 ///   (`proto/kernel/v1/events/v1/events.proto`) is updated as part
 ///   of the task-12 follow-up patch so all four layouts (C enum,
 ///   Rust enum, parse.rs match arms, proto enum) stay in lockstep.
+///
+/// TASK-16 (identity sensor) EXTENSION (2026-07-21):
+///   `Identity` re-pinned from 16 to 27 to clear the aliasing
+///   collision with the prior reserved 16 slot. The committed
+///   task-11..task-15 `.binpb` fixtures still use the same
+///   discriminants (1..12, 15, 25, 26), so the wire-format
+///   compatibility is preserved. The C-side enum was updated
+///   in lockstep; the SHA-256 manifest check `event-abi/build.rs`
+///   enforces agreement between the two sides.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EventKind {
@@ -72,18 +81,18 @@ pub enum EventKind {
     NetworkState = 11,
     DnsPacket = 12,
     LsmDenyOwn = 15,
-    Identity = 16,
     SyscallEnter = 25,
     SyscallExit = 26,
+    Identity = 27,
 }
 
 impl EventKind {
     /// Maximum accepted discriminant value. The parser rejects any
     /// `event_kind` byte above this.
-    pub const MAX_DISCRIMINANT: u8 = Self::SyscallExit as u8;
+    pub const MAX_DISCRIMINANT: u8 = Self::Identity as u8;
 
     pub const fn is_known(byte: u8) -> bool {
-        matches!(byte, 1..=12 | 15 | 16 | 25 | 26)
+        matches!(byte, 1..=12 | 15 | 25..=27)
     }
 }
 
@@ -259,9 +268,9 @@ impl Header {
             11 => "NETWORK_STATE",
             12 => "DNS_PACKET",
             15 => "LSM_DENY_OWN",
-            16 => "IDENTITY",
             25 => "SYSCALL_ENTER",
             26 => "SYSCALL_EXIT",
+            27 => "IDENTITY",
             _ => "UNKNOWN_KIND",
         }
     }
@@ -593,6 +602,101 @@ pub struct SyscallHistogramBucket {
     pub no_return_count: u64,
 }
 
+// ---------------------------------------------------------------------------
+// Identity sensor (TASK-16) — cgroup / namespace / credential facts
+// ---------------------------------------------------------------------------
+
+/// Identity validity bits as `pub const`s. The Rust `enum Valid`
+/// cannot host these (the brief-pinned positions 0x80000000..
+/// 0x4000000000000 are above the 32-bit `header.valids` field, so
+/// they live in a parallel identity-side validity bitmask).
+/// Consumers do `event.identity.validity & identity_valid::UID != 0`
+/// for the same effect `verify_field` provides on the non-IDENTITY
+/// bits. The bit positions are the brief-pinned
+/// `KERNEL_V1_VALID_IDENTITY_*` constants from
+/// `bpf/include/event_abi.h`. See the deviation note in
+/// `bpf/include/event_abi.h` for the rationale that the identity
+/// validity bits live on the payload side, not in `header.valids`.
+pub mod identity_valid {
+    pub const UID: u64 = 0x0000_0000_8000_0000;
+    pub const GID: u64 = 0x0000_0001_0000_0000;
+    pub const LOGINUID: u64 = 0x0000_0002_0000_0000;
+    pub const CGROUP_V2: u64 = 0x0000_0004_0000_0000;
+    pub const CGROUP_V1: u64 = 0x0000_0008_0000_0000;
+    pub const NS_PID: u64 = 0x0000_0010_0000_0000;
+    pub const NS_MNT: u64 = 0x0000_0020_0000_0000;
+    pub const NS_NET: u64 = 0x0000_0040_0000_0000;
+    pub const NS_USER: u64 = 0x0000_0080_0000_0000;
+    pub const NS_UTS: u64 = 0x0000_0100_0000_0000;
+    pub const NS_IPC: u64 = 0x0000_0200_0000_0000;
+    pub const NS_TIME: u64 = 0x0000_0400_0000_0000;
+    pub const NS_CGROUP: u64 = 0x0000_0800_0000_0000;
+    pub const TASK_START: u64 = 0x0000_1000_0000_0000;
+    pub const BOOT_ID: u64 = 0x0000_2000_0000_0000;
+    pub const FLAGS: u64 = 0x0000_4000_0000_0000;
+}
+
+/// Identity-sensor payload layout constants. Mirror
+/// `bpf/include/event_abi.h::KERNEL_V1_IDENTITY_*`.
+pub const IDENTITY_PAYLOAD_LEN: usize = 96;
+pub const IDENTITY_TAIL_LEN: usize = 56;
+pub const IDENTITY_RECORD_LEN: usize = IDENTITY_PAYLOAD_LEN + IDENTITY_TAIL_LEN;
+
+/// Identity-payload flag bits. Mirror
+/// `KERNEL_V1_IDENTITY_FLAG_*` in `bpf/include/event_abi.h`.
+pub const IDENTITY_FLAG_LOGINUID_INVALID: u32 = 0x01;
+pub const IDENTITY_FLAG_CGROUP_V1_HIERARCHY: u32 = 0x02;
+pub const IDENTITY_FLAG_COMPAT: u32 = 0x04;
+
+/// Mirror of `struct kernel_v1_identity_event_payload` in
+/// `bpf/include/event_abi.h`. 96-byte primary payload that the
+/// identity sensor writes immediately after the 96-byte
+/// `kernel_v1_header`. The byte layout is exact: the
+/// `#[repr(C, packed)]` annotation guarantees the field order and
+/// absence of trailing padding matches the C producer byte-for-byte.
+/// Consumers dispatch on `header.event_kind == IDENTITY` and read
+/// these fields; missing fields are zero, the matching
+/// IDENTITY_* validity bit is clear.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IdentityPayload {
+    pub pid_tgid: u64,
+    pub real_uid: u32,
+    pub effective_uid: u32,
+    pub saved_uid: u32,
+    pub real_gid: u32,
+    pub effective_gid: u32,
+    pub saved_gid: u32,
+    pub loginuid: u32,
+    pub cgroup_v2_default_id: u64,
+    pub cgroup_v1_hierarchy_id: u64,
+    pub flags: u32,
+    pub _pad0: u32,
+    pub ns_pid_for_children: u64,
+    pub ns_mnt: u64,
+    pub ns_net: u64,
+    pub ns_user: u64,
+    pub _pad1: u32,
+}
+
+/// Mirror of `struct kernel_v1_identity_event_payload_tail` in
+/// `bpf/include/event_abi.h`. 56-byte overflow payload that
+/// follows the primary identity payload in the same ring-buffer
+/// record. The byte layout is exact: `#[repr(C, packed)]`
+/// guarantees no padding. Consumers read the trailing fields
+/// (16-byte boot id, four namespace inodes, task-start
+/// timestamp) from this struct.
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IdentityPayloadTail {
+    pub boot_id: [u8; 16],
+    pub ns_uts: u64,
+    pub ns_ipc: u64,
+    pub ns_time: u64,
+    pub ns_cgroup: u64,
+    pub task_start_time_ns: u64,
+}
+
 /// Compile-time size assertions. Mirror the C header's
 /// `_Static_assert` lines. Drift between the Rust and C sizes
 /// fails `cargo build`.
@@ -610,4 +714,11 @@ const _: () = {
     assert!(core::mem::size_of::<DnsPacket>() == 320);
     assert!(core::mem::size_of::<SyscallEventPayload>() == SYSCALL_PAYLOAD_LEN);
     assert!(core::mem::size_of::<SyscallHistogramBucket>() == 568);
+
+    // TASK-16 additions — identity payload mirrors.
+    assert!(IDENTITY_PAYLOAD_LEN == 96);
+    assert!(IDENTITY_TAIL_LEN == 56);
+    assert!(IDENTITY_RECORD_LEN == 152);
+    assert!(core::mem::size_of::<IdentityPayload>() == IDENTITY_PAYLOAD_LEN);
+    assert!(core::mem::size_of::<IdentityPayloadTail>() == IDENTITY_TAIL_LEN);
 };

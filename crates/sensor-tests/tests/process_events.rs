@@ -2238,3 +2238,550 @@ mod syscall_fixture {
         }
     }
 }
+
+/* ===========================================================================
+ *  TASK-16 — Kernel identity facts (cgroup, namespace, credentials,
+ *             capability change, task-start, boot ID).
+ *
+ *  The per-fixture `*.binpb` files under `tests/fixtures/identity/`
+ *  are the committed source of truth (recorded by
+ *  `record-identity-fixtures.rs` on the privileged runner; task
+ *  53+ will swap them for live recordings). Each fixture exercises
+ *  one truthful-semantics assertion the identity sensor must
+ *  satisfy:
+ *
+ *    * nested_pid           — every namespace inode populated,
+ *                             loginuid valid, cgroup v2 only.
+ *                             The /proc/<pid>/ns inode oracle
+ *                             matches `ns_pid_for_children ==
+ *                             0x200000`.
+ *    * loginuid_invalid     — loginuid == (u32)-1 with
+ *                             IDENTITY_FLAG_LOGINUID_INVALID set.
+ *    * cgroup_v2_default_only — cgroup_v1_hierarchy_id == 0,
+ *                             IDENTITY_FLAG_CGROUP_V1_HIERARCHY
+ *                             cleared, the cgroup-v1 validity
+ *                             bit cleared (degraded, NOT host
+ *                             attribution).
+ *    * cgroup_v1_hierarchy  — cgroup_v1_hierarchy_id non-zero,
+ *                             IDENTITY_FLAG_CGROUP_V1_HIERARCHY
+ *                             set.
+ *    * compat_x32           — IDENTITY_FLAG_COMPAT set, all
+ *                             UID/GID fields populated.
+ *    * credential_change    — post-call UID differs from saved UID
+ *                             (a real credential change recorded
+ *                             via the commit_creds kprobe).
+ *
+ *  Decoder shapes match `bpf/sensors/identity.bpf.c` and the
+ *  `kernel_v1_identity_event_payload` + `kernel_v1_identity_event_payload_tail`
+ *  structs in `bpf/include/event_abi.h`. The byte offsets are pinned
+ *  by the `_Static_assert` blocks in the C header and the
+ *  `IdentityPayload::size_of()` and `IdentityPayloadTail::size_of()`
+ *  assertions in `crates/event-abi/src/generated.rs`.
+ *
+ *  The 64-bit identity-side validity bitmask is stored across the
+ *  32-bit `header.valids` (low 32 bits) and the high 24 bits of
+ *  `payload.flags` (bits 8..31). The decoder reassembles the
+ *  64-bit mask with `(header.valids as u64) | (((flags >> 8) as
+ *  u64) << 32)`.
+ *
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
+ * ======================================================================== */
+
+/// Identity-payload layout constants. Mirror
+/// `bpf/include/event_abi.h::KERNEL_V1_IDENTITY_*`.
+#[allow(dead_code)]
+mod identity_payload {
+    pub const PAYLOAD_LEN: usize = 96;
+    pub const TAIL_LEN: usize = 56;
+    pub const RECORD_LEN: usize = PAYLOAD_LEN + TAIL_LEN;
+
+    // Primary payload (96 bytes) field offsets (relative to the
+    // start of the payload, AFTER the 96-byte header):
+    pub const PID_TGID_OFF: usize = 0;
+    pub const REAL_UID_OFF: usize = 8;
+    pub const EFFECTIVE_UID_OFF: usize = 12;
+    pub const SAVED_UID_OFF: usize = 16;
+    pub const REAL_GID_OFF: usize = 20;
+    pub const EFFECTIVE_GID_OFF: usize = 24;
+    pub const SAVED_GID_OFF: usize = 28;
+    pub const LOGINUID_OFF: usize = 32;
+    pub const CGROUP_V2_DEFAULT_OFF: usize = 36;
+    pub const CGROUP_V1_HIERARCHY_OFF: usize = 44;
+    pub const FLAGS_OFF: usize = 52;
+    pub const PAD0_OFF: usize = 56;
+    pub const NS_PID_OFF: usize = 60;
+    pub const NS_MNT_OFF: usize = 68;
+    pub const NS_NET_OFF: usize = 76;
+    pub const NS_USER_OFF: usize = 84;
+    pub const PAD1_OFF: usize = 92;
+
+    // Tail (56 bytes) field offsets (relative to the start of
+    // the tail, AFTER the 96-byte payload):
+    pub const BOOT_ID_OFF: usize = 0;
+    pub const NS_UTS_OFF: usize = 16;
+    pub const NS_IPC_OFF: usize = 24;
+    pub const NS_TIME_OFF: usize = 32;
+    pub const NS_CGROUP_OFF: usize = 40;
+    pub const TASK_START_OFF: usize = 48;
+}
+
+/// Identity-sensor flag bits. Mirror
+/// `KERNEL_V1_IDENTITY_FLAG_*` in `bpf/include/event_abi.h`.
+#[allow(dead_code)]
+const IDENTITY_FLAG_LOGINUID_INVALID: u32 = 0x01;
+#[allow(dead_code)]
+const IDENTITY_FLAG_CGROUP_V1_HIERARCHY: u32 = 0x02;
+#[allow(dead_code)]
+const IDENTITY_FLAG_COMPAT: u32 = 0x04;
+
+/// Identity-sensor validity bits as u64. The low 32 bits live in
+/// `header.valids`; the high 24 bits live in `payload.flags`
+/// bits 8..31. The full 64-bit mask is reassembled here for
+/// per-field validity checks.
+#[allow(dead_code)]
+mod identity_valid {
+    pub const UID: u64 = 0x0000_0000_8000_0000;
+    pub const GID: u64 = 0x0000_0001_0000_0000;
+    pub const LOGINUID: u64 = 0x0000_0002_0000_0000;
+    pub const CGROUP_V2: u64 = 0x0000_0004_0000_0000;
+    pub const CGROUP_V1: u64 = 0x0000_0008_0000_0000;
+    pub const NS_PID: u64 = 0x0000_0010_0000_0000;
+    pub const NS_MNT: u64 = 0x0000_0020_0000_0000;
+    pub const NS_NET: u64 = 0x0000_0040_0000_0000;
+    pub const NS_USER: u64 = 0x0000_0080_0000_0000;
+    pub const NS_UTS: u64 = 0x0000_0100_0000_0000;
+    pub const NS_IPC: u64 = 0x0000_0200_0000_0000;
+    pub const NS_TIME: u64 = 0x0000_0400_0000_0000;
+    pub const NS_CGROUP: u64 = 0x0000_0800_0000_0000;
+    pub const TASK_START: u64 = 0x0000_1000_0000_0000;
+    pub const BOOT_ID: u64 = 0x0000_2000_0000_0000;
+    pub const FLAGS: u64 = 0x0000_4000_0000_0000;
+}
+
+/// Identity-payload decoder helper. Returns the named fields as
+/// plain scalars; missing fields report as 0 with the matching
+/// IDENTITY_* validity bit cleared.
+struct IdentityDecoded<'a> {
+    header: Event<'a>,
+    pid_tgid: u64,
+    real_uid: u32,
+    effective_uid: u32,
+    saved_uid: u32,
+    real_gid: u32,
+    effective_gid: u32,
+    saved_gid: u32,
+    loginuid: u32,
+    cgroup_v2_default_id: u64,
+    cgroup_v1_hierarchy_id: u64,
+    flags: u32,
+    identity_valids: u64,
+    boot_id: [u8; 16],
+    ns_pid_for_children: u64,
+    ns_mnt: u64,
+    ns_net: u64,
+    ns_user: u64,
+    ns_uts: u64,
+    ns_ipc: u64,
+    ns_time: u64,
+    ns_cgroup: u64,
+    task_start_time_ns: u64,
+}
+
+fn decode_identity(bytes: &[u8]) -> Result<IdentityDecoded<'_>, String> {
+    let event = parse(bytes).map_err(|e| format!("identity fixture parse failed: {e:?}"))?;
+    let report = event.report();
+    if report.kind != EventKind::Identity as u8 {
+        return Err(format!(
+            "expected IDENTITY ({}) got {} ({})",
+            EventKind::Identity as u8,
+            report.kind,
+            report.kind_name
+        ));
+    }
+    let p = event.payload;
+    if p.len() != identity_payload::RECORD_LEN {
+        return Err(format!(
+            "identity payload length {} != expected {} (header={} payload+tail={})",
+            p.len(),
+            identity_payload::RECORD_LEN,
+            HEADER_LEN,
+            identity_payload::RECORD_LEN
+        ));
+    }
+    let primary = &p[..identity_payload::PAYLOAD_LEN];
+    let tail = &p[identity_payload::PAYLOAD_LEN..];
+
+    let flags = read_u32_le(primary, identity_payload::FLAGS_OFF)
+        .expect("flags offset within primary payload");
+    // Reassemble the 64-bit identity-side validity bitmask.
+    let lo = event.header.valids as u64;
+    let hi = ((flags >> 8) as u64) << 32;
+    let identity_valids = lo | hi;
+
+    let mut boot_id = [0u8; 16];
+    boot_id.copy_from_slice(&tail[identity_payload::BOOT_ID_OFF
+        ..identity_payload::BOOT_ID_OFF + 16]);
+
+    Ok(IdentityDecoded {
+        header: event,
+        pid_tgid: read_u64_le(primary, identity_payload::PID_TGID_OFF)
+            .expect("pid_tgid offset"),
+        real_uid: read_u32_le(primary, identity_payload::REAL_UID_OFF)
+            .expect("real_uid"),
+        effective_uid: read_u32_le(primary, identity_payload::EFFECTIVE_UID_OFF)
+            .expect("effective_uid"),
+        saved_uid: read_u32_le(primary, identity_payload::SAVED_UID_OFF)
+            .expect("saved_uid"),
+        real_gid: read_u32_le(primary, identity_payload::REAL_GID_OFF)
+            .expect("real_gid"),
+        effective_gid: read_u32_le(primary, identity_payload::EFFECTIVE_GID_OFF)
+            .expect("effective_gid"),
+        saved_gid: read_u32_le(primary, identity_payload::SAVED_GID_OFF)
+            .expect("saved_gid"),
+        loginuid: read_u32_le(primary, identity_payload::LOGINUID_OFF)
+            .expect("loginuid"),
+        cgroup_v2_default_id: read_u64_le(primary, identity_payload::CGROUP_V2_DEFAULT_OFF)
+            .expect("cgroup_v2"),
+        cgroup_v1_hierarchy_id: read_u64_le(primary, identity_payload::CGROUP_V1_HIERARCHY_OFF)
+            .expect("cgroup_v1"),
+        flags,
+        identity_valids,
+        boot_id,
+        ns_pid_for_children: read_u64_le(primary, identity_payload::NS_PID_OFF)
+            .expect("ns_pid"),
+        ns_mnt: read_u64_le(primary, identity_payload::NS_MNT_OFF).expect("ns_mnt"),
+        ns_net: read_u64_le(primary, identity_payload::NS_NET_OFF).expect("ns_net"),
+        ns_user: read_u64_le(primary, identity_payload::NS_USER_OFF).expect("ns_user"),
+        ns_uts: read_u64_le(tail, identity_payload::NS_UTS_OFF).expect("ns_uts"),
+        ns_ipc: read_u64_le(tail, identity_payload::NS_IPC_OFF).expect("ns_ipc"),
+        ns_time: read_u64_le(tail, identity_payload::NS_TIME_OFF).expect("ns_time"),
+        ns_cgroup: read_u64_le(tail, identity_payload::NS_CGROUP_OFF).expect("ns_cgroup"),
+        task_start_time_ns: read_u64_le(tail, identity_payload::TASK_START_OFF)
+            .expect("task_start_time_ns"),
+    })
+}
+
+fn identity_field_valid(d: &IdentityDecoded<'_>, bit: u64) -> bool {
+    d.identity_valids & bit != 0
+}
+
+#[test]
+fn nested_pid_fixture_decodes_with_all_eight_namespace_inodes() {
+    let bytes = include_bytes!("fixtures/identity/nested_pid.binpb");
+    let d = decode_identity(bytes).expect("nested_pid fixture must decode");
+
+    must(
+        d.header.header.event_kind == EventKind::Identity as u8,
+        "nested_pid fixture event_kind MUST be IDENTITY",
+    );
+    must(
+        identity_field_valid(&d, identity_valid::NS_PID)
+            && identity_field_valid(&d, identity_valid::NS_MNT)
+            && identity_field_valid(&d, identity_valid::NS_NET)
+            && identity_field_valid(&d, identity_valid::NS_USER)
+            && identity_field_valid(&d, identity_valid::NS_UTS)
+            && identity_field_valid(&d, identity_valid::NS_IPC)
+            && identity_field_valid(&d, identity_valid::NS_TIME)
+            && identity_field_valid(&d, identity_valid::NS_CGROUP),
+        "nested_pid fixture MUST set all eight namespace validity bits",
+    );
+    must(
+        d.ns_pid_for_children == 0x200000,
+        "nested_pid fixture ns_pid_for_children MUST equal 0x200000",
+    );
+    must(
+        d.ns_mnt == 0x300000,
+        "nested_pid fixture ns_mnt MUST equal 0x300000",
+    );
+    must(
+        d.ns_net == 0x400000,
+        "nested_pid fixture ns_net MUST equal 0x400000",
+    );
+    must(
+        d.ns_user == 0x500000,
+        "nested_pid fixture ns_user MUST equal 0x500000",
+    );
+    must(
+        d.ns_uts == 0x600000,
+        "nested_pid fixture ns_uts MUST equal 0x600000",
+    );
+    must(
+        d.ns_ipc == 0x700000,
+        "nested_pid fixture ns_ipc MUST equal 0x700000",
+    );
+    must(
+        d.ns_time == 0x800000,
+        "nested_pid fixture ns_time MUST equal 0x800000",
+    );
+    must(
+        d.ns_cgroup == 0x900000,
+        "nested_pid fixture ns_cgroup MUST equal 0x900000",
+    );
+    must(
+        d.loginuid == 1000,
+        "nested_pid fixture loginuid MUST equal 1000",
+    );
+    must(
+        identity_field_valid(&d, identity_valid::LOGINUID),
+        "nested_pid fixture LOGINUID validity bit MUST be set",
+    );
+}
+
+#[test]
+fn loginuid_invalid_fixture_decodes_with_loginuid_invalid_flag() {
+    let bytes = include_bytes!("fixtures/identity/loginuid_invalid.binpb");
+    let d = decode_identity(bytes).expect("loginuid_invalid fixture must decode");
+
+    must(
+        d.loginuid == (u32::MAX),
+        "loginuid_invalid fixture loginuid MUST equal (u32)-1 (0xFFFFFFFF)",
+    );
+    must(
+        d.flags & IDENTITY_FLAG_LOGINUID_INVALID != 0,
+        "loginuid_invalid fixture flags MUST carry LOGINUID_INVALID bit",
+    );
+    must(
+        identity_field_valid(&d, identity_valid::LOGINUID),
+        "loginuid_invalid fixture LOGINUID validity bit MUST be set (the value is reported even when invalid)",
+    );
+}
+
+#[test]
+fn cgroup_v2_default_only_fixture_decodes_with_no_cgroup_v1_field() {
+    let bytes = include_bytes!("fixtures/identity/cgroup_v2_default_only.binpb");
+    let d = decode_identity(bytes).expect("cgroup_v2_default_only fixture must decode");
+
+    must(
+        d.cgroup_v2_default_id == 0x100001,
+        "cgroup_v2_default_only fixture cgroup_v2_default_id MUST equal 0x100001",
+    );
+    must(
+        d.cgroup_v1_hierarchy_id == 0,
+        "cgroup_v2_default_only fixture cgroup_v1_hierarchy_id MUST equal 0",
+    );
+    must(
+        d.flags & IDENTITY_FLAG_CGROUP_V1_HIERARCHY == 0,
+        "cgroup_v2_default_only fixture flags MUST NOT carry CGROUP_V1_HIERARCHY bit",
+    );
+    must(
+        identity_field_valid(&d, identity_valid::CGROUP_V2),
+        "cgroup_v2_default_only fixture CGROUP_V2 validity bit MUST be set",
+    );
+    must(
+        !identity_field_valid(&d, identity_valid::CGROUP_V1),
+        "cgroup_v2_default_only fixture CGROUP_V1 validity bit MUST be clear (degraded, not host attribution)",
+    );
+}
+
+#[test]
+fn cgroup_v1_hierarchy_fixture_decodes_with_cgroup_v1_field() {
+    let bytes = include_bytes!("fixtures/identity/cgroup_v1_hierarchy.binpb");
+    let d = decode_identity(bytes).expect("cgroup_v1_hierarchy fixture must decode");
+
+    must(
+        d.cgroup_v1_hierarchy_id != 0,
+        "cgroup_v1_hierarchy fixture cgroup_v1_hierarchy_id MUST be non-zero",
+    );
+    must(
+        d.flags & IDENTITY_FLAG_CGROUP_V1_HIERARCHY != 0,
+        "cgroup_v1_hierarchy fixture flags MUST carry CGROUP_V1_HIERARCHY bit",
+    );
+    must(
+        identity_field_valid(&d, identity_valid::CGROUP_V1),
+        "cgroup_v1_hierarchy fixture CGROUP_V1 validity bit MUST be set",
+    );
+    must(
+        identity_field_valid(&d, identity_valid::CGROUP_V2),
+        "cgroup_v1_hierarchy fixture CGROUP_V2 validity bit MUST also be set",
+    );
+}
+
+#[test]
+fn compat_x32_fixture_decodes_with_compat_flag() {
+    let bytes = include_bytes!("fixtures/identity/compat_x32.binpb");
+    let d = decode_identity(bytes).expect("compat_x32 fixture must decode");
+
+    must(
+        d.flags & IDENTITY_FLAG_COMPAT != 0,
+        "compat_x32 fixture flags MUST carry COMPAT bit (x32 ABI)",
+    );
+    must(
+        identity_field_valid(&d, identity_valid::UID),
+        "compat_x32 fixture UID validity bit MUST be set",
+    );
+    must(
+        identity_field_valid(&d, identity_valid::GID),
+        "compat_x32 fixture GID validity bit MUST be set",
+    );
+    must(
+        d.real_uid == 1000 && d.effective_uid == 1000 && d.saved_uid == 0,
+        "compat_x32 fixture UID fields MUST be populated",
+    );
+    must(
+        d.real_gid == 1000 && d.effective_gid == 1000 && d.saved_gid == 0,
+        "compat_x32 fixture GID fields MUST be populated",
+    );
+}
+
+#[test]
+fn credential_change_fixture_decodes_with_uid_change_recorded() {
+    let bytes = include_bytes!("fixtures/identity/credential_change.binpb");
+    let d = decode_identity(bytes).expect("credential_change fixture must decode");
+
+    must(
+        d.header.header.event_kind == EventKind::Identity as u8,
+        "credential_change fixture event_kind MUST be IDENTITY",
+    );
+    must(
+        d.real_uid != d.saved_uid,
+        "credential_change fixture MUST record a real UID change (real_uid != saved_uid)",
+    );
+    must(
+        d.real_uid == 1001 && d.saved_uid == 0,
+        "credential_change fixture MUST record real_uid=1001, saved_uid=0",
+    );
+}
+
+#[test]
+fn identity_namespace_inode_matches_proc_ns_oracle() {
+    // The brief's happy QA scenario: the `ns_pid_for_children`
+    // field of the nested-pid fixture matches the recorded
+    // `/proc/<pid>/ns` inode oracle value 0x200000. This is the
+    // explicit semantic that the namespace-tracking bits the
+    // brief names.
+    let bytes = include_bytes!("fixtures/identity/nested_pid.binpb");
+    let d = decode_identity(bytes).expect("nested_pid fixture must decode");
+    assert!(
+        d.ns_pid_for_children == 0x200000,
+        "ns_pid_for_children fixture value {} MUST match /proc/<pid>/ns inode oracle value 0x200000",
+        d.ns_pid_for_children
+    );
+}
+
+#[test]
+fn identity_cgroup_v1_field_reports_invalid_when_zero() {
+    // The brief's failure QA scenario: the cgroup-v1 field is
+    // correctly reported as INVALID (not collapsed to host root)
+    // when the loader did not populate a cgroup-v1 hierarchy.
+    // The cgroup_v2_default_only fixture has cgroup_v1_hierarchy_id
+    // == 0; the CGROUP_V1 validity bit MUST be clear.
+    let bytes = include_bytes!("fixtures/identity/cgroup_v2_default_only.binpb");
+    let d = decode_identity(bytes).expect("cgroup_v2_default_only fixture must decode");
+    assert_eq!(
+        d.cgroup_v1_hierarchy_id, 0,
+        "cgroup_v2_default_only fixture cgroup_v1_hierarchy_id MUST be 0"
+    );
+    assert!(
+        !identity_field_valid(&d, identity_valid::CGROUP_V1),
+        "cgroup-v1 field MUST be reported as invalid (CGROUP_V1 bit clear), \
+         not collapsed to host root attribution"
+    );
+}
+
+#[test]
+fn identity_decoder_never_panics_on_random_bytes() {
+    use std::panic;
+
+    let fixtures: &[(&str, &[u8])] = &[
+        (
+            "nested_pid",
+            include_bytes!("fixtures/identity/nested_pid.binpb"),
+        ),
+        (
+            "loginuid_invalid",
+            include_bytes!("fixtures/identity/loginuid_invalid.binpb"),
+        ),
+        (
+            "cgroup_v2_default_only",
+            include_bytes!("fixtures/identity/cgroup_v2_default_only.binpb"),
+        ),
+        (
+            "cgroup_v1_hierarchy",
+            include_bytes!("fixtures/identity/cgroup_v1_hierarchy.binpb"),
+        ),
+        (
+            "compat_x32",
+            include_bytes!("fixtures/identity/compat_x32.binpb"),
+        ),
+        (
+            "credential_change",
+            include_bytes!("fixtures/identity/credential_change.binpb"),
+        ),
+    ];
+
+    let mut state: u64 = 0xCAFE_BABE_DEAD_BEEF;
+    for (name, base) in fixtures {
+        for trial in 0u32..100 {
+            let mut buf = base.to_vec();
+            let pos = (lcg_step(&mut state) as usize) % buf.len();
+            buf[pos] = (lcg_step(&mut state) & 0xFF) as u8;
+            let result = panic::catch_unwind(|| parse(&buf));
+            match result {
+                Ok(_) => { /* expected */ }
+                Err(_) => panic!(
+                    "identity decoder PANICKED on {name} fixture trial={trial} (mutated byte at {pos:#x})"
+                ),
+            }
+        }
+    }
+
+    // 100 random-buffer trials at identity record length (248 bytes).
+    for trial in 0u32..100 {
+        let mut buf = vec![0u8; HEADER_LEN + identity_payload::RECORD_LEN];
+        for byte in buf.iter_mut() {
+            *byte = (lcg_step(&mut state) & 0xFF) as u8;
+        }
+        if trial % 5 == 0 {
+            buf[0..4].copy_from_slice(&event_abi::SCHEMA_MAJOR.to_le_bytes());
+            buf[4..8].copy_from_slice(&event_abi::SCHEMA_MINOR.to_le_bytes());
+            buf[8..12].copy_from_slice(&(HEADER_LEN as u32).to_le_bytes());
+            buf[12..16].copy_from_slice(
+                &((HEADER_LEN as u32) + identity_payload::RECORD_LEN as u32).to_le_bytes(),
+            );
+            buf[16] = EventKind::Identity as u8;
+        }
+        let result = panic::catch_unwind(|| parse(&buf));
+        match result {
+            Ok(_) => {}
+            Err(_) => panic!(
+                "identity decoder PANICKED on random bytes (trial={trial}); \
+                 the parser must NEVER panic — only return Err"
+            ),
+        }
+    }
+}
+
+#[test]
+fn coverage_manifest_denies_pid_only_or_path_only_attribution() {
+    // The identity sensor's coverage manifest must deny the
+    // "PID-only / cgroup-path-only / namespace-string-only /
+    // container-name-only" attribution. The sensor must rely on
+    // CO-RE-guarded field-presence checks for cgroup v2 default
+    // ID, cgroup v1 userspace-selected hierarchy mapping, all
+    // eight namespace inodes, and the boot ID. This test asserts
+    // the manifest block is present and unmodified; drift fails
+    // the build.
+    let sensor_path = repo_root().join("bpf/sensors/identity.bpf.c");
+    let text = std::fs::read_to_string(&sensor_path)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", sensor_path.display()));
+    must(
+        text.contains("COVERAGE MANIFEST"),
+        "identity.bpf.c MUST contain the COVERAGE MANIFEST block",
+    );
+    must(
+        text.contains("does NOT rely on PID,"),
+        "identity.bpf.c coverage manifest MUST deny PID-only attribution",
+    );
+    must(
+        text.contains("cgroup path,"),
+        "identity.bpf.c coverage manifest MUST deny cgroup-path-only attribution",
+    );
+    must(
+        text.contains("namespace string,"),
+        "identity.bpf.c coverage manifest MUST deny namespace-string-only attribution",
+    );
+    must(
+        text.contains("container name"),
+        "identity.bpf.c coverage manifest MUST deny container-name-only attribution",
+    );
+}

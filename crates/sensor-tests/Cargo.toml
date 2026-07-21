@@ -42,6 +42,11 @@ name = "record-syscall-fixtures"
 path = "src/bin/record-syscall-fixtures.rs"
 required-features = []
 
+[[bin]]
+name = "record-identity-fixtures"
+path = "src/bin/record-identity-fixtures.rs"
+required-features = []
+
 
 # `bpf-build` is a runtime dep of the `record-fixtures`,
 # `record-file-fixtures`, `record-network-fixtures`, and
