@@ -1,0 +1,79 @@
+# .github/workflows/scheduled-aggregate.yml
+#
+# kernel-v1 nightly aggregate CI lane.
+#
+# This is the nightly equivalent of the deterministic PR gate. It runs the
+# same quality:all aggregate plus the evidence-ledger fixture validation,
+# outside of any pull-request context, so nightly drift is caught before
+# it shows up in a developer's CI run.
+#
+# Privilege boundary: this workflow runs on the hosted ubuntu-22.04 image
+# only (no self-hosted, no rootful). It MUST NEVER invoke the privileged
+# suite directly - that belongs to privileged-host.yml on the declared
+# self-hosted runners.
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+name: scheduled-aggregate
+
+on:
+  schedule:
+    # 04:00 UTC daily. cron syntax is UTC by GitHub convention.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+# Cancel-in-progress so a slow nightly does not race a re-triggered one.
+concurrency:
+  group: nightly-aggregate
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+timeout-minutes: 45
+
+jobs:
+  aggregate:
+    name: nightly quality + evidence fixture validation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: install Nix
+        uses: cachix/install-nix-action@v24
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: "experimental-features = nix-command flakes"
+
+      - name: configure Cachix for devenv
+        uses: cachix/cachix-action@v13
+        with:
+          name: devenv
+          pushToHostedCache: true
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      # Aggregate gate, identical to the PR lane.
+      - name: quality:all (aggregate quality gate)
+        run: nix develop --no-pure-eval -c 'devenv tasks run quality:all'
+
+      # Evidence-ledger fixture validation. Same set the PR gate checks.
+      - name: validate evidence ledger fixtures
+        run: bash scripts/validate-evidence.sh tests/fixtures/evidence/valid
+
+      - name: confirm invalid evidence fixtures are rejected
+        run: |
+          set +e
+          bash scripts/validate-evidence.sh tests/fixtures/evidence/invalid
+          rc=$?
+          set -e
+          if [[ "$rc" -eq 0 ]]; then
+            echo "::error::validate-evidence.sh accepted invalid fixtures (rc=0) - schema drift?"
+            exit 1
+          fi
+          echo "validate-evidence.sh correctly rejected invalid fixtures (rc=$rc)"
