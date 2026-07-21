@@ -1,0 +1,284 @@
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+// proto/kernel/v1/control/v1/control.proto
+// =============================================================================
+// kernel-v1 — control-plane contract (v1)
+//
+// This is the authoritative wire format for the SPIFFE-identified gRPC
+// control stream between the node agent and the control plane
+// (registers, stages policy, commits policy, acks, health, and
+// compatibility reports). It also drives the typed REST/WebSocket
+// envelopes the dashboard consumes.
+//
+// The contract is the ONLY surface the browser is allowed to see.
+// The plan forbids exposing raw C structs, raw BPF event streams, or
+// privileged loader RPCs to browsers; this file is the shape that
+// promise is enforced against.
+//
+// Field numbering rules:
+//   1. Never reuse a retired number. `buf breaking --against .git#<v1>`
+//      will reject the next attempt.
+//   2. RPCs are server-streaming where the plan calls for it (Agent
+//      push health and acks), and unary otherwise.
+//   3. Every state transition is explicit; the consumer must NEVER
+//      infer state from a missing field.
+//
+// =============================================================================
+
+syntax = "proto3";
+
+package kernel.v1.control.v1;
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+// PolicyStatus enumerates every state a policy can occupy. The
+// rollout lifecycle is STAGED -> READY -> COMMITTED -> APPLIED (or
+// REJECTED at any of those transitions). STALE is a terminal state
+// the control plane emits when a previous-generation policy was
+// superseded and the agent no longer matches the active digest.
+// The plan's audit-only-by-default enforcement requires every state
+// transition to be visible to the audit log; STALE exists so a
+// "we no longer recognise this version" condition is named, not
+// silent.
+enum PolicyStatus {
+  POLICY_STATUS_UNSPECIFIED = 0;
+  POLICY_STATUS_STAGED = 1;
+  POLICY_STATUS_READY = 2;
+  POLICY_STATUS_COMMITTED = 3;
+  POLICY_STATUS_APPLIED = 4;
+  POLICY_STATUS_REJECTED = 5;
+  POLICY_STATUS_STALE = 6;
+}
+
+// CgroupMode — mirrors events.proto CgroupMode so the two
+// contracts agree. We duplicate rather than import events.proto
+// to keep the control-plane contract independently versionable
+// (events could rev to v2 without dragging control with it).
+enum CgroupMode {
+  CGROUP_MODE_UNSPECIFIED = 0;
+  CGROUP_MODE_UNIFIED = 1;
+  CGROUP_MODE_HYBRID = 2;
+  CGROUP_MODE_LEGACY = 3;
+  CGROUP_MODE_UNKNOWN = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Identity / registration
+// -----------------------------------------------------------------------------
+
+// RegisterRequest — the agent's first message on a new SPIFFE
+// authenticated stream. The control plane authenticates the SVID
+// out of band and binds it to (node_name, boot_id).
+message RegisterRequest {
+  // Operator-set node name (matches `events.Batch.node_name`).
+  string node_name = 1;
+  // /etc/hostname at register time.
+  string hostname = 2;
+  // Operator-set cluster identifier.
+  string cluster = 3;
+  // Monotonic per-agent generation; the agent increments it on
+  // every restart.
+  string agent_generation = 4;
+  // Linux boot_id (16 bytes, raw).
+  bytes boot_id = 5;
+  // uname -r at register time.
+  string kernel_release = 6;
+  // True iff /proc/sys/kernel/unprivileged_bpf_disabled != 0.
+  bool unprivileged_bpf_disabled = 7;
+}
+
+// RegisterResponse — what the control plane returns to the
+// agent after a successful register. Carries the active policy
+// (if any) and the negotiated compatibility report.
+message RegisterResponse {
+  // Active policy version (string form, semver-shaped). Empty when
+  // the cluster is currently in POLICY_STATUS_UNSPECIFIED / no policy.
+  string policy_version = 1;
+  // Active policy digest (the bytes the control plane computed for
+  // the BPF map that should be active on this agent).
+  bytes policy_digest = 2;
+  // Active policy status. Empty / UNSPECIFIED when no policy is
+  // active for this agent.
+  PolicyStatus policy_status = 3;
+  // Initial health snapshot.
+  Health health = 4;
+  // Initial compatibility snapshot.
+  Compatibility compatibility = 5;
+}
+
+// -----------------------------------------------------------------------------
+// Policy rollout
+// -----------------------------------------------------------------------------
+
+// StagePolicyRequest — the operator (or the control plane) sends a
+// new policy to a target set of agents. STAGED is the first state
+// in the rollout lifecycle; nothing is enforced yet.
+message StagePolicyRequest {
+  // Semver-shaped version string; the control plane owns uniqueness.
+  string version = 1;
+  // Digest of the staged BPF map bytes (sha-256 by convention).
+  bytes digest = 2;
+  // The staged inactive BPF map bytes. The agent computes its own
+  // hash_of_active from these and returns it in the ReadyAck.
+  bytes inactive_pbf_bytes = 3;
+  // Empty list means "all agents in the cluster"; the control plane
+  // is the only component that gets to send a non-empty list.
+  repeated string target_agent_ids = 4;
+}
+
+// StagePolicyResponse — the per-agent result of a Stage operation.
+// Aggregate counts are reported by the control plane; the
+// per-agent reject reasons are surfaced here.
+message StagePolicyResponse {
+  // The status the policy entered for the calling agent.
+  PolicyStatus policy_status = 1;
+  // Free-form reject reasons; empty on success.
+  repeated string rejected_reasons = 2;
+}
+
+// ReadyAckStreamRequest — the agent's signal that the staged policy
+// is loaded into the inactive BPF map and the agent is ready to
+// flip on commit. hash_of_active is the local BPF map hash the
+// agent computed; the control plane compares it against the staged
+// digest before issuing CommitPolicy.
+message ReadyAckStreamRequest {
+  // Agent's durable id (the SPIFFE SVID principal).
+  string agent_id = 1;
+  // The version the agent is acknowledging.
+  string policy_version = 2;
+  // The digest the agent computed locally for the staged map.
+  bytes digest = 3;
+  // The agent-local hash_of_active (post-map-load). The control
+  // plane MUST verify it equals `digest` before issuing Commit.
+  bytes hash_of_active = 4;
+}
+
+// ReadyAckStreamResponse — the control plane's per-ack confirmation
+// or rejection. The streaming RPC returns one of these per
+// ReadyAckStreamRequest from the agent.
+message ReadyAckStreamResponse {
+  // True if the control plane accepted the ReadyAck; false if
+  // hash_of_active mismatched the staged digest or the version
+  // is no longer current.
+  bool accepted = 1;
+  // Free-form reject reasons; empty on accept.
+  repeated string rejected_reasons = 2;
+}
+
+// CommitPolicyRequest — the operator commits the staged policy
+// across a percentage of the cluster. The control plane only emits
+// Commit when the threshold of ReadyAcks is reached.
+message CommitPolicyRequest {
+  string version = 1;
+  bytes digest = 2;
+  // 1..100 inclusive. The control plane enforces the bound.
+  uint32 threshold_percent = 3;
+}
+
+// CommitPolicyResponse — aggregate counts for the commit operation.
+message CommitPolicyResponse {
+  // Number of agents that have already APPLIED.
+  uint32 committed_count = 1;
+  // Number of agents that have READY-ACKed.
+  uint32 ack_count = 2;
+  // Number of agents that have REJECTED.
+  uint32 rejected_count = 3;
+}
+
+// RollbackPolicyRequest — the operator rolls the cluster back to
+// the previous APPLIED policy. The audit log records who triggered
+// the rollback and at what wall-clock time.
+message RollbackPolicyRequest {
+  // Version the operator wants to roll back to. Empty means
+  // "the last known good" (LKG).
+  string version = 1;
+  // The control plane fills this from the staging slot.
+  bytes digest = 2;
+}
+
+// RollbackPolicyResponse — aggregate counts for the rollback op.
+message RollbackPolicyResponse {
+  uint32 committed_count = 1;
+  uint32 ack_count = 2;
+  uint32 rejected_count = 3;
+}
+
+// -----------------------------------------------------------------------------
+// Health and compatibility
+// -----------------------------------------------------------------------------
+
+// Health — the agent's current health snapshot. The control plane
+// exposes this over the fleet API; the dashboard reads it through
+// the OIDC-authenticated REST surface.
+message Health {
+  string agent_id = 1;
+  string node_name = 2;
+  string cluster = 3;
+  // CLOCK_REALTIME seconds at the time the report was assembled.
+  int64 epoch_unix_sec = 4;
+  // Sensor names the agent currently has loaded.
+  repeated string loaded_sensors = 5;
+  // Sensor names the agent has loaded but in degraded mode.
+  repeated string degraded_sensors = 6;
+  // Sensor names the agent tried to load but is blocked on.
+  repeated string blocked_sensors = 7;
+  // Monotonic counter of events successfully emitted to the ring
+  // buffer. Independent of the network-persisted counter.
+  uint64 events_emitted_total = 8;
+  // Monotonic counter of events the agent dropped (ring reservation
+  // failure or bounded-channel overflow).
+  uint64 events_dropped_total = 9;
+  // The agent's published supported-load rate (events/sec/agent).
+  // Derived from the supported-load schema; this is the rate the
+  // benchmark workload saturates, NOT a hard cap.
+  uint64 supported_load_rate = 10;
+}
+
+// Compatibility — the agent's current compatibility snapshot. Drives
+// the loader's stable-primary/fallback-hook selection in task 18.
+message Compatibility {
+  string kernel_release = 1;
+  // True iff 'bpf' is in /sys/kernel/security/lsm.
+  bool bpf_lsm_active = 2;
+  // True iff bpf_token is active (kernel 6.9+).
+  bool bpf_token_active = 3;
+  CgroupMode cgroup_mode = 4;
+  // The list of BPF program types the kernel allows this process
+  // to load; the loader intersects this with its sensor manifest.
+  repeated string bpf_program_type_allowlist = 5;
+}
+
+// -----------------------------------------------------------------------------
+// Service: the gRPC control surface
+// -----------------------------------------------------------------------------
+
+// KernelV1ControlService is the gRPC control surface between the
+// node agent and the control plane. It is the only place where
+// STAGE / READY / COMMIT / APPLIED / ROLLBACK transitions are
+// exposed. The plan forbids exposing loader RPCs (raw BPF map
+// reads, raw attachment APIs) to the browser; this service is
+// the boundary that promise is enforced against.
+service KernelV1ControlService {
+  // Unary: agent -> control. First call on every new gRPC stream.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Unary: control -> agent. Stage a new policy on the agent's
+  // inactive BPF map slot.
+  rpc StagePolicy(StagePolicyRequest) returns (StagePolicyResponse);
+
+  // Server-streaming: agent -> control. The agent pushes a
+  // ReadyAck for every policy version it has staged. The control
+  // plane must compare `hash_of_active` to the staged digest
+  // before issuing Commit.
+  rpc ReadyAckStream(ReadyAckStreamRequest) returns (stream ReadyAckStreamResponse);
+
+  // Unary: control -> control-plane-internal. Commit flips the
+  // staged policy to active across the cluster.
+  rpc CommitPolicy(CommitPolicyRequest) returns (CommitPolicyResponse);
+
+  // Unary: control -> control-plane-internal. Rollback reverts to
+  // the LKG or the named version.
+  rpc RollbackPolicy(RollbackPolicyRequest) returns (RollbackPolicyResponse);
+}

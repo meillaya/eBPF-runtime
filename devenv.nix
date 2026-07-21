@@ -176,6 +176,37 @@
   '';
 
   # ---------------------------------------------------------------------
+  # proto / OpenAPI contract gates (task 6).
+  #
+  # `proto:check` runs:
+  #   1. buf lint proto (must exit 0; rejects naming / style drift)
+  #   2. scripts/proto-freshness.sh (deterministic source tree)
+  #   3. scripts/proto-roundtrip.py (every EventKind oneof variant
+  #      round-trips through a Python protobuf encode/decode cycle)
+  #   4. openapi-spec-validator against api/openapi.yaml
+  #
+  # `proto:breaking` compares the current `proto/` against the
+  # checked-in `tests/fixtures/proto/baseline.v1.binpb` snapshot.
+  # Future tasks add fields to the v1 contract; this gate must
+  # reject those changes.
+  # ---------------------------------------------------------------------
+  tasks."proto:check" = {
+    description = "buf lint + freshness + Python round-trip + OpenAPI validation (task 6 acceptance gate)";
+    exec = ''
+      set -euo pipefail
+      bash "$DEVENV_ROOT/scripts/proto-check.sh"
+    '';
+  };
+
+  tasks."proto:breaking" = {
+    description = "buf breaking against the checked-in v1 baseline (task 6)";
+    exec = ''
+      set -euo pipefail
+      bash "$DEVENV_ROOT/scripts/proto-breaking.sh"
+    '';
+  };
+
+  # ---------------------------------------------------------------------
   # Quality gates (task 4).
   #
   # Each `quality:*` task is independently invokable so that contributors

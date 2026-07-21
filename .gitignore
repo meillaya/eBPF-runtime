@@ -31,3 +31,14 @@ result-*
 
 # codegraph cache symlink (per-host, not part of the workspace)
 /.codegraph
+
+# Generated proto / OpenAPI clients (wave 5/web fills these in)
+target/
+**/target/
+# Buf-generated artifacts (regenerated from source proto files)
+crates/protocol/src/generated/
+web/src/generated/
+**/generated.rs
+**/generated.ts
+**/*.pb.ts
+**/*.pb.rs
