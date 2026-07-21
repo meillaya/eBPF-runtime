@@ -37,6 +37,11 @@ name = "record-dns-fixtures"
 path = "src/bin/record-dns-fixtures.rs"
 required-features = []
 
+[[bin]]
+name = "record-syscall-fixtures"
+path = "src/bin/record-syscall-fixtures.rs"
+required-features = []
+
 
 # `bpf-build` is a runtime dep of the `record-fixtures`,
 # `record-file-fixtures`, `record-network-fixtures`, and
@@ -54,6 +59,6 @@ required-features = []
 # differs from the pin.
 [dependencies]
 bpf-build = { path = "../bpf-build" }
+event-abi = { path = "../event-abi" }
 
 [dev-dependencies]
-event-abi = { path = "../event-abi" }

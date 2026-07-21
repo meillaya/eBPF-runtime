@@ -65,26 +65,26 @@ fn build_record(kind: EventKind, payload_len: usize, valids: u32) -> Vec<u8> {
 
 #[test]
 fn round_trip_every_kind() {
-    for k in 1u8..=EventKind::MAX_DISCRIMINANT {
-        let kind = match k {
-            1 => EventKind::ProcessFork,
-            2 => EventKind::ProcessExecResult,
-            3 => EventKind::ProcessExit,
-            4 => EventKind::FileOpen,
-            5 => EventKind::FileCreate,
-            6 => EventKind::FileUnlink,
-            7 => EventKind::FileRename,
-            8 => EventKind::FileTruncate,
-            9 => EventKind::NetworkConnect,
-            10 => EventKind::NetworkAccept,
-            11 => EventKind::NetworkState,
-            12 => EventKind::DnsPacket,
-            13 => EventKind::SyscallEnter,
-            14 => EventKind::SyscallExit,
-            15 => EventKind::LsmDenyOwn,
-            16 => EventKind::Identity,
-            _ => unreachable!(),
-        };
+    let kinds = [
+        EventKind::ProcessFork,
+        EventKind::ProcessExecResult,
+        EventKind::ProcessExit,
+        EventKind::FileOpen,
+        EventKind::FileCreate,
+        EventKind::FileUnlink,
+        EventKind::FileRename,
+        EventKind::FileTruncate,
+        EventKind::NetworkConnect,
+        EventKind::NetworkAccept,
+        EventKind::NetworkState,
+        EventKind::DnsPacket,
+        EventKind::LsmDenyOwn,
+        EventKind::Identity,
+        EventKind::SyscallEnter,
+        EventKind::SyscallExit,
+    ];
+    for kind in kinds {
+        let k = kind as u8;
         let buf = build_record(kind, 16, 0x0001_0002);
         let ev = parse(&buf).expect("happy record must parse");
         assert_eq!(ev.header.event_kind, kind as u8, "kind round-trip #{k}");
@@ -104,6 +104,16 @@ fn round_trip_every_kind() {
         assert!(!report.truncated);
         assert!(!report.redacted);
     }
+}
+
+#[test]
+fn syscall_contract_matches_c_header() {
+    assert_eq!(EventKind::SyscallEnter as u8, 25);
+    assert_eq!(EventKind::SyscallExit as u8, 26);
+    assert_eq!(event_abi::syscall_valid::NR, 0x4000_0000);
+    assert_eq!(event_abi::syscall_valid::LATENCY, 0x8000_0000);
+    assert_eq!(event_abi::syscall_valid::FLAGS, 0x1_0000_0000);
+    assert_eq!(core::mem::size_of::<event_abi::SyscallEventPayload>(), 32);
 }
 
 #[test]
@@ -333,8 +343,14 @@ fn dns_validity_bits_compose_into_valids() {
 #[test]
 fn dns_enum_mapping_is_well_defined() {
     assert_eq!(DnsDirection::from_byte(0) as u8, DnsDirection::Query as u8);
-    assert_eq!(DnsDirection::from_byte(1) as u8, DnsDirection::Response as u8);
-    assert_eq!(DnsDirection::from_byte(0xff) as u8, DnsDirection::Query as u8);
+    assert_eq!(
+        DnsDirection::from_byte(1) as u8,
+        DnsDirection::Response as u8
+    );
+    assert_eq!(
+        DnsDirection::from_byte(0xff) as u8,
+        DnsDirection::Query as u8
+    );
     assert_eq!(DnsProtocol::from_byte(0) as u8, DnsProtocol::Udp as u8);
     assert_eq!(DnsProtocol::from_byte(1) as u8, DnsProtocol::Tcp as u8);
     assert_eq!(DnsProtocol::from_byte(0xff) as u8, DnsProtocol::Udp as u8);

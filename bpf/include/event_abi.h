@@ -116,10 +116,10 @@ enum kernel_v1_event_kind {
     KERNEL_V1_EVENT_NETWORK_ACCEPT           = 10,
     KERNEL_V1_EVENT_NETWORK_STATE            = 11,
     KERNEL_V1_EVENT_DNS_PACKET               = 12,
-    KERNEL_V1_EVENT_SYSCALL_ENTER            = 13,
-    KERNEL_V1_EVENT_SYSCALL_EXIT             = 14,
     KERNEL_V1_EVENT_LSM_DENY_OWN             = 15,
     KERNEL_V1_EVENT_IDENTITY                 = 16,
+    KERNEL_V1_EVENT_SYSCALL_ENTER            = 25,
+    KERNEL_V1_EVENT_SYSCALL_EXIT             = 26,
 };
 
 /* Validity bitmask. Each set bit means the corresponding identity
@@ -451,6 +451,45 @@ _Static_assert(sizeof(struct kernel_v1_dns_packet_payload)
                "kernel_v1_dns_packet_payload must equal KERNEL_V1_DNS_PAYLOAD_LEN");
 _Static_assert(KERNEL_V1_DNS_QNAME_MAX == 253u,
                "KERNEL_V1_DNS_QNAME_MAX must equal 253 (RFC 1035 §2.3.4)");
+
+#define KERNEL_V1_VALID_SYSCALL_NR               ((uint64_t)0x40000000ULL)
+#define KERNEL_V1_VALID_SYSCALL_LATENCY          ((uint64_t)0x80000000ULL)
+#define KERNEL_V1_VALID_SYSCALL_FLAGS            ((uint64_t)0x100000000ULL)
+#define KERNEL_V1_VALID_SYSCALL_NOT_ALLOWED      ((uint64_t)0x200000000ULL)
+#define KERNEL_V1_VALID_SYSCALL_NO_RETURN_RESULT ((uint64_t)0x400000000ULL)
+
+#define KERNEL_V1_SYSCALL_FLAG_IS_EXEC     ((uint64_t)0x01ULL)
+#define KERNEL_V1_SYSCALL_FLAG_NO_RETURN   ((uint64_t)0x02ULL)
+#define KERNEL_V1_SYSCALL_FLAG_INTERRUPTED ((uint64_t)0x04ULL)
+#define KERNEL_V1_SYSCALL_FLAG_RESTARTED   ((uint64_t)0x08ULL)
+#define KERNEL_V1_SYSCALL_FLAG_FAILED      ((uint64_t)0x10ULL)
+#define KERNEL_V1_SYSCALL_FLAG_NOT_ALLOWED ((uint64_t)0x20ULL)
+#define KERNEL_V1_SYSCALL_FLAG_COMPAT      ((uint64_t)0x40ULL)
+
+#define KERNEL_V1_SYSCALL_NR_MAX      ((uint32_t)600u)
+#define KERNEL_V1_SYSCALL_BUCKETS     ((uint32_t)64u)
+#define KERNEL_V1_SYSCALL_PAYLOAD_LEN ((uint32_t)32u)
+
+struct kernel_v1_syscall_event_payload {
+    uint64_t syscall_nr;
+    uint64_t flags;
+    uint64_t latency_ns;
+    int64_t exit_code;
+} __attribute__((packed));
+
+struct kernel_v1_syscall_hist_bucket {
+    uint64_t bin_count_log2[64];
+    uint64_t sum_ns;
+    uint64_t count;
+    uint64_t success_count;
+    uint64_t failure_count;
+    uint64_t interrupted_count;
+    uint64_t restarted_count;
+    uint64_t no_return_count;
+};
+
+_Static_assert(sizeof(struct kernel_v1_syscall_event_payload) <= 40u,
+               "syscall payload must remain bounded to 40 bytes");
 
 /* Required bits for a v1 process event: pid_tgid + cgroup_id + boot_id
  * + task_start. Tests use this to assert minimum validity. */

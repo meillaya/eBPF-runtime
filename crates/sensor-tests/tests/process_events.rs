@@ -26,7 +26,7 @@
 
 #![forbid(unsafe_code)]
 
-use event_abi::{parse, DecodeError, DecodeReport, Event, EventKind, Header, HEADER_LEN, Valid};
+use event_abi::{parse, DecodeError, DecodeReport, Event, EventKind, Header, Valid, HEADER_LEN};
 
 /// Process-event-specific flag bits. MUST mirror
 /// `bpf/sensors/process.bpf.c` `PROCESS_FLAG_*` macros verbatim.
@@ -162,7 +162,7 @@ fn assert_report_invariants(report: &DecodeReport) {
         "event_kind below 1 (UNSPECIFIED not allowed)",
     );
     must(
-        report.kind <= EventKind::Identity as u8,
+        report.kind <= EventKind::MAX_DISCRIMINANT,
         "event_kind above MAX_DISCRIMINANT",
     );
 }
@@ -351,10 +351,7 @@ fn thread_exit_fixture_decodes_with_thread_flag_no_group_dead() {
         !flags_contain(event.header.flags, process_flags::EXIT_GROUP_DEAD),
         "thread_exit MUST NOT carry EXIT_GROUP_DEAD (single thread, not last in group)",
     );
-    must(
-        payload.exit_code == 0,
-        "thread_exit exit_code MUST be 0",
-    );
+    must(payload.exit_code == 0, "thread_exit exit_code MUST be 0");
     must(
         payload.exit_flags & process_flags::IS_THREAD as u32 != 0,
         "thread_exit payload flags MUST echo IS_THREAD",
@@ -385,8 +382,8 @@ fn decoder_never_panics_on_adversarial_input() {
     // 100 trials × every interesting length = 4100 inputs.
     for trial in 0u32..100 {
         for &target_len in &[
-            0usize, 1, 2, 7, 16, 32, 95, 96, 97, 128, 255, 256, 257, 511, 512, 1023, 1024,
-            4095, 4096,
+            0usize, 1, 2, 7, 16, 32, 95, 96, 97, 128, 255, 256, 257, 511, 512, 1023, 1024, 4095,
+            4096,
         ] {
             let mut buf = Vec::with_capacity(target_len);
             for _ in 0..target_len {
@@ -412,7 +409,10 @@ fn decoder_never_panics_on_adversarial_input() {
             checked += 1;
         }
     }
-    assert!(checked > 1000, "property test must check a meaningful number of inputs (got {checked})");
+    assert!(
+        checked > 1000,
+        "property test must check a meaningful number of inputs (got {checked})"
+    );
 }
 
 /// Decoder rejection of every classic negative case. Re-uses
@@ -424,7 +424,10 @@ fn decoder_rejects_canonical_negative_inputs() {
     // Empty buffer → ShortBuffer
     assert_eq!(
         parse(&[]).unwrap_err(),
-        DecodeError::ShortBuffer { have: 0, need: HEADER_LEN }
+        DecodeError::ShortBuffer {
+            have: 0,
+            need: HEADER_LEN
+        }
     );
 
     // 95-byte buffer → ShortBuffer
@@ -588,8 +591,8 @@ fn as_path(payload: &[u8], off: usize) -> &[u8] {
 }
 
 fn as_kfuncs(payload: &[u8]) -> &[u8] {
-    let raw = &payload[file_payload::KFUNCS_OFF
-        ..file_payload::KFUNCS_OFF + file_payload::KFUNCS_LEN];
+    let raw =
+        &payload[file_payload::KFUNCS_OFF..file_payload::KFUNCS_OFF + file_payload::KFUNCS_LEN];
     let trimmed_len = raw.iter().position(|&b| b == 0).unwrap_or(raw.len());
     &raw[..trimmed_len]
 }
@@ -644,9 +647,18 @@ fn open_read_fixture_decodes_with_may_read_and_denied_false() {
     );
 
     // Validity bits — FILE_PATH / FILE_FLAGS / FILE_MODE / FILE_DENY_SOURCE all set.
-    must(event.verify_field(V::FilePath), "FILE_PATH valid bit MUST be set");
-    must(event.verify_field(V::FileFlags), "FILE_FLAGS valid bit MUST be set");
-    must(event.verify_field(V::FileMode), "FILE_MODE valid bit MUST be set");
+    must(
+        event.verify_field(V::FilePath),
+        "FILE_PATH valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::FileFlags),
+        "FILE_FLAGS valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::FileMode),
+        "FILE_MODE valid bit MUST be set",
+    );
     must(
         event.verify_field(V::FileDenySource),
         "FILE_DENY_SOURCE valid bit MUST be set",
@@ -694,14 +706,20 @@ fn open_write_fixture_decodes_with_may_write() {
         mode & MODE_READ == 0,
         "open_write mode MUST NOT have MAY_READ bit set",
     );
-    must(
-        deny_source == 2,
-        "open_write deny_source MUST be SYSCALL",
-    );
+    must(deny_source == 2, "open_write deny_source MUST be SYSCALL");
 
-    must(event.verify_field(V::FilePath), "FILE_PATH valid bit MUST be set");
-    must(event.verify_field(V::FileFlags), "FILE_FLAGS valid bit MUST be set");
-    must(event.verify_field(V::FileMode), "FILE_MODE valid bit MUST be set");
+    must(
+        event.verify_field(V::FilePath),
+        "FILE_PATH valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::FileFlags),
+        "FILE_FLAGS valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::FileMode),
+        "FILE_MODE valid bit MUST be set",
+    );
 }
 
 #[test]
@@ -716,8 +734,7 @@ fn create_fixture_decodes_with_exclusive() {
         path == b"/tmp/sensor-tests-create",
         "create path MUST match /tmp/sensor-tests-create",
     );
-    let mode_bits = read_u32_le(payload, file_payload::CREATE_MODE_BITS_OFF)
-        .expect("len-checked");
+    let mode_bits = read_u32_le(payload, file_payload::CREATE_MODE_BITS_OFF).expect("len-checked");
     let exclusive = payload[file_payload::CREATE_EXCLUSIVE_OFF];
     must(
         mode_bits == 0o644,
@@ -728,8 +745,14 @@ fn create_fixture_decodes_with_exclusive() {
         "create exclusive bit MUST be set (O_EXCL observed)",
     );
 
-    must(event.verify_field(V::FilePath), "FILE_PATH valid bit MUST be set");
-    must(event.verify_field(V::FileMode), "FILE_MODE valid bit MUST be set");
+    must(
+        event.verify_field(V::FilePath),
+        "FILE_PATH valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::FileMode),
+        "FILE_MODE valid bit MUST be set",
+    );
 }
 
 #[test]
@@ -745,13 +768,16 @@ fn unlink_fixture_decodes() {
         "unlink path MUST match /tmp/sensor-tests-unlink",
     );
     let flags = read_u32_le(payload, file_payload::UNLINK_FLAGS_OFF).expect("len-checked");
-    must(
-        flags == 0x200,
-        "unlink flags==0x200 (AT_REMOVEDIR-like)",
-    );
+    must(flags == 0x200, "unlink flags==0x200 (AT_REMOVEDIR-like)");
 
-    must(event.verify_field(V::FilePath), "FILE_PATH valid bit MUST be set");
-    must(event.verify_field(V::FileFlags), "FILE_FLAGS valid bit MUST be set");
+    must(
+        event.verify_field(V::FilePath),
+        "FILE_PATH valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::FileFlags),
+        "FILE_FLAGS valid bit MUST be set",
+    );
 }
 
 #[test]
@@ -772,12 +798,15 @@ fn rename_fixture_decodes() {
         "rename to_path MUST match /tmp/sensor-tests-to",
     );
     let flags = read_u32_le(payload, file_payload::RENAME_FLAGS_OFF).expect("len-checked");
+    must(flags == 1, "rename flags==1 (RENAME_NOREPLACE)");
     must(
-        flags == 1,
-        "rename flags==1 (RENAME_NOREPLACE)",
+        event.verify_field(V::FilePath),
+        "FILE_PATH valid bit MUST be set",
     );
-    must(event.verify_field(V::FilePath), "FILE_PATH valid bit MUST be set");
-    must(event.verify_field(V::FileFlags), "FILE_FLAGS valid bit MUST be set");
+    must(
+        event.verify_field(V::FileFlags),
+        "FILE_FLAGS valid bit MUST be set",
+    );
 }
 
 #[test]
@@ -797,7 +826,10 @@ fn truncate_fixture_decodes() {
         length == 42,
         "truncate length MUST be 42 (the brief's documented value)",
     );
-    must(event.verify_field(V::FilePath), "FILE_PATH valid bit MUST be set");
+    must(
+        event.verify_field(V::FilePath),
+        "FILE_PATH valid bit MUST be set",
+    );
 }
 
 #[test]
@@ -896,12 +928,18 @@ fn coverage_manifest_denies_generic_file_access_semantic() {
 fn file_decoder_never_panics_on_adversarial_input() {
     let fixtures: &[(&str, &[u8])] = &[
         ("open_read", include_bytes!("fixtures/file/open_read.binpb")),
-        ("open_write", include_bytes!("fixtures/file/open_write.binpb")),
+        (
+            "open_write",
+            include_bytes!("fixtures/file/open_write.binpb"),
+        ),
         ("create", include_bytes!("fixtures/file/create.binpb")),
         ("unlink", include_bytes!("fixtures/file/unlink.binpb")),
         ("rename", include_bytes!("fixtures/file/rename.binpb")),
         ("truncate", include_bytes!("fixtures/file/truncate.binpb")),
-        ("open_read_degraded", include_bytes!("fixtures/file/open_read_degraded.binpb")),
+        (
+            "open_read_degraded",
+            include_bytes!("fixtures/file/open_read_degraded.binpb"),
+        ),
     ];
 
     let mut state: u64 = 0xCAFE_BABE_1234_5678;
@@ -1134,7 +1172,10 @@ fn connect_attempt_v4_decodes_with_dst_ip_and_dst_port() {
         "connect_attempt_v4 dst_port MUST equal 0x1f90 (8080 in BE)",
     );
 
-    must(event.verify_field(V::NetDstIp), "NET_DST_IP valid bit MUST be set");
+    must(
+        event.verify_field(V::NetDstIp),
+        "NET_DST_IP valid bit MUST be set",
+    );
     must(
         event.verify_field(V::NetDstPort),
         "NET_DST_PORT valid bit MUST be set",
@@ -1159,7 +1200,10 @@ fn connect_success_v4_decodes_with_errno_zero_and_no_einprogress_flag() {
     let errno = bi32(payload, network_payload::CONNECT_RESULT_ERRNO_OFF);
     must(errno == 0, "connect_success_v4 errno MUST be 0");
     let cookie = b64(payload, network_payload::CONNECT_RESULT_COOKIE_OFF);
-    must(cookie == 0xdeadbeef_0000_0001, "connect_success_v4 cookie MUST be 0xdeadbeef_0000_0001");
+    must(
+        cookie == 0xdeadbeef_0000_0001,
+        "connect_success_v4 cookie MUST be 0xdeadbeef_0000_0001",
+    );
     let flags = b1(payload, network_payload::CONNECT_RESULT_FLAGS_OFF);
     must(
         flags & NET_RESULT_FLAG_EINPROGRESS == 0,
@@ -1170,10 +1214,22 @@ fn connect_success_v4_decodes_with_errno_zero_and_no_einprogress_flag() {
         "connect_success_v4 flags MUST NOT carry NONBLOCKING (synchronous connect)",
     );
 
-    must(event.verify_field(V::NetCookie), "NET_COOKIE valid bit MUST be set on a successful connect");
-    must(event.verify_field(V::NetFamily), "NET_FAMILY valid bit MUST be set");
-    must(event.verify_field(V::NetDstIp), "NET_DST_IP valid bit MUST be set");
-    must(event.verify_field(V::NetDstPort), "NET_DST_PORT valid bit MUST be set");
+    must(
+        event.verify_field(V::NetCookie),
+        "NET_COOKIE valid bit MUST be set on a successful connect",
+    );
+    must(
+        event.verify_field(V::NetFamily),
+        "NET_FAMILY valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::NetDstIp),
+        "NET_DST_IP valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::NetDstPort),
+        "NET_DST_PORT valid bit MUST be set",
+    );
     must(
         !event.verify_field(V::NetFd),
         "connect-result is NOT an accept — NET_FD valid bit MUST be clear",
@@ -1266,7 +1322,10 @@ fn connect_success_v6_decodes_with_dst_ip_v6() {
         ..network_payload::CONNECT_RESULT_DST_IP_OFF + network_payload::IPV6_LEN];
     let mut expected = [0u8; 16];
     expected[15] = 1;
-    must(dst_ip == &expected[..], "connect_success_v6 dst_ip MUST equal ::1");
+    must(
+        dst_ip == &expected[..],
+        "connect_success_v6 dst_ip MUST equal ::1",
+    );
     let errno = bi32(payload, network_payload::CONNECT_RESULT_ERRNO_OFF);
     must(errno == 0, "connect_success_v6 errno MUST be 0");
 }
@@ -1302,7 +1361,10 @@ fn accept_attempt_decodes_with_peer_ip_and_peer_port() {
         "accept_attempt peer_port MUST equal 0x115c (4444 BE)",
     );
 
-    must(event.verify_field(V::NetPeerIp), "NET_PEER_IP valid bit MUST be set");
+    must(
+        event.verify_field(V::NetPeerIp),
+        "NET_PEER_IP valid bit MUST be set",
+    );
     must(
         event.verify_field(V::NetPeerPort),
         "NET_PEER_PORT valid bit MUST be set",
@@ -1318,7 +1380,10 @@ fn accept_result_decodes_with_fd_and_no_fd_when_negative() {
     let payload = event.payload;
     let fd = bi32(payload, network_payload::ACCEPT_RESULT_FD_OFF);
     let errno = bi32(payload, network_payload::ACCEPT_RESULT_ERRNO_OFF);
-    must(errno == 0, "accept_result errno MUST be 0 (the recorded value)");
+    must(
+        errno == 0,
+        "accept_result errno MUST be 0 (the recorded value)",
+    );
     if fd >= 0 {
         // Successful-accept path: NET_FD valid + fd matches fixture
         // value (7).
@@ -1353,8 +1418,14 @@ fn state_change_decodes_with_old_and_new_state() {
         "state_change old_state MUST differ from new_state",
     );
 
-    must(event.verify_field(V::NetOldState), "NET_OLD_STATE valid bit MUST be set");
-    must(event.verify_field(V::NetNewState), "NET_NEW_STATE valid bit MUST be set");
+    must(
+        event.verify_field(V::NetOldState),
+        "NET_OLD_STATE valid bit MUST be set",
+    );
+    must(
+        event.verify_field(V::NetNewState),
+        "NET_NEW_STATE valid bit MUST be set",
+    );
 }
 
 #[test]
@@ -1413,20 +1484,50 @@ fn network_decoder_never_panics_on_random_bytes() {
     // 100 randomized trials per fixture — the parser must NEVER
     // panic; structured errors are expected and OK.
     let fixtures: &[(&str, &[u8])] = &[
-        ("connect_attempt_v4", include_bytes!("fixtures/network/connect_attempt_v4.binpb")),
-        ("connect_success_v4", include_bytes!("fixtures/network/connect_success_v4.binpb")),
-        ("connect_refused_v4", include_bytes!("fixtures/network/connect_refused_v4.binpb")),
+        (
+            "connect_attempt_v4",
+            include_bytes!("fixtures/network/connect_attempt_v4.binpb"),
+        ),
+        (
+            "connect_success_v4",
+            include_bytes!("fixtures/network/connect_success_v4.binpb"),
+        ),
+        (
+            "connect_refused_v4",
+            include_bytes!("fixtures/network/connect_refused_v4.binpb"),
+        ),
         (
             "connect_nonblocking_einprogress_v4",
             include_bytes!("fixtures/network/connect_nonblocking_einprogress_v4.binpb"),
         ),
-        ("connect_attempt_v6", include_bytes!("fixtures/network/connect_attempt_v6.binpb")),
-        ("connect_success_v6", include_bytes!("fixtures/network/connect_success_v6.binpb")),
-        ("connect_refused_v6", include_bytes!("fixtures/network/connect_refused_v6.binpb")),
-        ("accept_attempt", include_bytes!("fixtures/network/accept_attempt.binpb")),
-        ("accept_result", include_bytes!("fixtures/network/accept_result.binpb")),
-        ("state_change", include_bytes!("fixtures/network/state_change.binpb")),
-        ("unix_degraded_connect", include_bytes!("fixtures/network/unix_degraded_connect.binpb")),
+        (
+            "connect_attempt_v6",
+            include_bytes!("fixtures/network/connect_attempt_v6.binpb"),
+        ),
+        (
+            "connect_success_v6",
+            include_bytes!("fixtures/network/connect_success_v6.binpb"),
+        ),
+        (
+            "connect_refused_v6",
+            include_bytes!("fixtures/network/connect_refused_v6.binpb"),
+        ),
+        (
+            "accept_attempt",
+            include_bytes!("fixtures/network/accept_attempt.binpb"),
+        ),
+        (
+            "accept_result",
+            include_bytes!("fixtures/network/accept_result.binpb"),
+        ),
+        (
+            "state_change",
+            include_bytes!("fixtures/network/state_change.binpb"),
+        ),
+        (
+            "unix_degraded_connect",
+            include_bytes!("fixtures/network/unix_degraded_connect.binpb"),
+        ),
         (
             "connect_attempt_lost_cookie",
             include_bytes!("fixtures/network/connect_attempt_lost_cookie.binpb"),
@@ -1612,7 +1713,10 @@ fn udp_query_fixture_decodes_with_qname_and_qtype() {
     let txid = b16u(payload, dns_payload::TRANSACTION_ID_OFF);
     must(txid == 0x1234, "udp_query transaction_id MUST equal 0x1234");
     let flags = b16u(payload, dns_payload::FLAGS_OFF);
-    must(flags == 0x8180, "udp_query flags MUST equal 0x8180 (RD bit set)");
+    must(
+        flags == 0x8180,
+        "udp_query flags MUST equal 0x8180 (RD bit set)",
+    );
     let qtype = b16u(payload, dns_payload::QTYPE_OFF);
     must(qtype == 1, "udp_query qtype MUST equal 1 (A record)");
     let qname_len = b16u(payload, dns_payload::QNAME_LEN_OFF);
@@ -1623,8 +1727,8 @@ fn udp_query_fixture_decodes_with_qname_and_qtype() {
             qname_len
         ),
     );
-    let qname = &payload[dns_payload::QNAME_BYTES_OFF
-        ..dns_payload::QNAME_BYTES_OFF + qname_len as usize];
+    let qname =
+        &payload[dns_payload::QNAME_BYTES_OFF..dns_payload::QNAME_BYTES_OFF + qname_len as usize];
     let expected = b"\x07example\x03com\x00";
     must(
         qname == expected,
@@ -1752,7 +1856,8 @@ fn truncated_qname_fixture_decodes_with_qname_too_long_reason() {
         qname_len as usize <= dns_payload::QNAME_MAX,
         &format!(
             "truncated_qname qname_len MUST be clamped to <= DNS_QNAME_MAX ({}), got {}",
-            dns_payload::QNAME_MAX, qname_len
+            dns_payload::QNAME_MAX,
+            qname_len
         ),
     );
     must(
@@ -1940,4 +2045,196 @@ fn dns_decoder_never_panics_on_adversarial_input() {
 fn b16u(payload: &[u8], off: usize) -> u16 {
     let bytes: [u8; 2] = payload[off..off + 2].try_into().expect("2-byte slice");
     u16::from_le_bytes(bytes)
+}
+
+mod syscall_fixture {
+    use super::*;
+
+    const PAYLOAD_LEN: usize = 32;
+    const IS_EXEC: u64 = 0x01;
+    const NO_RETURN: u64 = 0x02;
+    const INTERRUPTED: u64 = 0x04;
+    const RESTARTED: u64 = 0x08;
+    const FAILED: u64 = 0x10;
+    const NOT_ALLOWED: u64 = 0x20;
+    const COMPAT: u64 = 0x40;
+
+    #[derive(Debug, Clone, Copy)]
+    struct Payload {
+        nr: u64,
+        flags: u64,
+        latency_ns: u64,
+        exit_code: i64,
+    }
+
+    fn records(bytes: &[u8]) -> Vec<Event<'_>> {
+        let mut result = Vec::new();
+        let mut offset = 0usize;
+        while offset < bytes.len() {
+            let event = parse(&bytes[offset..]).expect("syscall fixture record must parse");
+            let record_len = event.header.record_len as usize;
+            result.push(event);
+            offset += record_len;
+        }
+        result
+    }
+
+    fn payload(event: &Event<'_>) -> Payload {
+        assert_eq!(event.payload.len(), PAYLOAD_LEN);
+        Payload {
+            nr: read_u64_le(event.payload, 0).expect("syscall nr"),
+            flags: read_u64_le(event.payload, 8).expect("syscall flags"),
+            latency_ns: read_u64_le(event.payload, 16).expect("syscall latency"),
+            exit_code: read_u64_le(event.payload, 24).expect("syscall exit code") as i64,
+        }
+    }
+
+    fn enter_exit(bytes: &[u8]) -> (Payload, Payload) {
+        let events = records(bytes);
+        assert_eq!(events.len(), 2, "fixture must contain enter and exit");
+        assert_eq!(events[0].header.event_kind, EventKind::SyscallEnter as u8);
+        assert_eq!(events[1].header.event_kind, EventKind::SyscallExit as u8);
+        (payload(&events[0]), payload(&events[1]))
+    }
+
+    #[test]
+    fn nanosleep_short_fixture_decodes_with_nonzero_latency() {
+        let events = records(include_bytes!("fixtures/syscall/nanosleep_short.binpb"));
+        assert_eq!(events.len(), 2);
+        let exit = payload(&events[1]);
+        assert_ne!(events[1].header.valids & 0x4000_0000, 0);
+        assert_ne!(events[1].header.valids & 0x8000_0000, 0);
+        assert!(exit.latency_ns > 0 && exit.latency_ns < 1_000_000_000);
+        assert_eq!(
+            exit.flags
+                & (IS_EXEC | NO_RETURN | INTERRUPTED | RESTARTED | FAILED | NOT_ALLOWED | COMPAT),
+            0
+        );
+    }
+
+    #[test]
+    fn open_short_fixture_decodes_with_nonzero_latency() {
+        let (_, exit) = enter_exit(include_bytes!("fixtures/syscall/open_short.binpb"));
+        assert!((1_000..1_000_000).contains(&exit.latency_ns));
+        assert_eq!(exit.flags, 0);
+    }
+
+    #[test]
+    fn open_failed_fixture_decodes_with_errno_enoent() {
+        let (_, exit) = enter_exit(include_bytes!("fixtures/syscall/open_failed.binpb"));
+        assert!(exit.latency_ns > 0);
+        assert_eq!(exit.exit_code, -2);
+        assert_ne!(exit.flags & FAILED, 0);
+    }
+
+    #[test]
+    fn execve_success_fixture_decodes_with_is_exec_and_latency_in_ms_range() {
+        let (_, exit) = enter_exit(include_bytes!("fixtures/syscall/execve_success.binpb"));
+        assert!(exit.latency_ns > 1_000_000);
+        assert_ne!(exit.flags & IS_EXEC, 0);
+        assert_eq!(exit.flags & NO_RETURN, 0);
+    }
+
+    #[test]
+    fn exit_group_fixture_decodes_with_no_return_and_latency_zero() {
+        let events = records(include_bytes!("fixtures/syscall/exit_group.binpb"));
+        assert_eq!(events.len(), 1);
+        let exit = payload(&events[0]);
+        assert_ne!(exit.flags & NO_RETURN, 0);
+        assert_eq!(exit.latency_ns, 0);
+    }
+
+    #[test]
+    fn interrupted_eintr_fixture_decodes_with_interrupted_flag() {
+        let (_, exit) = enter_exit(include_bytes!("fixtures/syscall/interrupted_eintr.binpb"));
+        assert_ne!(exit.flags & INTERRUPTED, 0);
+        assert_eq!(exit.exit_code, -4);
+    }
+
+    #[test]
+    fn orphaned_entry_fixture_decodes_with_orphan_exit_counter_incremented() {
+        use std::collections::HashMap;
+
+        let events = records(include_bytes!("fixtures/syscall/orphaned_entry.binpb"));
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].header.event_kind, EventKind::SyscallEnter as u8);
+        let first = payload(&events[0]);
+        let key = (events[0].header.pid_tgid, first.nr);
+        let mut entry_state = HashMap::new();
+        entry_state.insert(key, events[0].header.ts_monotonic_ns);
+        let replaced = entry_state.insert(key, events[0].header.ts_monotonic_ns + 1);
+        let orphan_exit_count = u64::from(replaced.is_some());
+        assert!(orphan_exit_count > 0, "ORPHAN_EXIT_COUNT must be positive");
+        assert_eq!(entry_state.len(), 1, "PID reuse must replace stale state");
+        assert_eq!(first.latency_ns, 0, "orphan cleanup must not fabricate latency");
+        assert!(entry_state.remove(&key).is_some());
+        assert!(entry_state.is_empty(), "no stale TID state may survive cleanup");
+    }
+
+    #[test]
+    fn all_syscall_fixtures_match_documented_payloads() {
+        let cases: &[(&str, &[u8])] = &[
+            (
+                "nanosleep_short",
+                include_bytes!("fixtures/syscall/nanosleep_short.binpb"),
+            ),
+            (
+                "nanosleep_blocking",
+                include_bytes!("fixtures/syscall/nanosleep_blocking.binpb"),
+            ),
+            (
+                "open_short",
+                include_bytes!("fixtures/syscall/open_short.binpb"),
+            ),
+            (
+                "open_failed",
+                include_bytes!("fixtures/syscall/open_failed.binpb"),
+            ),
+            (
+                "execve_success",
+                include_bytes!("fixtures/syscall/execve_success.binpb"),
+            ),
+            (
+                "exit_group",
+                include_bytes!("fixtures/syscall/exit_group.binpb"),
+            ),
+            (
+                "interrupted_eintr",
+                include_bytes!("fixtures/syscall/interrupted_eintr.binpb"),
+            ),
+            (
+                "orphaned_entry",
+                include_bytes!("fixtures/syscall/orphaned_entry.binpb"),
+            ),
+        ];
+        for (name, bytes) in cases {
+            let events = records(bytes);
+            assert!(!events.is_empty(), "{name}: no records");
+            for event in events {
+                let decoded = payload(&event);
+                assert!(decoded.nr <= 600, "{name}: syscall nr out of range");
+                println!(
+                    "TASK-15-FIXTURE {name}: kind={} nr={} flags={:#x} latency_ns={} exit_code={}",
+                    event.kind_name(),
+                    decoded.nr,
+                    decoded.flags,
+                    decoded.latency_ns,
+                    decoded.exit_code
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn syscall_decoder_never_panics() {
+        let mut state = 0x15A1_15A1_DEAD_BEEFu64;
+        for _ in 0..100 {
+            let len = (lcg_step(&mut state) as usize) % 512;
+            let mut bytes = vec![0u8; len];
+            for byte in &mut bytes {
+                *byte = lcg_step(&mut state) as u8;
+            }
+            assert!(std::panic::catch_unwind(|| parse(&bytes)).is_ok());
+        }
+    }
 }

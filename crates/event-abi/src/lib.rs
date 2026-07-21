@@ -29,13 +29,16 @@ pub mod generated;
 mod parser_helpers;
 
 pub use generated::{
-    dns_valid, DnsDirection, DnsPacket, DnsProtocol, DnsTruncationReason, EventKind,
+    dns_valid, syscall_valid, DnsDirection, DnsPacket, DnsProtocol, DnsTruncationReason, EventKind,
     FileDenySource, Header, NetworkAcceptAttempt, NetworkAcceptResult, NetworkConnectAttempt,
-    NetworkConnectResult, NetworkState, TcpState, Valid, EVENT_FLAG_REDACTED, EVENT_FLAG_TRUNC,
-    FILE_RESULT_HAS_ERRNO, FILE_RESULT_OWN_LSM, HEADER_LEN, DNS_PAYLOAD_LEN, DNS_QNAME_MAX,
-    NET_IPV4_LEN, NET_IPV6_LEN, NET_PAYLOAD_LEN, NET_RESULT_FLAG_EINPROGRESS,
-    NET_RESULT_FLAG_NONBLOCKING, PAYLOAD_MAX, SCHEMA_MAJOR, SCHEMA_MINOR, VALID_REQUIRED,
-    VALID_V1_ALLOWED_MASK, AF_INET_VAL, AF_INET6_VAL,
+    NetworkConnectResult, NetworkState, SyscallEventPayload, SyscallHistogramBucket, TcpState,
+    Valid, AF_INET6_VAL, AF_INET_VAL, DNS_PAYLOAD_LEN, DNS_QNAME_MAX, EVENT_FLAG_REDACTED,
+    EVENT_FLAG_TRUNC, FILE_RESULT_HAS_ERRNO, FILE_RESULT_OWN_LSM, HEADER_LEN, NET_IPV4_LEN,
+    NET_IPV6_LEN, NET_PAYLOAD_LEN, NET_RESULT_FLAG_EINPROGRESS, NET_RESULT_FLAG_NONBLOCKING,
+    PAYLOAD_MAX, SCHEMA_MAJOR, SCHEMA_MINOR, SYSCALL_BUCKETS, SYSCALL_FLAG_COMPAT,
+    SYSCALL_FLAG_FAILED, SYSCALL_FLAG_INTERRUPTED, SYSCALL_FLAG_IS_EXEC, SYSCALL_FLAG_NOT_ALLOWED,
+    SYSCALL_FLAG_NO_RETURN, SYSCALL_FLAG_RESTARTED, SYSCALL_NR_MAX, SYSCALL_PAYLOAD_LEN,
+    VALID_REQUIRED, VALID_V1_ALLOWED_MASK,
 };
 pub use parser_helpers::{
     compute_record_len, format_valids, is_redacted, is_truncated, verify_field,
@@ -229,7 +232,7 @@ pub fn parse<'a>(buf: &'a [u8]) -> Result<Event<'a>, DecodeError> {
         });
     }
 
-    if header.event_kind == 0 || header.event_kind > EventKind::MAX_DISCRIMINANT {
+    if !EventKind::is_known(header.event_kind) {
         return Err(DecodeError::UnknownEventKind {
             byte: header.event_kind,
             max: EventKind::MAX_DISCRIMINANT,

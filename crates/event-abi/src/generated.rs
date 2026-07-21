@@ -71,16 +71,20 @@ pub enum EventKind {
     NetworkAccept = 10,
     NetworkState = 11,
     DnsPacket = 12,
-    SyscallEnter = 13,
-    SyscallExit = 14,
     LsmDenyOwn = 15,
     Identity = 16,
+    SyscallEnter = 25,
+    SyscallExit = 26,
 }
 
 impl EventKind {
     /// Maximum accepted discriminant value. The parser rejects any
     /// `event_kind` byte above this.
-    pub const MAX_DISCRIMINANT: u8 = Self::Identity as u8;
+    pub const MAX_DISCRIMINANT: u8 = Self::SyscallExit as u8;
+
+    pub const fn is_known(byte: u8) -> bool {
+        matches!(byte, 1..=12 | 15 | 16 | 25 | 26)
+    }
 }
 
 /// Validity bitmask. Each set bit means the corresponding identity
@@ -254,10 +258,10 @@ impl Header {
             10 => "NETWORK_ACCEPT",
             11 => "NETWORK_STATE",
             12 => "DNS_PACKET",
-            13 => "SYSCALL_ENTER",
-            14 => "SYSCALL_EXIT",
             15 => "LSM_DENY_OWN",
             16 => "IDENTITY",
+            25 => "SYSCALL_ENTER",
+            26 => "SYSCALL_EXIT",
             _ => "UNKNOWN_KIND",
         }
     }
@@ -548,6 +552,47 @@ pub struct DnsPacket {
     pub _pad1: [u8; 28],
 }
 
+pub mod syscall_valid {
+    pub const NR: u64 = 0x4000_0000;
+    pub const LATENCY: u64 = 0x8000_0000;
+    pub const FLAGS: u64 = 0x1_0000_0000;
+    pub const NOT_ALLOWED: u64 = 0x2_0000_0000;
+    pub const NO_RETURN_RESULT: u64 = 0x4_0000_0000;
+}
+
+pub const SYSCALL_FLAG_IS_EXEC: u64 = 0x01;
+pub const SYSCALL_FLAG_NO_RETURN: u64 = 0x02;
+pub const SYSCALL_FLAG_INTERRUPTED: u64 = 0x04;
+pub const SYSCALL_FLAG_RESTARTED: u64 = 0x08;
+pub const SYSCALL_FLAG_FAILED: u64 = 0x10;
+pub const SYSCALL_FLAG_NOT_ALLOWED: u64 = 0x20;
+pub const SYSCALL_FLAG_COMPAT: u64 = 0x40;
+pub const SYSCALL_NR_MAX: usize = 600;
+pub const SYSCALL_BUCKETS: usize = 64;
+pub const SYSCALL_PAYLOAD_LEN: usize = 32;
+
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SyscallEventPayload {
+    pub syscall_nr: u64,
+    pub flags: u64,
+    pub latency_ns: u64,
+    pub exit_code: i64,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SyscallHistogramBucket {
+    pub bin_count_log2: [u64; SYSCALL_BUCKETS],
+    pub sum_ns: u64,
+    pub count: u64,
+    pub success_count: u64,
+    pub failure_count: u64,
+    pub interrupted_count: u64,
+    pub restarted_count: u64,
+    pub no_return_count: u64,
+}
+
 /// Compile-time size assertions. Mirror the C header's
 /// `_Static_assert` lines. Drift between the Rust and C sizes
 /// fails `cargo build`.
@@ -563,4 +608,6 @@ const _: () = {
     assert!(DNS_QNAME_MAX == 253);
     assert!(DNS_PAYLOAD_LEN == 320);
     assert!(core::mem::size_of::<DnsPacket>() == 320);
+    assert!(core::mem::size_of::<SyscallEventPayload>() == SYSCALL_PAYLOAD_LEN);
+    assert!(core::mem::size_of::<SyscallHistogramBucket>() == 568);
 };
