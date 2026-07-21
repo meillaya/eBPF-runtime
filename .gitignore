@@ -42,3 +42,10 @@ web/src/generated/
 **/generated.ts
 **/*.pb.ts
 **/*.pb.rs
+
+# Release OCI scaffolding artifacts (regenerated from source by release-verify.sh)
+release/out/
+release/out/**/*.tar*
+release/cosign/
+release/sbom/
+release/.key/

@@ -207,6 +207,30 @@
   };
 
   # ---------------------------------------------------------------------
+  # Release / SBOM / signing scaffold gate (task 8).
+  #
+  # `release:verify-placeholder` builds (or scaffolds) the multi-arch
+  # OCI Image Layout v1, validates per-architecture `file(1)` output,
+  # produces SPDX + CycloneDX SBOMs, signs the per-arch blobs in
+  # test mode, and writes release-verdict.json. The task exits 0
+  # iff the verdict is "passed"; the on-disk artifacts land under
+  # `release/out/` which is .gitignored.
+  #
+  # Task 8 acceptance criterion (verbatim from the plan): the task
+  # creates an OCI layout whose index contains exactly linux/amd64
+  # and linux/arm64, extracts each binary and validates `file`
+  # architecture, produces valid SBOMs, and verifies
+  # signatures/attestations in test mode.
+  # ---------------------------------------------------------------------
+  tasks."release:verify-placeholder" = {
+    description = "Verify the multi-arch OCI layout, SBOMs, and signatures (task 8 acceptance)";
+    exec = ''
+      set -euo pipefail
+      bash "$DEVENV_ROOT/scripts/release-verify.sh" --out "$DEVENV_ROOT/release/out"
+    '';
+  };
+
+  # ---------------------------------------------------------------------
   # Quality gates (task 4).
   #
   # Each `quality:*` task is independently invokable so that contributors
