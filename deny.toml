@@ -1,0 +1,55 @@
+# deny.toml — kernel-v1 (eBPF Runtime Security & Observability)
+#
+# cargo-deny configuration. Source of truth for:
+#   * Advisory blocking (security advisories from RustSec).
+#   * License allowlist (user-space is Apache-2.0 OR MIT; BPF headers are
+#     governed by the kernel's SPDX rules — see scripts/spdx-lint.sh).
+#   * Multi-version crates (warn, never hard-fail; bans in the plan are
+#     restricted to deliberately-pinned vendor modules).
+#   * Registry / git source gating (only crates.io-index is allowed;
+#     cargo deny refuses unknown-git / unknown-registry by default).
+#
+# The aggregate task `devenv.tasks."quality:rust"` runs `cargo deny check`
+# (advisories, bans, licenses, sources) and `cargo deny check licenses`.
+
+[graph]
+# Empty placeholder. We don't override `all-features` here because the
+# workspace is being built up one crate at a time; intentional overrides
+# land in the crate that needs them.
+
+[advisories]
+# Block every published advisory by default. The plan forbids blanket
+# ignore entries; new ignores are PR-tracked with an expiry date.
+ignore = []
+
+[bans]
+multiple-versions = "warn"
+
+# `libbpf-rs` and `libbpf-sys` are deliberately pinned to the same exact
+# version recorded in Cargo.lock so that the BPF loader and the generated
+# skeletons stay ABI-aligned. `cargo deny` would otherwise complain that
+# the workspace has a single version (which is what we want) but the
+# `skip` here documents the intent so the next person editing this file
+# does not "fix" the apparent duplicate.
+skip = ["libbpf-rs", "libbpf-sys"]
+
+[licenses]
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "MIT-0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.8
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

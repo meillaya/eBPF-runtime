@@ -1,0 +1,34 @@
+# rustfmt.toml — kernel-v1 (eBPF Runtime Security & Observability)
+#
+# Mirrors the kernel-v4 baseline but adds the 2024 stable knobs the plan
+# calls out (import_granularity, group_imports, use_small_heuristics = Default).
+# These are intentional:
+#
+#   * `import_granularity = "Crate"` + `group_imports = "StdExternalCrate"`
+#     keeps user-space Rust consistent across all crates in this workspace.
+#   * `use_small_heuristics = "Default"` removes rustfmt's tendency to
+#     break long lines that we explicitly capped at 100 columns.
+#   * `reorder_modules = false` preserves the explicit module ordering
+#     used in lib.rs files where the ordering carries semantic weight
+#     (e.g. when a module declares private helpers above the public API).
+#   * `match_arm_bodies = false` and `condense_wildcard_suffixes = false`
+#     keep match arms one-per-line for reviewability. These are opt-outs
+#     of the unstable `style_edition = 2024` knobs; flipping them later
+#     is a deliberate, PR-tracked change.
+#
+# Warnings-as-errors for this file is enforced by `cargo fmt --check` in
+# `devenv.tasks."quality:rust"` (task 4).
+
+edition = "2021"
+max_width = 100
+format_strings = true
+format_code_in_doc_comments = true
+wrap_comments = true
+unstable_features = false
+normalize_comments = false
+import_granularity = "Crate"
+group_imports = "StdExternalCrate"
+reorder_modules = false
+match_arm_bodies = false
+condense_wildcard_suffixes = false
+use_small_heuristics = "Default"

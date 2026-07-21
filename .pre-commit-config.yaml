@@ -1,0 +1,80 @@
+# .pre-commit-config.yaml — kernel-v1 (eBPF Runtime Security & Observability)
+#
+# Pre-commit hook definitions for the kernel-v1 repository. Task 4 of
+# the approved Prometheus plan. Mirrors the strict gate enforced by
+# `devenv tasks run quality:all` so that violations surface at commit
+# time rather than only on CI.
+#
+# The same set of hooks is also wired via `devenv.git-hooks.hooks` in
+# devenv.nix, which is the path that runs inside `devenv shell`. This
+# .pre-commit-config.yaml is for contributors who run plain `pre-commit`
+# against a non-Nix host (CI runners, containers, etc.).
+#
+# Install:
+#   pre-commit install
+#
+# Run on demand:
+#   pre-commit run --all-files
+#
+# Skip on demand (NOT recommended):
+#   git commit --no-verify
+#
+# Each `language` is `system` because the tools (cargo, bun, shellcheck,
+# hadolint, actionlint) are expected to come from the same toolchain the
+# rest of the repo pins (devenv / flake / rust-toolchain). This keeps
+# pre-commit a thin wrapper, not a separate supply chain.
+
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt-check
+        name: cargo fmt --check (strict)
+        entry: cargo fmt --all -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy-strict
+        name: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        entry: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: spdx-lint
+        name: scripts/spdx-lint.sh (BPF SPDX policy)
+        entry: bash scripts/spdx-lint.sh
+        language: system
+        files: '\.(bpf\.c|h)$'
+        pass_filenames: false
+
+      - id: loc-lint
+        name: scripts/loc-lint.sh (250-pure-LOC ceiling)
+        entry: bash scripts/loc-lint.sh
+        language: system
+        pass_filenames: false
+
+      - id: biome-check
+        name: bunx biome check web
+        entry: bunx biome check web
+        language: system
+        types_or: [ts, tsx, js, jsx, json]
+        pass_filenames: false
+
+      - id: hadolint
+        name: hadolint deploy/
+        entry: hadolint deploy/
+        language: system
+        files: '^deploy/.*Dockerfile'
+        pass_filenames: false
+
+      - id: actionlint
+        name: actionlint .github/workflows
+        entry: actionlint
+        language: system
+        files: '^\.github/workflows/'
+        pass_filenames: false

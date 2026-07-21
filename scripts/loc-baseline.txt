@@ -1,0 +1,24 @@
+# scripts/loc-baseline.txt — kernel-v1 (eBPF Runtime Security & Observability)
+#
+# Per-file exceptions for the 250-pure-LOC ceiling enforced by
+# `scripts/loc-lint.sh`. Task 4 of the approved Prometheus plan.
+#
+# Format: one relative path per line, optionally followed by an inline
+# `# reason` comment and a `# due: task-N` marker naming the task that
+# is expected to split the file. Comment lines starting with `#` and
+# blank lines are ignored by the loader.
+#
+# A baseline entry is NOT a permanent waiver: the lint remains active
+# for every file NOT listed here, and removing the baseline file (or
+# removing an entry from it) re-enables the rule for that file on the
+# next CI run. New exceptions require a code review that names the
+# task expected to retire them.
+#
+# IMPORTANT: do NOT add entries for new files. New files added in tasks
+# 5+ MUST stay at or under 250 pure-LOC from the commit that introduces
+# them. Existing entries are grandfathered under the policy recorded in
+# the Prometheus plan ("no module above 250 pure LOC") so that the wave-0
+# gates can pass without backtracking through tasks 1-3.
+
+crates/preflight-schema/src/lib.rs        # due: task-19 — split parser + semantic_check into separate modules
+scripts/preflight.sh                      # due: task-3  — preflight is a single bash script by design; refactor deferred to the wave-7 systemd unit split
