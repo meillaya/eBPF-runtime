@@ -42,6 +42,11 @@ web/src/generated/
 **/generated.ts
 **/*.pb.ts
 **/*.pb.rs
+# Task 9 exception: crates/event-abi/src/generated.rs is the
+# hand-written Rust mirror of bpf/include/event_abi.h. The build
+# script records its SHA-256 in the manifest; tests/manifest.rs
+# rejects drift. NOT a proto-buf-generated artifact.
+!crates/event-abi/src/generated.rs
 
 # Release OCI scaffolding artifacts (regenerated from source by release-verify.sh)
 release/out/
