@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "status": "capable",
+  "blocked_reason": null,
+  "kernel": {
+    "release": "6.6.0-lts",
+    "version": "6.6.0",
+    "arch": "x86_64",
+    "boot_id": "deadbeef-0000-0000-0000-000000000000",
+    "hostname": "drift-fixture.example"
+  },
+  "features": {
+    "btf": {
+      "path": "/sys/kernel/btf/vmlinux",
+      "readable": true,
+      "size": 6458784,
+      "sha256": "cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37"
+    },
+    "lsm": {
+      "active": "capability,landlock,lockdown,yama,bpf",
+      "bpf_in_list": true
+    },
+    "cgroup": {
+      "mode": "unified",
+      "unified_mount": "/sys/fs/cgroup",
+      "controllers": "cpuset,cpu,io,memory,hugetlb,pids"
+    },
+    "mounts": {
+      "bpffs":   { "path": "/sys/fs/bpf" },
+      "tracefs": { "path": "/sys/kernel/tracing" },
+      "debugfs": { "path": "/sys/kernel/debug" }
+    },
+    "bpf": {
+      "helpers": {
+        "bpf_probe_read_user":         true,
+        "bpf_probe_read_kernel":       true,
+        "bpf_ringbuf_output":          true,
+        "bpf_map_lookup_elem":         true,
+        "bpf_get_current_pid_tgid":    true,
+        "bpf_get_current_cgroup_id":   true,
+        "bpf_get_ns_current_pid_tgid": true
+      }
+    }
+  },
+  "privilege": {
+    "effective": "0x0000000080000000",
+    "bounding":  "0x000001ffffffffff",
+    "can_load":  true,
+    "unprivileged_bpf_disabled": 0
+  },
+  "container": {
+    "runtime": "host",
+    "in_container": false
+  },
+  "sensors": {
+    "process.bpf":  { "status": "capable", "reason": null },
+    "file.bpf":     { "status": "capable", "reason": null },
+    "network.bpf":  { "status": "capable", "reason": null },
+    "dns.bpf":      { "status": "capable", "reason": null },
+    "syscall.bpf":  { "status": "capable", "reason": null },
+    "lsm.bpf":      { "status": "capable", "reason": null },
+    "identity.bpf": { "status": "capable", "reason": null },
+    "ringbuf.bpf":  { "status": "capable", "reason": null },
+    "loader":       { "status": "capable", "reason": null }
+  },
+  "unexpected_extra_field": "this must cause schema rejection"
+}
