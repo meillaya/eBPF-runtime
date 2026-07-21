@@ -1564,6 +1564,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sensor-tests"
+version = "0.1.0"
+dependencies = [
+ "bpf-build",
+ "event-abi",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
