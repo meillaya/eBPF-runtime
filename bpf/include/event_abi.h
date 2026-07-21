@@ -58,8 +58,38 @@
 #ifndef KERNEL_V1_EVENT_ABI_H
 #define KERNEL_V1_EVENT_ABI_H
 
+/* The event ABI is consumed in three distinct translation contexts:
+ *
+ *   1. Host-C ABI size check (`crates/event-abi/build.rs` runs a tiny
+ *      TU that includes only this header to confirm the struct
+ *      layout and the static_asserts in it).
+ *   2. BPF sensor programs compiled with `clang -target bpf`
+ *      (task 10's `bpf/sensors/*.bpf.c` sources include vmlinux.h
+ *      first, which already provides `__u8/16/32/64`, `u8/16/32/64`,
+ *      `size_t`, `intptr_t`, `uintptr_t`, `wchar_t`, and the POSIX
+ *      aliases like `uint32_t` via `typedef u32 uint32_t;`).
+ *   3. User-space Rust bindings (do not include this header; they
+ *      mirror the layout in `crates/event-abi/src/generated.rs`).
+ *
+ * Clang sets `__BPF__` automatically for `-target bpf`. The host
+ * C check in event-abi's build.rs compiles with the system
+ * compiler (no `__BPF__`); in that case we need the system
+ * <stddef.h> and <stdint.h> to provide the typedefs.
+ *
+ * Without this guard, the BPF path would see `typedef redefinition
+ * with different types` errors because vmlinux.h and the system
+ * stdint.h disagree about the size of `intptr_t` / `uintptr_t` /
+ * `wchar_t` on clang's BPF target. The kernel-style types from
+ * vmlinux.h are correct for the BPF target; the host-system
+ * stdint.h is for the host ABI and is not appropriate.
+ */
+#if defined(__BPF__)
+/* vmlinux.h has already provided __u8/16/32/64, u8/16/32/64,
+ * size_t, intptr_t, uintptr_t, wchar_t, and the POSIX aliases. */
+#else
 #include <stddef.h>
 #include <stdint.h>
+#endif
 
 /* Schema constants. */
 #define KERNEL_V1_ABI_SCHEMA_MAJOR ((uint32_t)1u)

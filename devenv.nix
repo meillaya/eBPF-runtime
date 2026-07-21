@@ -231,6 +231,95 @@
   };
 
   # ---------------------------------------------------------------------
+  # BPF build pipeline (task 10).
+  #
+  # `bpf:build` is the canonical entry point. It runs the
+  # `bpf-build` binary (the libbpf-cargo CO-RE pipeline wrapped as
+  # a CLI) with explicit `--out` and `--manifest` paths so the
+  # per-arch `.bpf.o` and `.skel.rs` files land in
+  # `target/bpf-out/` and the freshness manifest lands in
+  # `target/bpf-build.manifest.json`. Running `bpf:build` twice in
+  # a row MUST produce byte-identical .o and .skel.rs files; the
+  # acceptance criterion is the sha256 equality, not the exit code
+  # alone.
+  #
+  # `bpf:build:placeholder` is the subset that only compiles the
+  # `bpf/sensors/placeholder.bpf.c` translation unit; the other
+  # sensors are added in tasks 11-17 and the gate will widen
+  # automatically as their `.bpf.c` files land.
+  #
+  # `bpf:build:verify` checks the produced objects for the
+  # expected `.BTF` and `.BTF.ext` sections via `llvm-objdump -h`
+  # (with `llvm-readelf -S` as the documented fallback). Failure
+  # to find either section in either arch object exits non-zero.
+  # ---------------------------------------------------------------------
+  tasks."bpf:build" = {
+    description = "Run the CO-RE compile + skeleton pipeline for both arches (task 10)";
+    exec = ''
+      set -euo pipefail
+      mkdir -p "$DEVENV_ROOT/target"
+      cargo run -q -p bpf-build -- \
+        build \
+        --manifest "$DEVENV_ROOT/target/bpf-build.manifest.json" \
+        --out "$DEVENV_ROOT/target/bpf-out"
+    '';
+  };
+
+  tasks."bpf:build:placeholder" = {
+    description = "Compile the placeholder BPF object only (task 10 subset; widens in tasks 11-17)";
+    exec = ''
+      set -euo pipefail
+      mkdir -p "$DEVENV_ROOT/target"
+      cargo run -q -p bpf-build -- \
+        build \
+        --manifest "$DEVENV_ROOT/target/bpf-build.manifest.json" \
+        --out "$DEVENV_ROOT/target/bpf-out"
+    '';
+  };
+
+  tasks."bpf:build:verify" = {
+    description = "Verify per-arch .bpf.o has .BTF and .BTF.ext (task 10 acceptance gate)";
+    exec = ''
+      set -euo pipefail
+      out="$DEVENV_ROOT/target/bpf-out"
+      if [ ! -d "$out" ]; then
+        echo "[bpf:build:verify] $out does not exist; run bpf:build first" >&2
+        exit 1
+      fi
+      found=0
+      for obj in "$out"/*.amd64.bpf.o "$out"/*.arm64.bpf.o; do
+        if [ ! -f "$obj" ]; then
+          continue
+        fi
+        found=1
+        echo "[bpf:build:verify] inspecting $obj"
+        # Prefer llvm-objdump -h; fall back to llvm-readelf -S when
+        # llvm-objdump is unavailable (devenv never strips it, but
+        # the spec calls for the documented fallback).
+        if command -v llvm-objdump >/dev/null 2>&1; then
+          sections="$(llvm-objdump -h "$obj" || true)"
+        elif command -v llvm-readelf >/dev/null 2>&1; then
+          sections="$(llvm-readelf -S "$obj" || true)"
+        else
+          echo "[bpf:build:verify] neither llvm-objdump nor llvm-readelf is on PATH" >&2
+          exit 1
+        fi
+        if ! echo "$sections" | grep -qE '\.BTF(\.ext)?\b'; then
+          echo "[bpf:build:verify] $obj is missing .BTF or .BTF.ext" >&2
+          echo "$sections" | head -40 >&2
+          exit 1
+        fi
+        echo "[bpf:build:verify]   .BTF and .BTF.ext present"
+      done
+      if [ "$found" -eq 0 ]; then
+        echo "[bpf:build:verify] no .bpf.o found in $out; run bpf:build first" >&2
+        exit 1
+      fi
+      echo "[bpf:build:verify] PASS"
+    '';
+  };
+
+  # ---------------------------------------------------------------------
   # Quality gates (task 4).
   #
   # Each `quality:*` task is independently invokable so that contributors

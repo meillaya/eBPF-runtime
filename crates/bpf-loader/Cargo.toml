@@ -1,0 +1,41 @@
+[package]
+name = "bpf-loader"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "kernel-v1 BPF object loader: opens embedded per-arch CO-RE objects and prepares them for the load/attach manager (task 18)."
+# GPL-2.0-only is the kernel-side license policy that this crate
+# preserves. The crate is the user-space loader that hosts the BPF
+# program objects at runtime; the kernel's BPF licensing rules
+# require any LSM- or struct_ops-attached program to be
+# GPL-compatible, and we mirror that on the user-space side that
+# loads them. See README.md §Licensing & SPDX policy for the
+# full rationale.
+license = "GPL-2.0-only"
+publish = false
+
+[lib]
+name = "bpf_loader"
+path = "src/lib.rs"
+
+[features]
+default = []
+# The default `libbpf-rs` feature pulls in `libbpf-sys/vendored-libbpf`,
+# which builds the vendored libbpf C library at compile time. We
+# pin `vendored` to true so the loader is fully self-contained on
+# any host with a C compiler (rustup brings cc).
+vendored-libbpf = ["libbpf-rs/vendored"]
+
+[dependencies]
+# libbpf-rs 0.26 is the pinned version; it must match
+# libbpf-cargo 0.26 in crates/bpf-build so the runtime loader and
+# the build pipeline share the same libbpf struct ABI.
+libbpf-rs = "0.26"
+bpf-build = { path = "../bpf-build" }
+
+# bpf-build is also a build-time dependency so `bpf-loader/build.rs`
+# can call `bpf_build::build()` to ensure the per-arch .o files
+# exist in a known stable location before the loader's `lib.rs`
+# embeds them via `include_bytes!`.
+[build-dependencies]
+bpf-build = { path = "../bpf-build" }

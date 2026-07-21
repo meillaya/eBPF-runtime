@@ -48,6 +48,16 @@ web/src/generated/
 # rejects drift. NOT a proto-buf-generated artifact.
 !crates/event-abi/src/generated.rs
 
+# libbpf-cargo build artifacts (regenerated from bpf/sensors/*.bpf.c)
+target/bpf-out/
+target/bpf-build.manifest.json
+# task 9 emits a parallel event-abi manifest under target/. task 10
+# regenerates it during the bpf:build pipeline (bpf-build's build.rs
+# reads event-abi's manifest to cross-check the C ABI version). It
+# MUST NOT be committed; the bpf-build manifest is the source of
+# truth for the CO-RE pipeline.
+target/event-abi.manifest.json
+
 # Release OCI scaffolding artifacts (regenerated from source by release-verify.sh)
 release/out/
 release/out/**/*.tar*
