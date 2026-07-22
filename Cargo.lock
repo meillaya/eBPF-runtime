@@ -485,6 +485,7 @@ version = "0.1.0"
 dependencies = [
  "agent",
  "agent-core",
+ "auth",
  "clap",
  "enrichment",
  "event-abi",
@@ -495,6 +496,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "serde_yaml",
  "storage-local",
  "thiserror 2.0.19",
  "tokio",
@@ -806,6 +808,9 @@ dependencies = [
 [[package]]
 name = "event-abi"
 version = "0.1.0"
+dependencies = [
+ "proptest",
+]
 
 [[package]]
 name = "event-bus-kafka"

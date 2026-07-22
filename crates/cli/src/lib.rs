@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//! Standalone CLI for the eBPF runtime security observability agent.
+//! Standalone + fleet CLI for the eBPF runtime security observability agent.
 #![allow(clippy::result_large_err)]
 //!
 //! Safety invariants (plan task 26):
@@ -11,6 +11,16 @@
 //!   redaction.
 //! - Every query the CLI issues is paginated and filtered; it never requests
 //!   unbounded results.
+//!
+//! Fleet invariants (task 43):
+//! - All fleet commands require `--cluster` (no unscoped queries).
+//! - Fleet commands authenticate via OIDC device flow (RFC 8628).
+//! - Exit codes are stable: 0=success, 1=error, 2=auth, 3=not found, 4=timeout.
+//! - JSON output uses a versioned schema envelope (append-only fields).
+
+pub mod exit_code;
+pub mod fleet;
+pub mod output;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -18,6 +28,9 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use futures_util::StreamExt;
 use tokio_tungstenite::tungstenite::Message;
+
+use exit_code::ExitCode;
+use output::OutputFormat;
 
 /// CLI commands.
 #[derive(Debug, Clone, Subcommand)]
@@ -44,13 +57,19 @@ pub enum CliCommand {
     SyscallHistograms,
     /// Export events as JSON lines.
     Export,
+    /// Fleet-mode commands (require --cluster, authenticated via OIDC device flow).
+    Fleet {
+        #[command(subcommand)]
+        cmd: fleet::FleetCommand,
+    },
 }
 
 /// CLI arguments.
 #[derive(Debug, Clone, Parser)]
 #[command(
     name = "cli",
-    about = "CLI for the standalone eBPF runtime security agent"
+    about = "CLI for the standalone eBPF runtime security agent",
+    after_help = exit_code::ExitCode::help_text()
 )]
 pub struct CliArgs {
     #[command(subcommand)]
@@ -112,6 +131,18 @@ pub struct CliArgs {
     /// Filter: syscall name.
     #[arg(long, global = true)]
     pub syscall: Option<String>,
+    /// Cluster scope (required for fleet commands).
+    #[arg(long, global = true)]
+    pub cluster: Option<String>,
+    /// Output format for fleet commands.
+    #[arg(long, global = true, value_enum, default_value = "table")]
+    pub format: OutputFormat,
+    /// Control-plane API base URL (for fleet commands).
+    #[arg(long, global = true)]
+    pub api_base: Option<String>,
+    /// Bearer token (for fleet commands; prefer device flow login).
+    #[arg(long, global = true)]
+    pub token: Option<String>,
 }
 
 /// CLI errors.
@@ -129,28 +160,72 @@ pub enum CliError {
     QueryError(String),
 }
 
-/// Run the CLI command.
-pub async fn run_cli(args: CliArgs) -> Result<(), CliError> {
+/// Run the CLI command. Returns an exit code for fleet commands,
+/// or Success/Error for standalone commands.
+pub async fn run_cli(args: CliArgs) -> ExitCode {
     init_logging(args.log_level.as_deref());
-    let base = resolve_addr(args.addr.as_deref(), args.dev)?;
-    match args.command {
-        CliCommand::Preflight => preflight(&base).await,
-        CliCommand::Status => status(&base).await,
-        CliCommand::Health => health(&base).await,
-        CliCommand::LiveEvents => live_events(&base, &args).await,
+
+    match &args.command {
+        CliCommand::Fleet { cmd } => {
+            let cluster = match &args.cluster {
+                Some(c) => c.clone(),
+                None => {
+                    eprintln!("Error: --cluster is required for fleet commands");
+                    eprintln!("Suggestion: pass --cluster <cluster-id>");
+                    return ExitCode::Error;
+                }
+            };
+            let ctx = fleet::FleetContext {
+                api_base: args
+                    .api_base
+                    .clone()
+                    .unwrap_or_else(|| "http://127.0.0.1:8080".into()),
+                cluster,
+                format: args.format,
+                token: args.token.clone(),
+            };
+            fleet::dispatch(cmd, &ctx).await
+        }
+        _ => {
+            let base = match resolve_addr(args.addr.as_deref(), args.dev) {
+                Ok(b) => b,
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    return ExitCode::Error;
+                }
+            };
+            match run_standalone(&base, &args).await {
+                Ok(()) => ExitCode::Success,
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    ExitCode::Error
+                }
+            }
+        }
+    }
+}
+
+/// Run a standalone (non-fleet) command.
+async fn run_standalone(base: &str, args: &CliArgs) -> Result<(), CliError> {
+    match &args.command {
+        CliCommand::Preflight => preflight(base).await,
+        CliCommand::Status => status(base).await,
+        CliCommand::Health => health(base).await,
+        CliCommand::LiveEvents => live_events(base, args).await,
         CliCommand::QueryHistory => {
-            passthrough(&base, "/api/v1/events", &events_query(&args)).await
+            passthrough(base, "/api/v1/events", &events_query(args)).await
         }
         CliCommand::ProcessTree => {
-            passthrough(&base, "/api/v1/process-tree", &process_tree_query(&args)).await
+            passthrough(base, "/api/v1/process-tree", &process_tree_query(args)).await
         }
-        CliCommand::Sockets => passthrough(&base, "/api/v1/sockets", &sockets_query(&args)).await,
-        CliCommand::DnsPackets => passthrough(&base, "/api/v1/dns", &dns_query(&args)).await,
-        CliCommand::Files => passthrough(&base, "/api/v1/files", &files_query(&args)).await,
+        CliCommand::Sockets => passthrough(base, "/api/v1/sockets", &sockets_query(args)).await,
+        CliCommand::DnsPackets => passthrough(base, "/api/v1/dns", &dns_query(args)).await,
+        CliCommand::Files => passthrough(base, "/api/v1/files", &files_query(args)).await,
         CliCommand::SyscallHistograms => {
-            passthrough(&base, "/api/v1/syscall-histograms", &syscall_query(&args)).await
+            passthrough(base, "/api/v1/syscall-histograms", &syscall_query(args)).await
         }
-        CliCommand::Export => passthrough(&base, "/api/v1/export", &events_query(&args)).await,
+        CliCommand::Export => passthrough(base, "/api/v1/export", &events_query(args)).await,
+        CliCommand::Fleet { .. } => unreachable!("fleet handled in run_cli"),
     }
 }
 

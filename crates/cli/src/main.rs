@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//! Standalone CLI binary entry point.
+//! CLI binary entry point with stable exit codes.
 #![allow(clippy::result_large_err)]
 
 use clap::Parser;
 
-use cli::{run_cli, CliArgs, CliError};
+use cli::{run_cli, CliArgs};
 
 #[tokio::main]
-async fn main() -> Result<(), CliError> {
+async fn main() -> std::process::ExitCode {
     let args = CliArgs::parse();
-    run_cli(args).await
+    run_cli(args).await.into()
 }

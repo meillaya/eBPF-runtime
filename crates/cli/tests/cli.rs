@@ -9,7 +9,7 @@ use std::time::Duration;
 use agent::{seed_simulated_events, ApiServer};
 use agent_core::{normalize_bytes, synthetic_record, Kind, NormalizedEvent, RawEvent};
 use clap::Parser;
-use cli::{resolve_addr, run_cli, CliArgs, CliCommand, CliError};
+use cli::{resolve_addr, run_cli, CliArgs, CliCommand};
 use observability::MetricsRegistry;
 use privacy::{apply_redaction, DecodedRecord, RedactionPolicy};
 use storage_local::LocalStorage;
@@ -373,9 +373,13 @@ async fn cli_never_exposes_loader_map_mutation() {
         qtype: None,
         path: None,
         syscall: None,
+        cluster: None,
+        format: cli::output::OutputFormat::Table,
+        api_base: None,
+        token: None,
     })
     .await;
-    assert!(result.is_ok(), "read-only health command succeeds");
+    assert_eq!(result, cli::exit_code::ExitCode::Success, "read-only health command succeeds");
     server.stop();
 }
 
@@ -458,12 +462,16 @@ async fn cli_never_returns_unbounded_results() {
         qtype: None,
         path: None,
         syscall: None,
+        cluster: None,
+        format: cli::output::OutputFormat::Table,
+        api_base: None,
+        token: None,
     })
-    .await
-    .expect_err("oversized limit errors");
-    assert!(
-        matches!(err, CliError::QueryError(_)),
-        "typed query error: {err}"
+    .await;
+    assert_eq!(
+        err,
+        cli::exit_code::ExitCode::Error,
+        "oversized limit returns error exit code"
     );
     server.stop();
 }
