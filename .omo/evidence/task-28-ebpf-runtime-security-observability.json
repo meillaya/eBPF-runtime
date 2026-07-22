@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "task_id": "task-28",
+  "plan": ".omo/plans/ebpf-runtime-security-observability.md",
+  "session_id": "ses_07da7b4e8ffeImes0mzJSHjF4c",
+  "started_at": "2026-07-22T06:37:45Z",
+  "verdict": "confirmed",
+  "commands": [
+    {
+      "name": "cargo",
+      "cmd": "cargo test -p rules --test predicates",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "\nrunning 45 tests\ntest evaluate_contains_predicate_succeeds ... ok\ntest evaluate_and_condition_succeeds ... ok\ntest evaluate_ends_with_predicate_succeeds ... ok\ntest evaluate_deterministic_results ... ok\ntest evaluate_exception_succeeds ... ok\ntest evaluate_eq_predicate_succeeds ... ok\ntest evaluate_gte_predicate_succeeds ... ok\ntest evaluate_gt_predicate_succeeds ... ok\ntest evaluate_in_predicate_succeeds ... ok\ntest evaluate_incompatible_types_fails ... ok\ntest evaluate_list_membership_succeeds ... ok\ntest evaluate_list_immutability ... ok\ntest evaluate_invalid_regex_fails ... ok\ntest evaluate_lt_predicate_succeeds ... ok\ntest evaluate_lte_predicate_succeeds ... ok\ntest evaluate_ne_predicate_succeeds ... ok\ntest evaluate_match_explanation_tree_correctness ... ok\ntest evaluate_nesting_too_deep_fails ... ok\ntest evaluate_nested_condition_succeeds ... ok\ntest evaluate_not_condition_succeeds ... ok\ntest evaluate_not_contains_predicate_succeeds ... ok\ntest evaluate_not_in_predicate_succeeds ... ok\ntest evaluate_or_condition_succeeds ... ok\ntest evaluate_regex_too_large_fails ... ok\ntest evaluate_too_many_exception_items_fails ... ok\ntest evaluate_sequence_window_too_large_fails ... ok\ntest evaluate_unknown_field_returns_false ... ok\ntest evaluate_starts_with_predicate_succeeds ... ok\ntest evaluate_too_many_list_items_fails ... ok\ntest evaluate_unknown_operator_fails ... ok\ntest evaluate_too_many_sequence_steps_fails ... ok\ntest evaluate_too_many_ops_fails ... ok\ntest evaluate_no_backtracking ... ok\ntest evaluate_no_unbounded_allocation ... ok\ntest evaluate_regex_match_succeeds ... ok\ntest evaluate_regex_too_complex_fails ... ok\ntest evaluate_regex_predicate_succeeds ... ok\ntest evaluate_bounded_regex_timing ... ok\ntest evaluate_not_regex_predicate_succeeds ... ok\ntest property_test_regex_never_unbounded ... ok\ntest property_test_unknown_never_true ... ok\ntest property_test_incompatible_types_never_coerced ... ok\ntest property_test_deterministic_evaluation ... ok\ntest property_test_list_never_mutated ... ok\ntest evaluate_regex_too_slow_fails ... ok\n\ntest result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s",
+      "stderr_excerpt": "warning: event-abi@0.1.0: event-abi: ABI size check compiled with `clang`\nwarning: event-abi@0.1.0: event-abi: manifest written to /home/mei/projects/kernels/kernel-v1/target/debug/build/event-abi-593a2308b1e39edc/out/event-abi.manifest.json\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running tests/predicates.rs (target/debug/deps/predicates-9ba1a37defdcfb57)"
+    },
+    {
+      "name": "cargo",
+      "cmd": "cargo test -p rules --test predicates_edge_cases",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "\nrunning 20 tests\ntest evaluate_circular_exception_fails ... ok\ntest evaluate_empty_condition_succeeds ... ok\ntest evaluate_deeply_nested_condition_fails ... ok\ntest evaluate_empty_list_returns_false ... ok\ntest evaluate_contradictory_conditions_returns_false ... ok\ntest evaluate_empty_exception_returns_false ... ok\ntest evaluate_empty_regex_fails ... ok\ntest evaluate_float_values_succeeds ... ok\ntest evaluate_empty_value_succeeds ... ok\ntest evaluate_impossible_condition_returns_false ... ok\ntest evaluate_negative_values_succeeds ... ok\ntest evaluate_null_value_returns_false ... ok\ntest evaluate_overflow_values_fails ... ok\ntest evaluate_overlapping_conditions_succeeds ... ok\ntest evaluate_special_characters_succeeds ... ok\ntest evaluate_tautological_condition_returns_true ... ok\ntest evaluate_unicode_value_succeeds ... ok\ntest evaluate_wide_condition_fails ... ok\ntest evaluate_recursive_list_fails ... ok\ntest evaluate_boundary_values_succeeds ... ok\n\ntest result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+      "stderr_excerpt": "warning: event-abi@0.1.0: event-abi: ABI size check compiled with `clang`\nwarning: event-abi@0.1.0: event-abi: manifest written to /home/mei/projects/kernels/kernel-v1/target/debug/build/event-abi-593a2308b1e39edc/out/event-abi.manifest.json\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running tests/predicates_edge_cases.rs (target/debug/deps/predicates_edge_cases-726514cb21930583)"
+    },
+    {
+      "name": "cargo",
+      "cmd": "cargo build -p rules",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "warning: event-abi@0.1.0: event-abi: ABI size check compiled with `clang`\nwarning: event-abi@0.1.0: event-abi: manifest written to /home/mei/projects/kernels/kernel-v1/target/debug/build/event-abi-593a2308b1e39edc/out/event-abi.manifest.json\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s"
+    },
+    {
+      "name": "cargo",
+      "cmd": "cargo run -p rules --bin predicates-cli -- evaluate /tmp/opencode/task-28/test_condition.json --event /tmp/opencode/task-28/test_event.json --lists /tmp/opencode/task-28/test_lists.json",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "{\n  \"matched\": true,\n  \"explanation\": {\n    \"field\": \"and\",\n    \"operator\": \"eq\",\n    \"value\": true,\n    \"matched\": true,\n    \"children\": [\n      {\n        \"field\": \"file.path\",\n        \"operator\": \"starts_with\",\n        \"value\": \"/etc\",\n        \"matched\": true,\n        \"children\": []\n      },\n      {\n        \"field\": \"file.path\",\n        \"operator\": \"in\",\n        \"value\": [\n          \"/etc/shadow\",\n          \"/etc/passwd\",\n          \"/etc/sudoers\"\n        ],\n        \"matched\": true,\n        \"children\": []\n      },\n      {\n        \"field\": \"process.pid\",\n        \"operator\": \"gt\",\n        \"value\": 100,\n        \"matched\": true,\n        \"children\": []\n      }\n    ]\n  }\n}",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "cargo",
+      "cmd": "cargo run -p rules --bin predicates-cli -- budget --schema bench/schemas/rule-budget.v1.json",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "{\n  \"max_ops_per_evaluation\": 1024,\n  \"max_nested_expressions\": 16,\n  \"max_list_items\": 64,\n  \"max_regex_chars\": 256,\n  \"max_regex_time_ms\": 10,\n  \"max_exception_items\": 64,\n  \"max_sequence_steps\": 16,\n  \"max_sequence_window_seconds\": 3600\n}",
+      "stderr_excerpt": ""
+    }
+  ],
+  "assertions": [
+    "cargo: exit 0 matches expected 0",
+    "cargo: exit 0 matches expected 0",
+    "cargo: exit 0 matches expected 0",
+    "cargo: exit 0 matches expected 0",
+    "cargo: exit 0 matches expected 0"
+  ],
+  "environment": {
+    "kernel_version": "7.1.3-2-cachyos",
+    "arch": "x86_64",
+    "os_release": "CachyOS",
+    "kernel_btf_sha256": "cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37",
+    "cachix_devenv_version": "devenv v2.1.2 (pinned in devenv.lock rev ea3d94ac9d6b)",
+    "libbpf_soname": "libbpf.so.1",
+    "bpftool_version": "bpftool v7.8.0",
+    "clang_version": "clang version 22.1.8",
+    "rustc_version": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+    "sqlcipher_version": "unavailable",
+    "bpf_lsm_active": true,
+    "unprivileged_bpf_disabled": 2
+  },
+  "artifacts": [
+    {
+      "path": "bench/schemas/rule-budget.v1.json",
+      "sha256": "39706a66adf38a06010548397f82677478c8c65aa7e5c9883af4802f11622c28",
+      "size": 3903,
+      "kind": "json"
+    },
+    {
+      "path": "crates/rules/Cargo.toml",
+      "sha256": "d1c97e0f34cf748846b345a5f70e95cecca25d26e9362e3e8327475b4a049763",
+      "size": 944,
+      "kind": "text"
+    },
+    {
+      "path": "crates/rules/src/lib.rs",
+      "sha256": "31f997ab9838a0028e26c36d33ddf392669b19700b3152bdff56a37c6f95f238",
+      "size": 2364,
+      "kind": "text"
+    }
+  ],
+  "commit": "7990484eb773db20879e86d056c345be85f2a13a"
+}
