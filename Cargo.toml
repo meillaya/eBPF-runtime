@@ -18,4 +18,9 @@ members = [
     "crates/rules",
     "crates/sensor-tests",
     "crates/storage-local",
+    "crates/control-db",
+    "crates/transport",
+    "crates/event-bus-kafka",
+    "crates/analytics-clickhouse",
+    "crates/control-plane",
 ]
