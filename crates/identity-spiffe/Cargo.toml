@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "identity-spiffe"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+license = "Apache-2.0 OR MIT"
+description = "SPIFFE Workload API identity client: rotating X.509 SVIDs, gRPC mTLS credentials, selector-validated SPIFFE IDs, trust bundle management, authorization callbacks, and health/expiry metrics (task 36)."
+publish = false
+
+[lib]
+name = "identity_spiffe"
+path = "src/lib.rs"
+
+[dependencies]
+protocol = { path = "../protocol" }
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+rustls-pki-types = "1"
+zeroize = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["sync", "time", "net", "rt", "macros"] }
+thiserror = "2"
+tracing = "0.1"
+prometheus = "0.13"
+parking_lot = "0.12"
+x509-parser = "0.17"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util", "time"] }
