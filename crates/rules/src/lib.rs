@@ -36,6 +36,7 @@ pub mod parse;
 pub mod predicates;
 pub mod regex_check;
 pub mod schema;
+pub mod sequences;
 pub mod serialize;
 pub mod validate;
 pub mod version;

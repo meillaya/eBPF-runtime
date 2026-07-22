@@ -19,6 +19,10 @@ path = "src/bin/rules-cli.rs"
 name = "predicates-cli"
 path = "src/bin/predicates-cli.rs"
 
+[[bin]]
+name = "sequences-cli"
+path = "src/bin/sequences-cli.rs"
+
 [features]
 default = []
 
