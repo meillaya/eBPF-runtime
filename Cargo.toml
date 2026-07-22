@@ -7,5 +7,6 @@ members = [
     "crates/enrichment",
     "crates/event-abi",
     "crates/preflight-schema",
+    "crates/privacy",
     "crates/sensor-tests",
 ]

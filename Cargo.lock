@@ -1300,6 +1300,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "privacy"
+version = "0.1.0"
+dependencies = [
+ "agent-core",
+ "enrichment",
+ "event-abi",
+ "parking_lot",
+ "proptest",
+ "regex",
+ "regex-automata",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
