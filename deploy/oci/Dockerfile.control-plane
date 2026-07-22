@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# deploy/oci/Dockerfile.control-plane — multi-stage OCI build for the
+# kernel-v1 fleet control plane.
+#
+# Build via Docker Bake (preferred):
+#   docker buildx bake -f deploy/oci/docker-bake.hcl control-plane
+#
+# Or directly (single-arch):
+#   docker buildx build \
+#     --platform linux/amd64 \
+#     -f deploy/oci/Dockerfile.control-plane \
+#     --tag ghcr.io/kernel-v1/control-plane:dev \
+#     --output type=oci,dest=/tmp/control-plane.oci \
+#     .
+#
+# Stages:
+#   1. rust-build — compile the control-plane binary (glibc-linked)
+#   2. runtime    — distroless/cc-debian12, binary + ClickHouse DDL only
+#
+# Runtime image contains: NO compiler, NO source code, NO test fixtures,
+# NO dev tools. Only the control-plane binary and migration SQL files.
+#
+# syntax=docker/dockerfile:1.7
+
+# ----- Pinned base image digests (overridable via --build-arg) -----
+ARG RUST_BUILDER_AMD64=docker.io/library/rust:1.95-slim@sha256:28846ec5a6bcfcddb93f403ba7071bd579787852b2f2ac3839965620e8bd9456
+ARG RUST_BUILDER_ARM64=docker.io/library/rust:1.95-slim@sha256:039d198bab66a591902cafa2133bf7dce22dc51606fb200d7eac51e112d3c5da
+ARG RUNTIME_AMD64=gcr.io/distroless/cc-debian12@sha256:edadc10b499999450d604293efc91f592e7521a4746d910702fbfe2efbe6db4f
+ARG RUNTIME_ARM64=gcr.io/distroless/cc-debian12@sha256:d13e394443887d968fa82b77b2dc39beb7918812ab21c33f1e989994fb7f6723
+
+# =====================================================================
+# Stage 1: Rust binary compilation (runs on BUILDPLATFORM, cross-links)
+# =====================================================================
+FROM --platform=$BUILDPLATFORM ${RUST_BUILDER_AMD64} AS rust-build
+
+# Cross-compilation toolchain for arm64 targets.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      gcc-aarch64-linux-gnu \
+      g++-aarch64-linux-gnu \
+      pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add the cross-compilation Rust target.
+RUN rustup target add aarch64-unknown-linux-gnu
+
+# Configure cargo to use the cross-linker for aarch64.
+RUN mkdir -p /root/.cargo && \
+    printf '[target.aarch64-unknown-linux-gnu]\nlinker = "aarch64-linux-gnu-gcc"\n' \
+      > /root/.cargo/config.toml
+
+WORKDIR /build
+
+# Copy workspace manifests first for dependency layer caching.
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+
+# Build the control-plane binary for the target architecture.
+ARG TARGETARCH
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64) RUST_TARGET=x86_64-unknown-linux-gnu ;; \
+      arm64) RUST_TARGET=aarch64-unknown-linux-gnu ;; \
+      *) echo "unsupported TARGETARCH=$TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    cargo build --release --target "$RUST_TARGET" -p control-plane; \
+    mkdir -p /out; \
+    cp "target/${RUST_TARGET}/release/control-plane" /out/kernel-v1-control-plane; \
+    chmod 0755 /out/kernel-v1-control-plane
+
+# =====================================================================
+# Stage 2: Runtime (distroless — no shell, no package manager)
+# =====================================================================
+FROM ${RUNTIME_AMD64} AS runtime-amd64
+FROM ${RUNTIME_ARM64} AS runtime-arm64
+
+FROM runtime-${TARGETARCH} AS runtime
+
+# Control-plane binary only — no compiler, no source, no test fixtures.
+COPY --from=rust-build /out/kernel-v1-control-plane /usr/local/bin/kernel-v1-control-plane
+
+# ClickHouse DDL migrations (read-only reference for the control plane).
+COPY deploy/clickhouse/ /opt/kernel-v1/migrations/clickhouse/
+
+# PostgreSQL migrations from control-db crate.
+COPY crates/control-db/migrations/ /opt/kernel-v1/migrations/postgres/
+
+# Run as nonroot (UID 65532, distroless default nonroot user).
+USER 65532:65532
+
+# HTTP API port.
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/kernel-v1-control-plane"]
