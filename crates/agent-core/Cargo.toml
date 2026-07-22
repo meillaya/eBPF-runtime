@@ -23,6 +23,10 @@ path = "src/bin/agent-core-stream.rs"
 name = "process-graph-cli"
 path = "src/bin/process-graph-cli.rs"
 
+[[bin]]
+name = "socket-and-dns-cli"
+path = "src/bin/socket-and-dns-cli.rs"
+
 [dependencies]
 event-abi = { path = "../event-abi" }
 libbpf-rs = { version = "0.26", features = ["vendored"] }
