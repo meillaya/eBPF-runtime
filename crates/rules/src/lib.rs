@@ -33,6 +33,7 @@ pub mod error;
 pub mod fields;
 pub mod lists;
 pub mod parse;
+pub mod predicates;
 pub mod regex_check;
 pub mod schema;
 pub mod serialize;

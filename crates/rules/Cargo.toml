@@ -15,6 +15,10 @@ path = "src/lib.rs"
 name = "rules-cli"
 path = "src/bin/rules-cli.rs"
 
+[[bin]]
+name = "predicates-cli"
+path = "src/bin/predicates-cli.rs"
+
 [features]
 default = []
 
