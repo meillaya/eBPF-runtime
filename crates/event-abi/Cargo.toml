@@ -27,3 +27,4 @@ fuzz = []
 [dependencies]
 
 [dev-dependencies]
+proptest = "1"
