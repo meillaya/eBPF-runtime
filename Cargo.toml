@@ -4,6 +4,7 @@ members = [
     "crates/agent-core",
     "crates/bpf-build",
     "crates/bpf-loader",
+    "crates/enrichment",
     "crates/event-abi",
     "crates/preflight-schema",
     "crates/sensor-tests",
