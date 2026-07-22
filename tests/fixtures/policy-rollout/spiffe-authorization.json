@@ -1,0 +1,24 @@
+{
+  "name": "spiffe-authorization",
+  "description": "Commands from unauthorized SPIFFE IDs or wrong trust domains are rejected.",
+  "cases": [
+    {
+      "name": "unauthorized-operator",
+      "actor": "spiffe://kernel-v1.test/operator/evil",
+      "action": "stage",
+      "expect_error": "Unauthorized"
+    },
+    {
+      "name": "wrong-trust-domain",
+      "actor": "spiffe://evil.example/operator/admin",
+      "action": "stage",
+      "expect_error": "Unauthorized"
+    },
+    {
+      "name": "trust-domain-not-substring",
+      "actor": "spiffe://kernel-v1.test.evil/operator/admin",
+      "action": "stage",
+      "expect_error": "Unauthorized"
+    }
+  ]
+}

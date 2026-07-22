@@ -766,3 +766,65 @@
 - `tests/fixtures/control-plane/` — 3 JSON fixtures (rbac-negative-matrix, cluster-isolation, redaction)
 - Workspace `Cargo.toml` updated to include `crates/control-plane`
 - 114 tests pass (`cargo test -p control-plane`): covering RBAC negative matrix (all roles × denied actions), cluster isolation (cross-cluster denied), redaction (AWS/Stripe/Bearer/password masking, truncation, fail-closed), pagination (cursor round-trip, limit clamping, window bounds), live hub (fanout, cluster isolation, slow-client shedding, cursor reconnect, cursor expiry, sequence monotonicity), health/compatibility, audit emission, static UI (path traversal, content-type, cache-control), config validation
+
+## Task 43: Fleet two-phase policy rollout, reconciliation, and rollback (crates/policy-rollout)
+
+### Architecture: distributed state machine with in-memory stores
+- BLOCKER: this host has no live PostgreSQL, gRPC server, or multiple agents. All rollout logic is validated with in-memory mocks and fixtures. Live distributed integration re-opens on the declared self-hosted runner.
+- The `FleetRolloutCoordinator` manages the distributed two-phase activation: STAGE→READY→COMMIT→APPLIED/REJECTED across multiple agents.
+- Four in-memory stores mirror the control-db patterns: `PolicyVersionStore` (immutable content-addressed versions), `RolloutStore` (optimistic concurrency), `LastKnownGoodStore` (per-agent rollback target), `AgentStateStore` (active/staged tracking).
+
+### Two-phase rollout lifecycle
+- **STAGE**: operator distributes policy to target agents (inactive). Creates a rollout, marks agents as Pending→Staged. Policy is NOT active.
+- **READY**: each agent verifies the content digest and acknowledges. Agent transitions Staged→Ready. Digest mismatch → Rejected (never silent activation).
+- **COMMIT**: operator (or automatic threshold) activates. Only Ready agents receive COMMIT. Phase transitions AwaitingReady→Committing.
+- **APPLIED**: agent confirms activation. Agent transitions Ready→Applied. Requires explicit agent acknowledgment (never mark applied from send-only).
+- **REJECTED**: agent reports failure. Agent transitions to Rejected. Rollout may become Partial.
+
+### Rollout phases and terminal states
+- Non-terminal: Staging, AwaitingReady, Committing.
+- Terminal: Completed (all applied), Partial (some applied, some failed), TimedOut (deadline exceeded), Cancelled (operator cancel), RolledBack (reverted to previous).
+- Timeout with applied agents → Partial (not TimedOut). Timeout with no applied agents → TimedOut.
+
+### Idempotency invariants
+- Duplicate STAGE with same version+digest → returns existing rollout ID (safe no-op).
+- Duplicate READY from same agent → safe no-op if already Ready or beyond.
+- Duplicate COMMIT → safe no-op if already Committing/Completed/Partial.
+- Duplicate APPLIED from same agent → safe no-op if already Applied.
+- All idempotent paths are audited with `.idempotent` action suffix.
+
+### SPIFFE-bound authorization
+- Operator commands (STAGE, COMMIT, CANCEL, ROLLBACK): require SPIFFE ID in the operator list with exact trust-domain match.
+- Agent commands (READY, APPLIED, REJECTED): require the agent's own SPIFFE ID (exact match).
+- Trust domain validated by EXACT match (never substring): `kernel-v1.test` does NOT match `kernel-v1.test.evil` or `kernel-v1`.
+- "system" actor bypasses operator auth for automatic threshold commits.
+
+### Monotonic version enforcement (NEVER wall clock)
+- Policy versions use a monotonic u64 counter. STAGE with version ≤ active_version → VersionReplay.
+- Content digest is SHA-256 of content bytes (content-addressed). Digest mismatch at STAGE time → DigestMismatch rejection.
+- Agent READY with wrong computed digest → AgentDigestMismatch, agent marked Rejected.
+
+### Last-known-good and rollback
+- Each APPLIED report records the version+digest as the agent's last-known-good.
+- ROLLBACK reverts applied agents to their previous version (from rollout.previous_version).
+- Disconnect does NOT relax LKG: `agent_disconnected()` marks the agent as Disconnected but does NOT modify the LKG store.
+- Rollback is valid only from Completed or Partial phases.
+
+### Reconnect reconciliation
+- `Reconciler` compares agent's reported state (active_version, staged_version, active_digest) with fleet state.
+- Decision logic: AgentAhead (server stale) → update records; AgentBehind → ReStage; matching active + matching staged → Commit needed; matching active + stale/missing staged → ReStage; digest mismatch with LKG → ReStage.
+- All reconciliation actions are audited.
+
+### Audit trail
+- Every command and transition is recorded in the append-only `AuditLog` with monotonic sequence number.
+- Audit entries include: actor SPIFFE ID, action, resource, JSON detail, success/failure, error message, monotonic tick.
+- No update, no delete — mirrors control-db audit_log invariants.
+
+### Borrow-checker pattern for coordinator methods
+- The `FleetRolloutCoordinator` methods must extract all needed values from immutable borrows (via `self.rollouts.get()` or `active_rollout()`) into local variables BEFORE calling `self.rollouts.update()`. Holding an immutable borrow across a mutable borrow violates Rust's aliasing rules. This pattern appears in `stage()`, `applied()`, `check_timeout()`, `check_rollout_completion()`, and `agent_disconnected()`.
+
+### Files created
+- `crates/policy-rollout/` — new crate (Cargo.toml, src/{lib,error,model,digest,auth,audit,store,state_machine,reconcile}.rs)
+- `tests/fixtures/policy-rollout/` — 12 JSON fixtures (happy-path-two-agents, partial-rollout-one-rejects, duplicate-commands-idempotent, stale-version-rejected, rollback-to-previous, disconnect-maintains-lkg, timeout-partial, reconnect-reconciliation, digest-mismatch-rejected, spiffe-authorization, cancel-in-progress, commit-before-ready-operator-override)
+- Workspace `Cargo.toml` updated to include `crates/policy-rollout`
+- 83 tests pass (`cargo test -p policy-rollout`): covering full success (two agents), subset targets, duplicate commands (STAGE/READY/COMMIT/APPLIED), digest mismatch (stage + agent), stale/replayed version, agent disconnect (LKG maintained), timeout (TimedOut + Partial), cancel (in-progress + completed-rejected), rollback to previous, SPIFFE authorization (unauthorized operator, wrong trust domain), audit trail completeness, partial rollout (one rejects), no activation without explicit commit, applied requires agent acknowledgment, reconciliation (up-to-date, behind, ahead, commit-needed, stale-staged, missing-staged, digest-mismatch)

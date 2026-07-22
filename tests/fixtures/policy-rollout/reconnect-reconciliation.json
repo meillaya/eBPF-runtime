@@ -1,0 +1,19 @@
+{
+  "name": "reconnect-reconciliation",
+  "description": "Agent reconnects behind fleet version. Reconciler detects AgentBehind and prescribes ReStage.",
+  "agent_report": {
+    "agent_spiffe_id": "spiffe://kernel-v1.test/agent/prod/node-1",
+    "active_version": 3,
+    "active_digest": "digest-v3",
+    "staged_version": null
+  },
+  "fleet_state": {
+    "active_version": 5,
+    "staged_version": null
+  },
+  "expect": {
+    "action": "AgentBehind",
+    "agent_version": 3,
+    "expected_version": 5
+  }
+}

@@ -23,4 +23,5 @@ members = [
     "crates/event-bus-kafka",
     "crates/analytics-clickhouse",
     "crates/control-plane",
+    "crates/policy-rollout",
 ]

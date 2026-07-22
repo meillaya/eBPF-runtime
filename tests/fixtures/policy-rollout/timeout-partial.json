@@ -1,0 +1,19 @@
+{
+  "name": "timeout-partial",
+  "description": "One agent applies, the other never responds. After deadline, rollout is Partial (not silent activation).",
+  "steps": [
+    {"action": "stage", "version": 1, "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "ready", "agent": "spiffe://kernel-v1.test/agent/prod/node-1", "digest_match": true},
+    {"action": "commit", "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "applied", "agent": "spiffe://kernel-v1.test/agent/prod/node-1"},
+    {"action": "advance_tick", "ticks": 200},
+    {"action": "check_timeout"}
+  ],
+  "expect": {
+    "phase": "Partial",
+    "agent_states": {
+      "spiffe://kernel-v1.test/agent/prod/node-1": "Applied",
+      "spiffe://kernel-v1.test/agent/prod/node-2": "Ready"
+    }
+  }
+}
