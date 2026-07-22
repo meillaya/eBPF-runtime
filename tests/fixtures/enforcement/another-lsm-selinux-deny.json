@@ -1,0 +1,21 @@
+{
+  "name": "another-lsm-selinux-deny",
+  "description": "SELinux/AppArmor already denied the operation (incoming ret=-13). Even though our deny policy also matches, the engine preserves the prior decision and records prior_lsm. The recorded deny source is NEVER own program for another LSM's denial.",
+  "input": {
+    "hook_family": "bprm_check_security",
+    "prior_ret": -13,
+    "selector": "/usr/bin/nc",
+    "selector_valid": true,
+    "ring_full": false,
+    "policy": { "present": true, "mode": "deny", "hook_family": "bprm_check_security", "version": 1, "generation": 5, "selector": "/usr/bin/nc", "deny_errno": -13 },
+    "kill_switch": { "deny_disabled": false }
+  },
+  "expect": {
+    "returned": -13,
+    "decision": "preserve_prior",
+    "deny_source": "prior_lsm",
+    "own_denial_recorded": false,
+    "result_changed": false,
+    "event_kind": 15
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "deny-wrong-selector",
+  "description": "Deny-mode policy but the observed selector does NOT match the policy selector. No denial: returned 0, decision allow, deny_source none, no own-denial. A wrong selector must never produce a false own-denial.",
+  "input": {
+    "hook_family": "file_open",
+    "prior_ret": 0,
+    "selector": "/etc/hostname",
+    "selector_valid": true,
+    "ring_full": false,
+    "policy": { "present": true, "mode": "deny", "hook_family": "file_open", "version": 3, "generation": 42, "selector": "/etc/shadow", "deny_errno": -13 },
+    "kill_switch": { "deny_disabled": false }
+  },
+  "expect": {
+    "returned": 0,
+    "decision": "allow",
+    "deny_source": "none",
+    "own_denial_recorded": false,
+    "result_changed": false,
+    "event_kind": 15
+  }
+}

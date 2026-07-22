@@ -1,0 +1,21 @@
+{
+  "name": "empty-policy-selector",
+  "description": "Policy entry present but its selector is empty (selector_len 0). An empty selector matches nothing; the engine fails open: allow, no own-denial.",
+  "input": {
+    "hook_family": "file_open",
+    "prior_ret": 0,
+    "selector": "/etc/shadow",
+    "selector_valid": true,
+    "ring_full": false,
+    "policy": { "present": true, "mode": "deny", "hook_family": "file_open", "version": 1, "generation": 1, "selector": "", "deny_errno": -13 },
+    "kill_switch": { "deny_disabled": false }
+  },
+  "expect": {
+    "returned": 0,
+    "decision": "allow",
+    "deny_source": "none",
+    "own_denial_recorded": false,
+    "result_changed": false,
+    "event_kind": 15
+  }
+}

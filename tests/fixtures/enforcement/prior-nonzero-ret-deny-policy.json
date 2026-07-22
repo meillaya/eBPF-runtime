@@ -1,0 +1,21 @@
+{
+  "name": "prior-nonzero-ret-deny-policy",
+  "description": "A prior LSM already denied (incoming ret=-1) AND a deny-mode policy matches. The engine MUST preserve the prior ret unchanged (-1, not the policy's -13) and record deny_source prior_lsm -- NEVER own_lsm. Nonzero prior BPF-program ret is preserved.",
+  "input": {
+    "hook_family": "file_open",
+    "prior_ret": -1,
+    "selector": "/etc/shadow",
+    "selector_valid": true,
+    "ring_full": false,
+    "policy": { "present": true, "mode": "deny", "hook_family": "file_open", "version": 3, "generation": 42, "selector": "/etc/shadow", "deny_errno": -13 },
+    "kill_switch": { "deny_disabled": false }
+  },
+  "expect": {
+    "returned": -1,
+    "decision": "preserve_prior",
+    "deny_source": "prior_lsm",
+    "own_denial_recorded": false,
+    "result_changed": false,
+    "event_kind": 15
+  }
+}

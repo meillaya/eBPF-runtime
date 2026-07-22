@@ -1,0 +1,21 @@
+{
+  "name": "deny-custom-errno",
+  "description": "Deny-mode policy configured with a custom errno (-1 EPERM). The engine returns the policy's configured errno verbatim, not a hardcoded value.",
+  "input": {
+    "hook_family": "file_open",
+    "prior_ret": 0,
+    "selector": "/proc/kcore",
+    "selector_valid": true,
+    "ring_full": false,
+    "policy": { "present": true, "mode": "deny", "hook_family": "file_open", "version": 1, "generation": 3, "selector": "/proc/kcore", "deny_errno": -1 },
+    "kill_switch": { "deny_disabled": false }
+  },
+  "expect": {
+    "returned": -1,
+    "decision": "deny",
+    "deny_source": "own_lsm",
+    "own_denial_recorded": true,
+    "result_changed": true,
+    "event_kind": 15
+  }
+}
