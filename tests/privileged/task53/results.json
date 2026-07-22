@@ -1,0 +1,358 @@
+{
+  "task": 53,
+  "verdicts": {
+    "ordering": "passed",
+    "supported": "passed",
+    "saturation": "passed"
+  },
+  "overall": "passed",
+  "environment": {
+    "kernel": "7.1.3-2-cachyos",
+    "arch": "x86_64",
+    "btf_sha256": "cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37",
+    "clang": "clang version 22.1.8",
+    "bpftool": "bpftool v7.8.0",
+    "libbpf": "1.7.0-1",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+    "lsm": "capability,landlock,lockdown,yama,bpf",
+    "unprivileged_bpf_disabled": 2
+  },
+  "attached": {
+    "prog_list": "26: lsm  name restrict_filesystems  tag 31efb7c56239148b  gpl\n\tloaded_at 2026-07-17T06:36:52+0000  uid 0\n\txlated 520B  jited 297B  memlock 4096B  map_ids 12\n\tbtf_id 36\n43: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n44: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n59: tracepoint  name handle_exec  tag 72a739cf806e9f03  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 416B  jited 272B  memlock 4096B  map_ids 16,19,14,18\n\tbtf_id 149\n61: tracepoint  name handle_fork  tag 72a739cf806e9f03  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 416B  jited 272B  memlock 4096B  map_ids 16,19,14,18\n\tbtf_id 149\n75: tracing  name entry__ip_defrag  tag 27d17744ede62bba  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1248B  jited 866B  memlock 4096B  map_ids 37,38,35,32\n\tbtf_id 161\n76: tracing  name entry__ipv6_frag_rcv  tag 723aba0cf9356cd7  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1504B  jited 1048B  memlock 4096B  map_ids 37,38,35,32\n\tbtf_id 161\n78: tracing  name bpftune_neigh_create  tag b2457e59811dbd0d  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 2064B  jited 1383B  memlock 4096B  map_ids 40,42,32\n\tbtf_id 162\n79: tracing  name entry__neigh_remove_one  tag 904772d6d150bbdf  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1952B  jited 1323B  memlock 4096B  map_ids 40,42,32\n\tbtf_id 162\n81: tracing  name bpftune_kfree_skb  tag fc263b52827b9374  gpl recursion_misses 37\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1848B  jited 1208B  memlock 4096B  map_ids 46,43,32\n\tbtf_id 163\n82: tracing  name entry__napi_complete_done  tag 206db79c79211db3  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1464B  jited 982B  memlock 4096B  map_ids 46,45,44,43,32\n\tbtf_id 163\n84: kprobe  name bpftune_setup_net  tag c219a3df82364cf0  gpl\n\tloaded_at 2026-07-17T06:36:57+0000  uid 0\n\txlated 128B  jited 100B  memlock 4096B  map_ids 48\n\tbtf_id 164\n85: kprobe  name bpftune_setup_net_return  tag ba1d1d88e8592ef8  gpl\n\tloaded_at 2026-07-17T06:36:57+0000  uid 0\n\txlated 600B  jited 436B  memlock 4096B  map_ids 48,50,32\n\tbtf_id 164\n91: kprobe  name bpftune_fib6_run_gc_entry  tag 32b49d3c99932e6a  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 240B  jited 166B  memlock 4096B  map_ids 56\n\tbtf_id 167\n92: kprobe  name bpftune_fib6_run_gc  tag f3241f23b2069127  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 1184B  jited 833B  memlock 4096B  map_ids 56,58,55,32\n\tbtf_id 167\n94: kprobe  name bpftune_sysctl  tag 9de9bb43df7f0912  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 1400B  jited 911B  memlock 4096B  map_ids 61,32\n\tbtf_id 168\n95: cgroup_sysctl  name bpftune_sysctl_write  tag b30cf65b7e0fa9c7  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 16B  jited 31B  memlock 4096B\n\tbtf_id 168\n99: tracing  name entry__tcp_enter_memory_pressure  tag 3baf36fab44c02ed  gpl\n\tloaded_at 2026-07-17T06:36:59+0000  uid 0\n\txlated 2728B  jited 1775B  memlock 4096B  map_ids 69,68,66,32\n\tbtf_id 170\n100: tracing  name entry__tcp_rcv_space_adjust  tag 86894d8422f0aae5  gpl recursion_misses 277\n\tloaded_at 2026-07-17T06:36:59+0000  uid 0\n\txlated 5336B  jited 3347B  memlock 8192B  map_ids 68,67,69,66,32,34\n\tbtf_id 170\n101: tracing  name entry__tcp_init_sock  tag e25cc2cd8ba3da69  gpl recursion_misses 36\n\tloaded_at 2026-07-17T06:36:59+0000  uid 0\n\txlated 2728B  jited 1775B  memlock 4096B  map_ids 69,68,66,32\n\tbtf_id 170\n102: tracing  name entry__tcp_init_transfer  tag c5183894a3274d99  gpl\n\tloaded_at 2026-07-17T06:36:59+0000  uid 0\n\txlated 72B  jited 59B  memlock 4096B  map_ids 68\n\tbtf_id 170\n107: sock_ops  name bpftune_conn_tuner  tag 97e5ae7983626761  gpl\n\tloaded_at 2026-07-17T06:36:59+0000  uid 0\n\txlated 3824B  jited 2521B  memlock 4096B  map_ids 72,77,76,74\n\tbtf_id 174\n109: tracing  name bpftune_udp_fail_rcv  tag ef0a6211a0efbd0e  gpl\n\tloaded_at 2026-07-17T06:37:00+0000  uid 0\n\txlated 4584B  jited 2919B  memlock 8192B  map_ids 81,80,79,78,32\n\tbtf_id 175\n110: tracing  name bpftune_sock_exceed_buf_limit  tag 72ef029793268ac6  gpl\n\tloaded_at 2026-07-17T06:37:00+0000  uid 0\n\txlated 3024B  jited 1932B  memlock 4096B  map_ids 81,80,78,32\n\tbtf_id 175\n179: socket_filter  tag df22c69ab6dfacd8\n\tloaded_at 2026-07-19T19:29:18+0000  uid 0\n\txlated 848B  jited 467B  memlock 4096B  map_ids 86\n252: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-21T01:45:52+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n253: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-21T01:45:52+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n20761: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T04:00:27+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n20762: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T04:00:27+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n20765: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T04:32:50+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n20766: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T04:32:50+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21584: cgroup_device  name sd_devices  tag a97c143260cd9940  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 416B  jited 271B  memlock 4096B\n21585: cgroup_device  name sd_devices  tag 98b7b6f166b26c8a  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 184B  jited 114B  memlock 4096B\n21586: cgroup_device  name sd_devices  tag a97c143260cd9940  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 416B  jited 271B  memlock 4096B\n21587: cgroup_device  name sd_devices  tag c1591dae5f5bcd9f  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 464B  jited 301B  memlock 4096B\n21588: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21589: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21590: cgroup_device  name sd_devices  tag 71bba91db5466642  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 792B  jited 493B  memlock 4096B\n21591: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21592: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21593: cgroup_device  name sd_devices  tag feaab199760324c9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 504B  jited 322B  memlock 4096B\n21594: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21595: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21596: cgroup_device  name sd_devices  tag a97c143260cd9940  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 416B  jited 271B  memlock 4096B\n21597: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21598: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21599: cgroup_device  name sd_devices  tag c1591dae5f5bcd9f  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 464B  jited 301B  memlock 4096B\n21600: cgroup_device  name sd_devices  tag c1591dae5f5bcd9f  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 464B  jited 301B  memlock 4096B\n21601: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21602: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21603: cgroup_device  name sd_devices  tag c1591dae5f5bcd9f  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 464B  jited 301B  memlock 4096B\n21604: cgroup_device  name sd_devices  tag a97c143260cd9940  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 416B  jited 271B  memlock 4096B\n21605: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21606: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n21612: cgroup_device  name sd_devices  tag 461f9f5162fd8042  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 472B  jited 307B  memlock 4096B\n21616: cgroup_device  tag b8f4fb5f08605bc5\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 552B  jited 369B  memlock 4096B\n21617: cgroup_device  name sd_devices  tag 461f9f5162fd8042  gpl\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 472B  jited 307B  memlock 4096B\n21621: cgroup_device  tag b8f4fb5f08605bc5\n\tloaded_at 2026-07-22T22:14:20+0000  uid 0\n\txlated 552B  jited 369B  memlock 4096B\n21657: cgroup_device  name sd_devices  tag 461f9f5162fd8042  gpl\n\tloaded_at 2026-07-22T22:14:28+0000  uid 0\n\txlated 472B  jited 307B  memlock 4096B\n21661: cgroup_device  tag b8f4fb5f08605bc5\n\tloaded_at 2026-07-22T22:14:28+0000  uid 0\n\txlated 552B  jited 369B  memlock 4096B\n21702: cgroup_device  name sd_devices  tag 461f9f5162fd8042  gpl\n\tloaded_at 2026-07-22T22:17:12+0000  uid 0\n\txlated 472B  jited 307B  memlock 4096B\n21706: cgroup_device  tag b8f4fb5f08605bc5\n\tloaded_at 2026-07-22T22:17:12+0000  uid 0\n\txlated 552B  jited 369B  memlock 4096B\n21709: cgroup_device  tag b1e4e8bab2078b38\n\tloaded_at 2026-07-22T22:17:18+0000  uid 0\n\txlated 64B  jited 53B  memlock 4096B\n21715: cgroup_device  name sd_devices  tag 461f9f5162fd8042  gpl\n\tloaded_at 2026-07-22T22:18:47+0000  uid 0\n\txlated 472B  jited 307B  memlock 4096B\n21719: cgroup_device  tag b8f4fb5f08605bc5\n\tloaded_at 2026-07-22T22:18:47+0000  uid 0\n\txlated 552B  jited 369B  memlock 4096B\n24287: cgroup_device  tag b1e4e8bab2078b38\n\tloaded_at 2026-07-22T23:42:15+0000  uid 0\n\txlated 64B  jited 53B  memlock 4096B\n24370: raw_tracepoint  name tp_sched_process_fork  tag c16d0b870e6196bf  gpl\n\tloaded_at 2026-07-22T23:42:28+0000  uid 0\n\txlated 688B  jited 415B  memlock 4096B  map_ids 968,969\n\tbtf_id 1301\n24371: raw_tracepoint  name tp_sched_process_exec  tag e94d77e659d4b904  gpl\n\tloaded_at 2026-07-22T23:42:28+0000  uid 0\n\txlated 6832B  jited 4268B  memlock 8192B  map_ids 968,969\n\tbtf_id 1301\n24372: kprobe  name kp_x64_sys_execve  tag d9a011d675977c75  gpl\n\tloaded_at 2026-07-22T23:42:28+0000  uid 0\n\txlated 2592B  jited 2062B  memlock 4096B  map_ids 968,969\n\tbtf_id 1301\n24373: raw_tracepoint  name tp_sched_process_exit  tag b22a31ca10954588  gpl\n\tloaded_at 2026-07-22T23:42:28+0000  uid 0\n\txlated 744B  jited 438B  memlock 4096B  map_ids 968,969\n\tbtf_id 1301",
+    "link_list": "2: tracing  prog 26  \n\tprog_type lsm  attach_type lsm_mac  \n\ttarget_obj_id 1  target_btf_id 83862  \n3: perf_event  prog 59  \n\ttracepoint sched_process_exec  \n4: perf_event  prog 61  \n\ttracepoint sched_process_fork  \n8: tracing  prog 75  \n\tprog_type tracing  attach_type trace_fentry  \n\ttarget_obj_id 1  target_btf_id 110478  \n9: tracing  prog 76  \n\tprog_type tracing  attach_type trace_fentry  \n\ttarget_obj_id 1  target_btf_id 110876  \n10: raw_tracepoint  prog 78  \n\ttp 'neigh_create'  \n11: tracing  prog 79  \n\tprog_type tracing  attach_type trace_fentry  \n\ttarget_obj_id 1  target_btf_id 117103  \n12: raw_tracepoint  prog 81  \n\ttp 'kfree_skb'  \n13: tracing  prog 82  \n\tprog_type tracing  attach_type trace_fentry  \n\ttarget_obj_id 1  target_btf_id 116719  \n14: perf_event  prog 84  \n\tkprobe setup_net  \n15: perf_event  prog 85  \n\tkretprobe setup_net  \n16: perf_event  prog 91  \n\tkprobe fib6_run_gc  \n17: perf_event  prog 92  \n\tkretprobe fib6_run_gc  \n18: perf_event  prog 94  \n\tkprobe __cgroup_bpf_run_filter_sysctl  \n19: tracing  prog 99  \n\tprog_type tracing  attach_type trace_fentry  \n\ttarget_obj_id 1  target_btf_id 136043  \n20: tracing  prog 100  \n\tprog_type tracing  attach_type trace_fentry  \n\ttarget_obj_id 1  target_btf_id 136193  \n21: tracing  prog 101  \n\tprog_type tracing  attach_type trace_fentry  \n\ttarget_obj_id 1  target_btf_id 136100  \n22: tracing  prog 102  \n\tprog_type tracing  attach_type trace_fentry  \n\ttarget_obj_id 1  target_btf_id 136101  \n23: raw_tracepoint  prog 109  \n\ttp 'udp_fail_queue_rcv_skb'  \n24: raw_tracepoint  prog 110  \n\ttp 'sock_exceed_buf_limit'  \n118: raw_tracepoint  prog 24370  \n\ttp 'sched_process_fork'  \n119: raw_tracepoint  prog 24371  \n\ttp 'sched_process_exec'  \n120: perf_event  prog 24372  \n\tkprobe __x64_sys_execve  \n121: raw_tracepoint  prog 24373  \n\ttp 'sched_process_exit'  "
+  },
+  "ordering": {
+    "mode": "ordering",
+    "obj_path": "/tmp/task53/process.bpf.o",
+    "programs_attached": 4,
+    "kprobe_attached": true,
+    "ring_size_default_bytes": 262144,
+    "ring_size_loaded_bytes": 262144,
+    "workers": 4,
+    "children_per_worker": 25,
+    "children_spawned": 100,
+    "target_rate_children_per_worker": 100,
+    "consumer_rt_priority": 0,
+    "generation_duration_s": 0.251,
+    "drain_s": 2.0,
+    "actual_rate_events_per_sec_per_cpu": 398.0,
+    "events_consumed_total": 724,
+    "fork_events": 214,
+    "exec_events": 300,
+    "exit_events": 210,
+    "other_events": 0,
+    "oracle_expected_events": 400,
+    "oracle_fork_matched": 100,
+    "oracle_exec_matched": 100,
+    "oracle_exec_kprobe_matched": 100,
+    "oracle_exit_matched": 100,
+    "oracle_complete_children": 100,
+    "ordering_violations": 0,
+    "percpu_seq_violations": 0,
+    "pid_reuse_resets": 0,
+    "reserve_failure_delta": 0,
+    "gap_children": 0,
+    "gap_start": 0,
+    "gap_end": 0,
+    "verdict": "passed",
+    "verdict_reason": "ordering: 100/100 oracle children complete with causal fork->exec->exit ordering, per-CPU seq monotonic, zero critical loss at 398.0 events/s/cpu"
+  },
+  "supported": {
+    "mode": "supported",
+    "obj_path": "/tmp/task53/process.bpf.o",
+    "programs_attached": 4,
+    "kprobe_attached": true,
+    "ring_size_default_bytes": 262144,
+    "ring_size_loaded_bytes": 262144,
+    "workers": 15,
+    "children_per_worker": 2500,
+    "children_spawned": 37500,
+    "target_rate_children_per_worker": 250,
+    "consumer_rt_priority": 10,
+    "generation_duration_s": 10.036,
+    "drain_s": 3.0,
+    "actual_rate_events_per_sec_per_cpu": 996.4,
+    "events_consumed_total": 152077,
+    "fork_events": 38144,
+    "exec_events": 75766,
+    "exit_events": 38167,
+    "other_events": 0,
+    "oracle_expected_events": 150000,
+    "oracle_fork_matched": 37500,
+    "oracle_exec_matched": 37500,
+    "oracle_exec_kprobe_matched": 37500,
+    "oracle_exit_matched": 37500,
+    "oracle_complete_children": 37500,
+    "ordering_violations": 0,
+    "percpu_seq_violations": 0,
+    "pid_reuse_resets": 0,
+    "reserve_failure_delta": 0,
+    "gap_children": 0,
+    "gap_start": 0,
+    "gap_end": 0,
+    "verdict": "passed",
+    "verdict_reason": "supported: 37500/37500 oracle children complete with causal fork->exec->exit ordering, per-CPU seq monotonic, zero critical loss at 996.4 events/s/cpu"
+  },
+  "saturation": {
+    "mode": "saturation",
+    "obj_path": "/tmp/task53/process.bpf.o",
+    "programs_attached": 4,
+    "kprobe_attached": true,
+    "ring_size_default_bytes": 262144,
+    "ring_size_loaded_bytes": 4096,
+    "workers": 4,
+    "children_per_worker": 150,
+    "children_spawned": 600,
+    "target_rate_children_per_worker": 0,
+    "consumer_rt_priority": 0,
+    "generation_duration_s": 0.078,
+    "drain_s": 3.0,
+    "actual_rate_events_per_sec_per_cpu": 7690.1,
+    "events_consumed_total": 577,
+    "fork_events": 196,
+    "exec_events": 255,
+    "exit_events": 126,
+    "other_events": 0,
+    "oracle_expected_events": 2400,
+    "oracle_fork_matched": 5,
+    "oracle_exec_matched": 3,
+    "oracle_exec_kprobe_matched": 4,
+    "oracle_exit_matched": 3,
+    "oracle_complete_children": 3,
+    "ordering_violations": 0,
+    "percpu_seq_violations": 0,
+    "pid_reuse_resets": 0,
+    "reserve_failure_delta": 2385,
+    "gap_children": 597,
+    "gap_start": 1482263,
+    "gap_end": 1482861,
+    "verdict": "passed",
+    "verdict_reason": "saturation-detected-no-critical-loss: tiny ring (4096 B) shed 2385 of 2400 oracle events; loss reconciled by independent oracle (never a false zero)"
+  },
+  "steps": [
+    {
+      "name": "toolchain_clang",
+      "cmd": "bash -c clang --version | head -1",
+      "rc": 0,
+      "out": "clang version 22.1.8",
+      "err": ""
+    },
+    {
+      "name": "toolchain_bpftool",
+      "cmd": "bash -c bpftool version | head -1",
+      "rc": 0,
+      "out": "bpftool v7.8.0",
+      "err": ""
+    },
+    {
+      "name": "toolchain_libbpf",
+      "cmd": "bash -c pacman -Q libbpf; ls -l /usr/lib/libbpf.so*",
+      "rc": 0,
+      "out": "libbpf 1.7.0-1\nlrwxrwxrwx 1 root root     11 Mar 30 18:10 /usr/lib/libbpf.so -> libbpf.so.1\nlrwxrwxrwx 1 root root     15 Mar 30 18:10 /usr/lib/libbpf.so.1 -> libbpf.so.1.7.0\n-rwxr-xr-x 1 root root 436344 Mar 30 18:10 /usr/lib/libbpf.so.1.7.0",
+      "err": ""
+    },
+    {
+      "name": "toolchain_rustc",
+      "cmd": "bash -c rustc --version 2>/dev/null || echo unavailable",
+      "rc": 0,
+      "out": "rustc 1.95.0 (59807616e 2026-04-14)",
+      "err": ""
+    },
+    {
+      "name": "host_kernel",
+      "cmd": "bash -c uname -rm",
+      "rc": 0,
+      "out": "7.1.3-2-cachyos x86_64",
+      "err": ""
+    },
+    {
+      "name": "host_btf",
+      "cmd": "bash -c sha256sum /sys/kernel/btf/vmlinux",
+      "rc": 0,
+      "out": "cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37  /sys/kernel/btf/vmlinux",
+      "err": ""
+    },
+    {
+      "name": "build_process",
+      "cmd": "clang -O2 -g -Wall -target bpf -D__TARGET_ARCH_x86 -I bpf/include -c bpf/sensors/process.bpf.c -o /tmp/task53/process.bpf.o",
+      "rc": 0,
+      "out": "",
+      "err": "In file included from bpf/sensors/process.bpf.c:76:\nbpf/sensors/vmlinux.h:32345:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 32345 |                 struct slock_owned;\n       |                 ^~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:39588:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 39588 |         struct aes_enckey;\n       |         ^~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:58686:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 58686 |                 struct ns_tree;\n       |                 ^~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:80098:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 80098 |         struct __filename_head;\n       |         ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:81772:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 81772 |         struct __fs_path;\n       |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:117836:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 117836 |                 struct pidfs_anon_attr;\n        |                 ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:118077:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 118077 |         union pipe_index;\n        |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:130986:4: warning: declaration does not declare anything [-Wmissing-declarations]\n 130986 |                         struct freelist_counters;"
+    },
+    {
+      "name": "build_file",
+      "cmd": "clang -O2 -g -Wall -target bpf -D__TARGET_ARCH_x86 -I bpf/include -c bpf/sensors/file.bpf.c -o /tmp/task53/file.bpf.o",
+      "rc": 0,
+      "out": "",
+      "err": "In file included from bpf/sensors/file.bpf.c:88:\nbpf/sensors/vmlinux.h:32345:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 32345 |                 struct slock_owned;\n       |                 ^~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:39588:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 39588 |         struct aes_enckey;\n       |         ^~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:58686:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 58686 |                 struct ns_tree;\n       |                 ^~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:80098:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 80098 |         struct __filename_head;\n       |         ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:81772:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 81772 |         struct __fs_path;\n       |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:117836:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 117836 |                 struct pidfs_anon_attr;\n        |                 ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:118077:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 118077 |         union pipe_index;\n        |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:130986:4: warning: declaration does not declare anything [-Wmissing-declarations]\n 130986 |                         struct freelist_counters;\n   "
+    },
+    {
+      "name": "build_network",
+      "cmd": "clang -O2 -g -Wall -target bpf -D__TARGET_ARCH_x86 -I bpf/include -c bpf/sensors/network.bpf.c -o /tmp/task53/network.bpf.o",
+      "rc": 0,
+      "out": "",
+      "err": "In file included from bpf/sensors/network.bpf.c:102:\nbpf/sensors/vmlinux.h:32345:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 32345 |                 struct slock_owned;\n       |                 ^~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:39588:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 39588 |         struct aes_enckey;\n       |         ^~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:58686:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 58686 |                 struct ns_tree;\n       |                 ^~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:80098:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 80098 |         struct __filename_head;\n       |         ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:81772:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 81772 |         struct __fs_path;\n       |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:117836:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 117836 |                 struct pidfs_anon_attr;\n        |                 ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:118077:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 118077 |         union pipe_index;\n        |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:130986:4: warning: declaration does not declare anything [-Wmissing-declarations]\n 130986 |                         struct freelist_counters;"
+    },
+    {
+      "name": "build_dns",
+      "cmd": "clang -O2 -g -Wall -target bpf -D__TARGET_ARCH_x86 -I bpf/include -c bpf/sensors/dns.bpf.c -o /tmp/task53/dns.bpf.o",
+      "rc": 0,
+      "out": "",
+      "err": "In file included from bpf/sensors/dns.bpf.c:99:\nbpf/sensors/vmlinux.h:32345:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 32345 |                 struct slock_owned;\n       |                 ^~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:39588:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 39588 |         struct aes_enckey;\n       |         ^~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:58686:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 58686 |                 struct ns_tree;\n       |                 ^~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:80098:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 80098 |         struct __filename_head;\n       |         ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:81772:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 81772 |         struct __fs_path;\n       |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:117836:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 117836 |                 struct pidfs_anon_attr;\n        |                 ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:118077:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 118077 |         union pipe_index;\n        |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:130986:4: warning: declaration does not declare anything [-Wmissing-declarations]\n 130986 |                         struct freelist_counters;\n    "
+    },
+    {
+      "name": "build_syscall",
+      "cmd": "clang -O2 -g -Wall -target bpf -D__TARGET_ARCH_x86 -I bpf/include -c bpf/sensors/syscall.bpf.c -o /tmp/task53/syscall.bpf.o",
+      "rc": 0,
+      "out": "",
+      "err": "In file included from bpf/sensors/syscall.bpf.c:13:\nbpf/sensors/../include/event_abi.h:67:32: warning: '/*' within block comment [-Wcomment]\n   67 |  *      (task 10's `bpf/sensors/*.bpf.c` sources include vmlinux.h\n      |                                ^\n1 warning generated."
+    },
+    {
+      "name": "build_identity",
+      "cmd": "clang -O2 -g -Wall -target bpf -D__TARGET_ARCH_x86 -I bpf/include -c bpf/sensors/identity.bpf.c -o /tmp/task53/identity.bpf.o",
+      "rc": 0,
+      "out": "",
+      "err": "In file included from bpf/sensors/identity.bpf.c:102:\nbpf/sensors/vmlinux.h:32345:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 32345 |                 struct slock_owned;\n       |                 ^~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:39588:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 39588 |         struct aes_enckey;\n       |         ^~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:58686:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 58686 |                 struct ns_tree;\n       |                 ^~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:80098:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 80098 |         struct __filename_head;\n       |         ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:81772:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 81772 |         struct __fs_path;\n       |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:117836:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 117836 |                 struct pidfs_anon_attr;\n        |                 ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:118077:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 118077 |         union pipe_index;\n        |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:130986:4: warning: declaration does not declare anything [-Wmissing-declarations]\n 130986 |                         struct freelist_counters"
+    },
+    {
+      "name": "build_lsm",
+      "cmd": "clang -O2 -g -Wall -target bpf -D__TARGET_ARCH_x86 -I bpf/include -c bpf/sensors/lsm.bpf.c -o /tmp/task53/lsm.bpf.o",
+      "rc": 0,
+      "out": "",
+      "err": "In file included from bpf/sensors/lsm.bpf.c:97:\nbpf/sensors/vmlinux.h:32345:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 32345 |                 struct slock_owned;\n       |                 ^~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:39588:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 39588 |         struct aes_enckey;\n       |         ^~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:58686:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 58686 |                 struct ns_tree;\n       |                 ^~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:80098:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 80098 |         struct __filename_head;\n       |         ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:81772:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 81772 |         struct __fs_path;\n       |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:117836:3: warning: declaration does not declare anything [-Wmissing-declarations]\n 117836 |                 struct pidfs_anon_attr;\n        |                 ^~~~~~~~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:118077:2: warning: declaration does not declare anything [-Wmissing-declarations]\n 118077 |         union pipe_index;\n        |         ^~~~~~~~~~~~~~~~\nbpf/sensors/vmlinux.h:130986:4: warning: declaration does not declare anything [-Wmissing-declarations]\n 130986 |                         struct freelist_counters;\n    "
+    },
+    {
+      "name": "objdump_process_sections",
+      "cmd": "bash -c llvm-objdump -h /tmp/task53/process.bpf.o | grep -E 'raw_tracepoint|kprobe|\\.BTF'",
+      "rc": 0,
+      "out": "  3 raw_tracepoint/sched_process_fork     00000260 0000000000000000 TEXT\n  4 .relraw_tracepoint/sched_process_fork 00000020 0000000000000000 \n  5 raw_tracepoint/sched_process_exec     00001a60 0000000000000000 TEXT\n  6 .relraw_tracepoint/sched_process_exec 00000020 0000000000000000 \n  7 kprobe/__x64_sys_execve               000009e0 0000000000000000 TEXT\n  8 .relkprobe/__x64_sys_execve           00000020 0000000000000000 \n  9 raw_tracepoint/sched_process_exit     000002c8 0000000000000000 TEXT\n 10 .relraw_tracepoint/sched_process_exit 00000020 0000000000000000 \n 23 .BTF                                  0000c26a 0000000000000000 \n 24 .rel.BTF                              00000030 0000000000000000 \n 25 .BTF.ext                              00000a14 0000000000000000 \n 26 .rel.BTF.ext                          000009b0 0000000000000000 ",
+      "err": ""
+    },
+    {
+      "name": "load_process_pin",
+      "cmd": "bpftool prog loadall /tmp/task53/process.bpf.o /sys/fs/bpf/task53_process",
+      "rc": 0,
+      "out": "",
+      "err": ""
+    },
+    {
+      "name": "load_file_pin",
+      "cmd": "bpftool prog loadall /tmp/task53/file.bpf.o /sys/fs/bpf/task53_file",
+      "rc": 0,
+      "out": "",
+      "err": ""
+    },
+    {
+      "name": "load_network_pin",
+      "cmd": "bpftool prog loadall /tmp/task53/network.bpf.o /sys/fs/bpf/task53_network",
+      "rc": 255,
+      "out": "",
+      "err": "libbpf: prog 'kret_x64_sys_accept4': bad call relo against 'kret_x64_sys_accept' in section 'kretprobe/__x64_sys_accept'\nError: failed to open object file"
+    },
+    {
+      "name": "load_dns_pin",
+      "cmd": "bpftool prog loadall /tmp/task53/dns.bpf.o /sys/fs/bpf/task53_dns",
+      "rc": 255,
+      "out": "",
+      "err": "libbpf: failed to guess program type from ELF section 'classifier/egress'\nlibbpf: supported section(type) names are: socket sk_reuseport/migrate sk_reuseport kprobe+ uprobe+ uprobe.s+ kretprobe+ uretprobe+ uretprobe.s+ kprobe.multi+ kretprobe.multi+ kprobe.session+ uprobe.multi+ uretprobe.multi+ uprobe.session+ uprobe.multi.s+ uretprobe.multi.s+ uprobe.session.s+ ksyscall+ kretsyscall+ usdt+ usdt.s+ tc/ingress tc/egress tcx/ingress tcx/egress tc classifier action netkit/primary netkit/peer tracepoint+ tp+ raw_tracepoint+ raw_tp+ raw_tracepoint.w+ raw_tp.w+ tp_btf+ fentry+ fmod_ret+ fexit+ fentry.s+ fmod_ret.s+ fexit.s+ fsession+ fsession.s+ freplace+ lsm+ lsm.s+ lsm_cgroup+ iter+ iter.s+ syscall xdp.frags/devmap xdp/devmap xdp.frags/cpumap xdp/cpumap xdp.frags xdp perf_event lwt_in lwt_out lwt_xmit lwt_seg6local sockops sk_skb/stream_parser sk_skb/stream_verdict sk_skb/verdict sk_skb sk_msg lirc_mode2 flow_dissector cgroup_skb/ingress cgroup_skb/egress cgroup/skb cgroup/sock_create cgroup/sock_release cgroup/sock cgroup/post_bind4 cgroup/post_bind6 cgroup/bind4 cgroup/bind6 cgroup/connect4 cgroup/connect6 cgroup/connect_unix cgroup/sendmsg4 cgroup/sendmsg6 cgroup/sendmsg_unix cgroup/recvmsg4 cgroup/recvmsg6 cgroup/recvmsg_unix cgroup/getpeername4 cgroup/getpeername6 cgroup/getpeername_unix cgroup/getsockname4 cgroup/getsockname6 cgroup/getsockname_unix cgroup/sysctl cgroup/getsockopt cgroup/setsockopt cgroup/dev struct_ops+ struct_ops.s+ sk_lookup netfilter"
+    },
+    {
+      "name": "load_syscall_pin",
+      "cmd": "bpftool prog loadall /tmp/task53/syscall.bpf.o /sys/fs/bpf/task53_syscall",
+      "rc": 255,
+      "out": "",
+      "err": "libbpf: prog 'syscall_exit': BPF program load failed: -EACCES\nlibbpf: prog 'syscall_exit': -- BEGIN PROG LOAD LOG --\n0: R1=ctx() R10=fp0\n; int syscall_exit(struct bpf_raw_tracepoint_args *ctx) @ syscall.bpf.c:273\n0: (bf) r7 = r1                       ; R1=ctx() R7=ctx()\n; __u32 nr = (__u32)ctx->args[1]; @ syscall.bpf.c:275\n1: (79) r6 = *(u64 *)(r7 +8)          ; R6=scalar() R7=ctx()\n; __u64 pid_tgid = bpf_get_current_pid_tgid(); @ syscall.bpf.c:279\n2: (85) call bpf_get_current_pid_tgid#14      ; R0=scalar()\n; nr &= ~X32_SYSCALL_BIT; @ syscall.bpf.c:277\n3: (54) w6 &= -1073741825             ; R6=scalar(smin=0,smax=umax=umax32=0xbfffffff,smax32=0x3fffffff,var_off=(0x0; 0xbfffffff))\n; __u64 key = entry_key(pid_tgid, nr); @ syscall.bpf.c:280\n4: (bf) r1 = r0                       ; R0=scalar(id=1) R1=scalar(id=1)\n5: (bc) w2 = w6                       ; R2=scalar(id=2,smin=0,smax=umax=umax32=0xbfffffff,smax32=0x3fffffff,var_off=(0x0; 0xbfffffff)) R6=scalar(id=2,smin=0,smax=umax=umax32=0xbfffffff,smax32=0x3fffffff,var_off=(0x0; 0xbfffffff))\n6: (85) call pc+50\ncaller:\n R6=scalar(id=2,smin=0,smax=umax=umax32=0xbfffffff,smax32=0x3fffffff,var_off=(0x0; 0xbfffffff)) R7=ctx() R10=fp0\ncallee:\n frame1: R1=scalar(id=1) R2=scalar(id=2,smin=0,smax=umax=umax32=0xbfffffff,smax32=0x3fffffff,var_off=(0x0; 0xbfffffff)) R10=fp0\n57: frame1: R1=scalar() R2=scalar(id=2,smin=0,smax=umax=umax32=0xbfffffff,smax32=0x3fffffff,var_off=(0x0; 0xbfffffff)) R10=fp0\n; static __attribute__((noinline)) __u64 entry_"
+    },
+    {
+      "name": "load_identity_pin",
+      "cmd": "bpftool prog loadall /tmp/task53/identity.bpf.o /sys/fs/bpf/task53_identity",
+      "rc": 0,
+      "out": "",
+      "err": ""
+    },
+    {
+      "name": "load_lsm_pin",
+      "cmd": "bpftool prog loadall /tmp/task53/lsm.bpf.o /sys/fs/bpf/task53_lsm",
+      "rc": 255,
+      "out": "",
+      "err": "libbpf: prog 'lsm_file_open': BPF program load failed: -EINVAL\nlibbpf: prog 'lsm_file_open': -- BEGIN PROG LOAD LOG --\n0: R1=ctx() R10=fp0\n; int BPF_PROG(lsm_file_open, struct file *file, int ret) @ lsm.bpf.c:589\n0: (79) r7 = *(u64 *)(r1 +8)          ; R1=ctx() R7=scalar(smin=smin32=-4095,smax=smax32=0)\n1: (79) r3 = *(u64 *)(r1 +0)\nfunc 'bpf_lsm_file_open' arg0 has btf_id 101718 type STRUCT 'file'\n2: R1=ctx() R3=trusted_ptr_file()\n2: (b7) r1 = 0                        ; R1=0\n; __builtin_memset(sel_buf, 0, sizeof(sel_buf)); @ lsm.bpf.c:592\n3: (7b) *(u64 *)(r10 -16) = r1        ; R1=0 R10=fp0 fp-16=0\n4: (7b) *(u64 *)(r10 -24) = r1        ; R1=0 R10=fp0 fp-24=0\n5: (7b) *(u64 *)(r10 -32) = r1        ; R1=0 R10=fp0 fp-32=0\n6: (7b) *(u64 *)(r10 -40) = r1        ; R1=0 R10=fp0 fp-40=0\n7: (7b) *(u64 *)(r10 -48) = r1        ; R1=0 R10=fp0 fp-48=0\n8: (7b) *(u64 *)(r10 -56) = r1        ; R1=0 R10=fp0 fp-56=0\n9: (7b) *(u64 *)(r10 -64) = r1        ; R1=0 R10=fp0 fp-64=0\n10: (7b) *(u64 *)(r10 -72) = r1       ; R1=0 R10=fp0 fp-72=0\n11: (7b) *(u64 *)(r10 -80) = r1       ; R1=0 R10=fp0 fp-80=0\n12: (7b) *(u64 *)(r10 -88) = r1       ; R1=0 R10=fp0 fp-88=0\n13: (7b) *(u64 *)(r10 -96) = r1       ; R1=0 R10=fp0 fp-96=0\n14: (7b) *(u64 *)(r10 -104) = r1      ; R1=0 R10=fp0 fp-104=0\n15: (7b) *(u64 *)(r10 -112) = r1      ; R1=0 R10=fp0 fp-112=0\n16: (7b) *(u64 *)(r10 -120) = r1      ; R1=0 R10=fp0 fp-120=0\n17: (7b) *(u64 *)(r10 -128) = r1      ; R1=0 R10=fp0 fp-128=0\n18: (7b) *(u64 *)(r10 -136) = r1    "
+    },
+    {
+      "name": "prog_list_loaded",
+      "cmd": "bpftool prog list",
+      "rc": 0,
+      "out": "26: lsm  name restrict_filesystems  tag 31efb7c56239148b  gpl\n\tloaded_at 2026-07-17T06:36:52+0000  uid 0\n\txlated 520B  jited 297B  memlock 4096B  map_ids 12\n\tbtf_id 36\n43: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n44: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n59: tracepoint  name handle_exec  tag 72a739cf806e9f03  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 416B  jited 272B  memlock 4096B  map_ids 16,19,14,18\n\tbtf_id 149\n61: tracepoint  name handle_fork  tag 72a739cf806e9f03  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 416B  jited 272B  memlock 4096B  map_ids 16,19,14,18\n\tbtf_id 149\n75: tracing  name entry__ip_defrag  tag 27d17744ede62bba  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1248B  jited 866B  memlock 4096B  map_ids 37,38,35,32\n\tbtf_id 161\n76: tracing  name entry__ipv6_frag_rcv  tag 723aba0cf9356cd7  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1504B  jited 1048B  memlock 4096B  map_ids 37,38,35,32\n\tbtf_id 161\n78: tracing  name bpftune_neigh_create  tag b2457e59811dbd0d  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 2064B  jited 1383B  memlock 4096B  map_ids 40,42,32\n\tbtf_id 162\n79: tracing  name entry__neigh_remove_one  tag 904772d6d150bbdf  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1952B  jited 1323B  memlock 4096B  map_ids 40,42,32\n\tbtf_id 162\n81: tracing  name bpftune_kfree_skb  tag fc263b52827b9374  gpl recursion_misses 37\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1848B  jited 1208B  memlock 4096B  map_ids 46,43,32\n\tbtf_id 163\n82: tracing  name entry__napi_complete_done  tag 206db79c79211db3  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1464B  jited 982B  memlock 4096B  map_ids 46,45,44,43,32\n\tbtf_id 163\n84: kprobe  name bpftune_setup_net  tag c219a3df82364cf0  gpl\n\tloaded_at 2026-07-17T06:36:57+0000  uid 0\n\txlated 128B  jited 100B  memlock 4096B  map_ids 48\n\tbtf_id 164\n85: kprobe  name bpftune_setup_net_return  tag ba1d1d88e8592ef8  gpl\n\tloaded_at 2026-07-17T06:36:57+0000  uid 0\n\txlated 600B  jited 436B  memlock 4096B  map_ids 48,50,32\n\tbtf_id 164\n91: kprobe  name bpftune_fib6_run_gc_entry  tag 32b49d3c99932e6a  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 240B  jited 166B  memlock 4096B  map_ids 56\n\tbtf_id 167\n92: kprobe  name bpftune_fib6_run_gc  tag f3241f23b2069127  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 1184B  jited 833B  memlock 4096B  map_ids 56,58,55,32\n\tbtf_id 167\n94: kprobe  name bpftune_sysctl  tag 9de9bb43df7f0912  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 1400B  jited 911B  memlock 4096B  map_ids 61,32\n\tbtf_id 168\n95: cgroup_sysctl  name bpftune_sysctl_write  tag b30cf65b7e0fa9c7  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 16B  jited 31B  memlock 4096B\n\tbtf_id 168\n99: tracing  name entry__tcp_enter_memory_pressure  tag 3baf36fab44c02ed  gpl\n\tloaded_at 2026-07-17T06:36:59+0000  uid 0\n\txlated 2728B  jited 1775B  memlock 4096B  map_ids 69,68,66,32\n\tbtf_id 170\n100: tracing  name entry__tcp_rcv_space_adjust  tag 86894d8422f0aae5  gpl recursion_misses 277\n\tloaded_at 2026-07-17T06:36:59+0000  uid 0\n\txlated 5336B  jited 3347B  memlock 8192B  map_ids 68,67,69,66,32,34\n\tbtf_id 170\n101: tracing  name entry__tcp_init_sock  tag e25cc2cd8ba3da69  gpl recursion_misses 36\n\tloaded_at 2026-07-17T06:36:59+0",
+      "err": ""
+    },
+    {
+      "name": "prog_show_fork",
+      "cmd": "bash -c bpftool prog show pinned /sys/fs/bpf/task53_process/tp_sched_process_fork",
+      "rc": 0,
+      "out": "24294: raw_tracepoint  name tp_sched_process_fork  tag c16d0b870e6196bf  gpl\n\tloaded_at 2026-07-22T23:42:24+0000  uid 0\n\txlated 688B  jited 415B  memlock 4096B  map_ids 932,933\n\tbtf_id 1205",
+      "err": ""
+    },
+    {
+      "name": "unpin_all",
+      "cmd": "bash -c rm -rf /sys/fs/bpf/task53_* && ls -A /sys/fs/bpf",
+      "rc": 0,
+      "out": "",
+      "err": ""
+    },
+    {
+      "name": "build_harness",
+      "cmd": "gcc -O2 -Wall -o /tmp/task53/harness tests/privileged/task53/harness.c -lbpf -lelf -lz -lpthread",
+      "rc": 0,
+      "out": "",
+      "err": ""
+    },
+    {
+      "name": "build_true_fast",
+      "cmd": "gcc -static -nostdlib -o /tmp/task53/true_fast /tmp/task53/true_fast.S",
+      "rc": 0,
+      "out": "",
+      "err": ""
+    },
+    {
+      "name": "harness_ordering",
+      "cmd": "/tmp/task53/harness /tmp/task53/process.bpf.o --mode=ordering --workers=4 --children=25 --rate=100 --drain=2 --out=/tmp/task53/ordering.json",
+      "rc": 0,
+      "out": "",
+      "err": "harness[ordering]: passed — ordering: 100/100 oracle children complete with causal fork->exec->exit ordering, per-CPU seq monotonic, zero critical loss at 398.0 events/s/cpu"
+    },
+    {
+      "name": "harness_supported",
+      "cmd": "bash -c /tmp/task53/harness /tmp/task53/process.bpf.o --mode=supported --workers=15      --children=2500 --rate=250 --bin=/tmp/task53/true_fast --consumer-rt=10      --max-gen=90 --drain=3 --out=/tmp/task53/supported.json &\n     hp=$!\n     sleep 5\n     bpftool prog list >/tmp/task53/prog_list_attached.out 2>&1\n     bpftool link list >/tmp/task53/link_list_attached.out 2>&1\n     jq -n --arg prog \"$(cat /tmp/task53/prog_list_attached.out)\"            --arg link \"$(cat /tmp/task53/link_list_attached.out)\"            '{prog_list:$prog,link_list:$link}' >/tmp/task53/attached.json\n     wait $hp",
+      "rc": 0,
+      "out": "",
+      "err": "harness[supported]: passed — supported: 37500/37500 oracle children complete with causal fork->exec->exit ordering, per-CPU seq monotonic, zero critical loss at 996.4 events/s/cpu"
+    },
+    {
+      "name": "harness_saturation",
+      "cmd": "/tmp/task53/harness /tmp/task53/process.bpf.o --mode=saturation --ring-size=4096 --workers=4 --children=150 --rate=0 --drain=3 --out=/tmp/task53/saturation.json",
+      "rc": 0,
+      "out": "",
+      "err": "harness[saturation]: passed — saturation-detected-no-critical-loss: tiny ring (4096 B) shed 2385 of 2400 oracle events; loss reconciled by independent oracle (never a false zero)"
+    },
+    {
+      "name": "post_prog_list",
+      "cmd": "bpftool prog list",
+      "rc": 0,
+      "out": "26: lsm  name restrict_filesystems  tag 31efb7c56239148b  gpl\n\tloaded_at 2026-07-17T06:36:52+0000  uid 0\n\txlated 520B  jited 297B  memlock 4096B  map_ids 12\n\tbtf_id 36\n43: cgroup_skb  name sd_fw_egress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n44: cgroup_skb  name sd_fw_ingress  tag 772db7720b2728e9  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 64B  jited 67B  memlock 4096B\n59: tracepoint  name handle_exec  tag 72a739cf806e9f03  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 416B  jited 272B  memlock 4096B  map_ids 16,19,14,18\n\tbtf_id 149\n61: tracepoint  name handle_fork  tag 72a739cf806e9f03  gpl\n\tloaded_at 2026-07-17T06:36:54+0000  uid 0\n\txlated 416B  jited 272B  memlock 4096B  map_ids 16,19,14,18\n\tbtf_id 149\n75: tracing  name entry__ip_defrag  tag 27d17744ede62bba  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1248B  jited 866B  memlock 4096B  map_ids 37,38,35,32\n\tbtf_id 161\n76: tracing  name entry__ipv6_frag_rcv  tag 723aba0cf9356cd7  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1504B  jited 1048B  memlock 4096B  map_ids 37,38,35,32\n\tbtf_id 161\n78: tracing  name bpftune_neigh_create  tag b2457e59811dbd0d  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 2064B  jited 1383B  memlock 4096B  map_ids 40,42,32\n\tbtf_id 162\n79: tracing  name entry__neigh_remove_one  tag 904772d6d150bbdf  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1952B  jited 1323B  memlock 4096B  map_ids 40,42,32\n\tbtf_id 162\n81: tracing  name bpftune_kfree_skb  tag fc263b52827b9374  gpl recursion_misses 37\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1848B  jited 1208B  memlock 4096B  map_ids 46,43,32\n\tbtf_id 163\n82: tracing  name entry__napi_complete_done  tag 206db79c79211db3  gpl\n\tloaded_at 2026-07-17T06:36:56+0000  uid 0\n\txlated 1464B  jited 982B  memlock 4096B  map_ids 46,45,44,43,32\n\tbtf_id 163\n84: kprobe  name bpftune_setup_net  tag c219a3df82364cf0  gpl\n\tloaded_at 2026-07-17T06:36:57+0000  uid 0\n\txlated 128B  jited 100B  memlock 4096B  map_ids 48\n\tbtf_id 164\n85: kprobe  name bpftune_setup_net_return  tag ba1d1d88e8592ef8  gpl\n\tloaded_at 2026-07-17T06:36:57+0000  uid 0\n\txlated 600B  jited 436B  memlock 4096B  map_ids 48,50,32\n\tbtf_id 164\n91: kprobe  name bpftune_fib6_run_gc_entry  tag 32b49d3c99932e6a  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 240B  jited 166B  memlock 4096B  map_ids 56\n\tbtf_id 167\n92: kprobe  name bpftune_fib6_run_gc  tag f3241f23b2069127  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 1184B  jited 833B  memlock 4096B  map_ids 56,58,55,32\n\tbtf_id 167\n94: kprobe  name bpftune_sysctl  tag 9de9bb43df7f0912  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 1400B  jited 911B  memlock 4096B  map_ids 61,32\n\tbtf_id 168\n95: cgroup_sysctl  name bpftune_sysctl_write  tag b30cf65b7e0fa9c7  gpl\n\tloaded_at 2026-07-17T06:36:58+0000  uid 0\n\txlated 16B  jited 31B  memlock 4096B\n\tbtf_id 168\n99: tracing  name entry__tcp_enter_memory_pressure  tag 3baf36fab44c02ed  gpl\n\tloaded_at 2026-07-17T06:36:59+0000  uid 0\n\txlated 2728B  jited 1775B  memlock 4096B  map_ids 69,68,66,32\n\tbtf_id 170\n100: tracing  name entry__tcp_rcv_space_adjust  tag 86894d8422f0aae5  gpl recursion_misses 277\n\tloaded_at 2026-07-17T06:36:59+0000  uid 0\n\txlated 5336B  jited 3347B  memlock 8192B  map_ids 68,67,69,66,32,34\n\tbtf_id 170\n101: tracing  name entry__tcp_init_sock  tag e25cc2cd8ba3da69  gpl recursion_misses 36\n\tloaded_at 2026-07-17T06:36:59+0",
+      "err": ""
+    },
+    {
+      "name": "post_bpf_fs_clean",
+      "cmd": "bash -c ls /sys/fs/bpf/ 2>/dev/null; ! ls -d /sys/fs/bpf/task53_* 2>/dev/null && echo NO_TASK53_PINS",
+      "rc": 0,
+      "out": "NO_TASK53_PINS",
+      "err": ""
+    },
+    {
+      "name": "env_json",
+      "cmd": "bash -c jq -n   --arg kernel \"$(uname -r)\" --arg arch \"$(uname -m)\"   --arg btf \"$(sha256sum /sys/kernel/btf/vmlinux | cut -d' ' -f1)\"   --arg clang \"$(clang --version | head -1)\"   --arg bpftool \"$(bpftool version | head -1)\"   --arg libbpf \"$(pacman -Q libbpf | awk '{print $2}')\"   --arg rustc \"$(rustc --version 2>/dev/null || echo unavailable)\"   --arg lsm \"$(cat /sys/kernel/security/lsm 2>/dev/null || echo unknown)\"   --argjson ubd \"$(cat /proc/sys/kernel/unprivileged_bpf_disabled 2>/dev/null || echo 2)\"   '{kernel:$kernel,arch:$arch,btf_sha256:$btf,clang:$clang,bpftool:$bpftool,libbpf:$libbpf,rustc:$rustc,lsm:$lsm,unprivileged_bpf_disabled:$ubd}'",
+      "rc": 0,
+      "out": "{\n  \"kernel\": \"7.1.3-2-cachyos\",\n  \"arch\": \"x86_64\",\n  \"btf_sha256\": \"cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37\",\n  \"clang\": \"clang version 22.1.8\",\n  \"bpftool\": \"bpftool v7.8.0\",\n  \"libbpf\": \"1.7.0-1\",\n  \"rustc\": \"rustc 1.95.0 (59807616e 2026-04-14)\",\n  \"lsm\": \"capability,landlock,lockdown,yama,bpf\",\n  \"unprivileged_bpf_disabled\": 2\n}",
+      "err": ""
+    }
+  ]
+}
