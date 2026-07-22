@@ -18,6 +18,8 @@ export interface DataTableProps<T> {
   rowKey: (row: T) => string;
   ariaLabel: string;
   onRowActivate?: ((row: T) => void) | undefined;
+  /** Roving tabindex without click activation (read-only tables). */
+  focusable?: boolean;
   /** Keys that just arrived — get the row-in animation. */
   freshKeys?: ReadonlySet<string>;
   /** Rendered inside the table region when rows is empty. */
@@ -30,6 +32,7 @@ export function DataTable<T>({
   rowKey,
   ariaLabel,
   onRowActivate,
+  focusable = false,
   freshKeys,
   empty,
 }: DataTableProps<T>) {
@@ -78,7 +81,7 @@ export function DataTable<T>({
     }
   };
 
-  const interactive = onRowActivate !== undefined;
+  const interactive = onRowActivate !== undefined || focusable;
 
   return (
     <div className="tbl-wrap">

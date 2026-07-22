@@ -104,6 +104,16 @@
   background: var(--sev-info-bg);
   border-color: var(--sev-info-line);
 }
+.badge--live {
+  color: var(--accent-live);
+  background: var(--accent-live-dim);
+  border-color: var(--accent-live-line);
+}
+.badge--muted {
+  color: var(--text-muted);
+  background: var(--bg-inset);
+  border-color: var(--line-faint);
+}
 
 /* ---- LED + connection chip ---- */
 .led {

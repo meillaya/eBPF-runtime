@@ -11,13 +11,17 @@ import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { AgentsView } from "./views/AgentsView";
 import { AlertsView } from "./views/AlertsView";
 import { CallbackPage } from "./views/CallbackPage";
+import { DnsView } from "./views/DnsView";
 import { EventsView } from "./views/EventsView";
+import { FilesView } from "./views/FilesView";
 import { OverviewView } from "./views/OverviewView";
 import { PoliciesView } from "./views/PoliciesView";
 import { ProcessTreeView } from "./views/ProcessTreeView";
 import { RulesView } from "./views/RulesView";
 import { Shell } from "./views/Shell";
+import { SocketsView } from "./views/SocketsView";
 import { NotFoundView } from "./views/StaticPages";
+import { SyscallView } from "./views/SyscallView";
 
 export function App() {
   return (
@@ -40,6 +44,38 @@ export function App() {
                 element={
                   <RequireRole min="viewer">
                     <EventsView />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/sockets"
+                element={
+                  <RequireRole min="viewer">
+                    <SocketsView />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/dns"
+                element={
+                  <RequireRole min="viewer">
+                    <DnsView />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/files"
+                element={
+                  <RequireRole min="viewer">
+                    <FilesView />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/syscalls"
+                element={
+                  <RequireRole min="viewer">
+                    <SyscallView />
                   </RequireRole>
                 }
               />

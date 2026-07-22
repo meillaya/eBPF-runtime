@@ -109,8 +109,11 @@ position). Transform/opacity only. No decorative motion.
   (outline), `ghost`, `danger`; sizes `sm|md`; optional loading spinner;
   disabled dims to 45%; focus-visible 2px `--accent-info` ring, 2px offset.
 - **Badge** — `severity` (critical/high/medium/low/info: tint wash bg,
-  severity-line border, severity text, leading dot) and `status` (live
-  pulsing / degraded / offline / idle). Mono micro text.
+  severity-line border, severity text, leading dot), `status` (live
+  pulsing / degraded / offline / idle), plus `badge--live` (accent-live
+  wash, for ESTABLISHED/SUCCESS/paired states) and `badge--muted`
+  (inset bg + faint line, for terminal-neutral states like CLOSED).
+  Mono micro text.
 - **Card (Panel)** — bordered panel with a console-strip header: caption
   title left, meta/actions right; body padding `--space-4`.
 - **Table** — dense 34px rows, mono data cells, sticky caption-styled
@@ -122,6 +125,22 @@ position). Transform/opacity only. No decorative motion.
 - **EmptyState** — dashed-border well, SVG glyph, title, hint, action slot.
 - **ErrorBoundary** — class boundary; fallback panel with retry button and
   a mono detail block (message + component stack), never raw dumps inline.
+- **SocketStateBadge** — connection lifecycle phase (ATTEMPT / EINPROGRESS /
+  ESTABLISHED / REFUSED / FAILED / TCP-state names). Tone ladder: attempts
+  info-blue, established live-green, draining states (FIN_WAIT/TIME_WAIT/
+  CLOSE_WAIT) amber, refusals/failures critical-red, CLOSED muted. Always
+  dot + word.
+- **LatencyHistogram** — log-decade bars (count-proportional, `--accent-info`
+  fill, buckets at/above p99 tinted `--sev-high`) with count + wall-time sum
+  as text per row; a log axis carries p50/p95/p99/p99.9 markers in
+  live/medium/high/critical. Bars are `aria-hidden`; all numbers are text.
+- **EventToolbar** — feed controls strip: Live/Historical segmented toggle
+  (`aria-pressed`), window select (historical-only), cluster select
+  (live-only; disabled states carry a `title` explaining why).
+- **ProcessCell** — process attribution (tgid/pid strong mono + uid) with an
+  always-rendered validity chip: `validity--ok` (live wash), `validity--bad`
+  (amber, lists invalid fields), `validity--na` (muted) when the wire
+  carried no valids.
 - **ProcessTree** (`components/ProcessTree.tsx` + `ProcessNode.tsx`, styled
   by `ui-tree.css`) — ARIA `tree` of flat `treeitem` rows (CSS indent
   guides, no canvas/SVG). Identity cell is always `PID n` + `G<m>`
@@ -147,7 +166,6 @@ position). Transform/opacity only. No decorative motion.
   capability badges), sensor-coverage list (reuse `.sensor-list`), and
   health LEDs whose word is always rendered (healthy/degraded/blocked/
   offline — never color alone).
-
 ## 8. First-class view states
 
 Every data view renders exactly one of, in precedence order:
