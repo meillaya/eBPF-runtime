@@ -9,4 +9,5 @@ members = [
     "crates/preflight-schema",
     "crates/privacy",
     "crates/sensor-tests",
+    "crates/storage-local",
 ]

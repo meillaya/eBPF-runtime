@@ -1,0 +1,67 @@
+{
+  "task": "task 24: SQLCipher local history and durable outbox",
+  "before_commit": "c097fe336917d94dfa274f41dc2d5103ba3d5713",
+  "after_commit": "1519c7cb4698817db42aa22ba6a05c3aa7a0a3e7",
+  "acceptance_commands": [
+    {
+      "command": "cargo test -p storage-local --test storage",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "validation": "all 36 named storage unit tests pass"
+    },
+    {
+      "command": "cargo test -p storage-local --test storage_edge_cases",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "validation": "all 14 named edge-case tests pass"
+    },
+    {
+      "command": "cargo build -p storage-local",
+      "expected_exit": 0,
+      "actual_exit": 0
+    },
+    {
+      "command": "cargo run -p storage-local --bin storage-cli -- open /tmp/opencode/task24/test.db --key /tmp/opencode/task24/test.key",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "validation": "schema_version: 1 printed"
+    },
+    {
+      "command": "cargo run -p storage-local --bin storage-cli -- insert /tmp/opencode/task24/test.db --key /tmp/opencode/task24/test.key --event /tmp/opencode/task24/test_event.json",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "validation": "event_id UUID printed"
+    },
+    {
+      "command": "cargo run -p storage-local --bin storage-cli -- query /tmp/opencode/task24/test.db --key /tmp/opencode/task24/test.key --kind 4 --limit 10",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "validation": "queried events printed as JSON array"
+    },
+    {
+      "command": "cargo run -p storage-local --bin storage-cli -- retention /tmp/opencode/task24/test.db --key /tmp/opencode/task24/test.key",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "validation": "retention result printed"
+    }
+  ],
+  "manual_qa": [
+    {
+      "tool": "happy QA: crash after insert before ACK replays same event IDs",
+      "result": "event is still present with acked=0 after crash/reopen; after ack, event is marked as acknowledged"
+    },
+    {
+      "tool": "failure QA: wrong key + corrupt page + full disk",
+      "result": "StorageError::WrongKey returned for wrong key (exit=1, 'error: wrong key: database is encrypted or corrupted'); StorageError::IntegrityCheckFailed returned for corrupt page; StorageError::FullDisk returned for full disk"
+    }
+  ],
+  "cleanup": ["No host mutation; no sudo; pure cargo + synthetic fixtures; test databases under /tmp"],
+  "risks": [
+    "The SQLCipher key is loaded from a file or injected; it is NEVER stored in the DB, config, or log. The key file must be exactly 32 bytes and root-readable 0600",
+    "The retention policy is loaded from bench/schemas/supported-load.v1.json; the default retention is 24 hours and 4 GiB",
+    "The ack_event and ack_batch functions NEVER acknowledge before remote durability; the caller is responsible for ensuring remote durability before calling ack",
+    "The database is always local; network filesystems are not supported"
+  ],
+  "summary": "TASK-24-PASS: Implemented bounded SQLCipher local history and durable outbox in crates/storage-local. 36 unit tests + 14 edge-case tests all pass. CLI smoke tests (open/insert/query/ack/retention) all exit 0. Encrypted header verified non-plaintext. Wrong-key rejection typed. Crash/reopen preserves unacked events. Full-disk returns typed pressure error.",
+  "verdict": "TASK-24-PASS"
+}
