@@ -11,6 +11,7 @@ members = [
     "crates/observability",
     "crates/preflight-schema",
     "crates/privacy",
+    "crates/rules",
     "crates/sensor-tests",
     "crates/storage-local",
 ]
