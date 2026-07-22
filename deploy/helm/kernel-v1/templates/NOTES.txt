@@ -1,0 +1,53 @@
+{{/*
+SPDX-License-Identifier: Apache-2.0 OR MIT
+
+Post-install notes.
+*/}}
+kernel-v1 has been deployed.
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Components:
+{{- if .Values.agent.enabled }}
+  - Agent DaemonSet: {{ include "kernel-v1.fullname" . }}-agent
+{{- end }}
+{{- if .Values.controlPlane.enabled }}
+  - Control-plane Deployment: {{ include "kernel-v1.fullname" . }}-control-plane
+  - Control-plane Service: {{ include "kernel-v1.fullname" . }}-control-plane:{{ .Values.controlPlane.service.port }}
+{{- end }}
+{{- if .Values.migrations.enabled }}
+  - Migration Job: {{ include "kernel-v1.fullname" . }}-migrate-{{ .Release.Revision }}
+{{- end }}
+
+IMPORTANT — Pod Security Standards:
+  The agent DaemonSet requires the `privileged` PSS profile on its
+  namespace. Label the namespace BEFORE installing:
+
+    kubectl label namespace {{ .Release.Namespace }} \
+      pod-security.kubernetes.io/enforce=privileged \
+      pod-security.kubernetes.io/audit=privileged \
+      pod-security.kubernetes.io/warn=privileged \
+      --overwrite
+
+  The control-plane runs under the `restricted` profile and needs no
+  special namespace labels.
+
+External services (configure via values or --set):
+  external.postgresql.host={{ .Values.external.postgresql.host | default "(not set)" }}
+  external.kafka.brokers={{ .Values.external.kafka.brokers | default "(not set)" }}
+  external.clickhouse.host={{ .Values.external.clickhouse.host | default "(not set)" }}
+  external.spire.serverAddress={{ .Values.external.spire.serverAddress | default "(not set)" }}
+  external.oidc.issuer={{ .Values.external.oidc.issuer | default "(not set)" }}
+
+{{- if not .Values.secrets.postgresql.name }}
+
+WARNING: No PostgreSQL secret configured. Set secrets.postgresql.name
+to an existing Secret with `username` and `password` keys.
+{{- end }}
+{{- if not .Values.secrets.agentStorageKey.name }}
+
+WARNING: No agent storage key secret configured. Set
+secrets.agentStorageKey.name to an existing Secret with a 32-byte
+`storage-key` entry.
+{{- end }}
