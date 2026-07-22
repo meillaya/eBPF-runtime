@@ -1,0 +1,19 @@
+{
+  "name": "create-shadow",
+  "description": "FileCreate on /etc/shadow by an untrusted process triggers the write-intent alert. Creating a sensitive file is write-intent.",
+  "event": {
+    "fields": {
+      "file.path": "/etc/shadow",
+      "file.kind": "FileCreate",
+      "process.exec_path": "/usr/bin/touch",
+      "process.pid": 9012,
+      "process.uid": 0
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": true,
+    "rule_id": "sensitive-file-write-intent",
+    "action": "alert"
+  }
+}

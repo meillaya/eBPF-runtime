@@ -1,0 +1,24 @@
+{
+  "name": "container-identity-mutation",
+  "description": "FileUnlink on /root/.ssh/authorized_keys from a container namespace (identity.ns_mnt != 1, non-host cgroup) triggers the mutation deny. Container identity fields are kernel-observable; deny eligibility holds because file.path and file.kind are LSM facts regardless of namespace.",
+  "event": {
+    "fields": {
+      "file.path": "/root/.ssh/authorized_keys",
+      "file.kind": "FileUnlink",
+      "process.exec_path": "/usr/bin/rm",
+      "process.pid": 4444,
+      "process.uid": 0,
+      "identity.cgroup_id": 98765,
+      "identity.ns_mnt": 4026532545,
+      "identity.ns_pid": 4026532546,
+      "identity.ns_net": 4026532547,
+      "identity.ns_user": 4026531837
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": true,
+    "rule_id": "sensitive-file-mutation",
+    "action": "deny"
+  }
+}

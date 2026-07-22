@@ -1,0 +1,19 @@
+{
+  "name": "exception-package-manager-apt",
+  "description": "FileCreate on /etc/shadow by apt (package manager) must NOT trigger. Package managers are trusted actors excepted from sensitive-file rules.",
+  "event": {
+    "fields": {
+      "file.path": "/etc/shadow",
+      "file.kind": "FileCreate",
+      "process.exec_path": "/usr/bin/apt",
+      "process.pid": 4567,
+      "process.uid": 0
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": false,
+    "rule_id": null,
+    "action": null
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "unknown-path",
+  "description": "FileCreate with file.path unknown (never observed, neither present nor null) must NOT trigger. The predicate evaluator treats unknown fields as non-match; syscall-fallback events with unresolved paths never fire deny rules.",
+  "event": {
+    "fields": {
+      "file.kind": "FileCreate",
+      "process.exec_path": "/usr/bin/vim",
+      "process.pid": 2222,
+      "process.uid": 0
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": false,
+    "rule_id": null,
+    "action": null
+  }
+}

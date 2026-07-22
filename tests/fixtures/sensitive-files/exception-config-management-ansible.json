@@ -1,0 +1,19 @@
+{
+  "name": "exception-config-management-ansible",
+  "description": "FileRename on /etc/pam.d/common-auth by ansible-playbook (config management) must NOT trigger. Config management tools are trusted actors excepted from mutation deny.",
+  "event": {
+    "fields": {
+      "file.path": "/etc/pam.d/common-auth",
+      "file.kind": "FileRename",
+      "process.exec_path": "/usr/bin/ansible-playbook",
+      "process.pid": 6789,
+      "process.uid": 0
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": false,
+    "rule_id": null,
+    "action": null
+  }
+}
