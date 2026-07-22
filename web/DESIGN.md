@@ -122,6 +122,31 @@ position). Transform/opacity only. No decorative motion.
 - **EmptyState** — dashed-border well, SVG glyph, title, hint, action slot.
 - **ErrorBoundary** — class boundary; fallback panel with retry button and
   a mono detail block (message + component stack), never raw dumps inline.
+- **ProcessTree** (`components/ProcessTree.tsx` + `ProcessNode.tsx`, styled
+  by `ui-tree.css`) — ARIA `tree` of flat `treeitem` rows (CSS indent
+  guides, no canvas/SVG). Identity cell is always `PID n` + `G<m>`
+  generation badge (`badge--info`; `badge--high` + row tint
+  `--sev-high-bg` when PID reuse is observed) — PID alone is never shown.
+  State dots: running = `--accent-live` pulsing, exited = `--state-idle`,
+  thread = `--accent-info` with a dotted guide. A dashed
+  `--sev-medium-line` guide marks a missing parent edge ("ANCESTRY
+  INCOMPLETE" chip — ancestry is never invented). Full exec path reveals
+  as an inset tooltip strip on hover/focus (`--dur-base` opacity).
+  Keyboard: ↑/↓ traverse, → expand/enter, ← collapse/parent, Enter/Space
+  toggle, Home/End, Escape collapse-all; roving tabindex, `aria-level`,
+  `aria-setsize/posinset`, `aria-expanded`. Chevron rotates 90° in
+  `--dur-fast`; fresh rows use the `row-in` animation.
+- **Segmented control** (`.seg`) — inset-well mode switch (Live /
+  Historical); pressed segment tints `--accent-info-dim` with a 2px
+  `--accent-info` underline bar.
+- **Exec timeline** — dense 30px rows (wall or mono-short timestamp,
+  basename with full-path title, `pid·G<m>` in `--accent-info`, OK/ERRNO
+  badge); newest first, bounded scroll.
+- **Agent inventory surfaces** — fleet summary counters (reuse
+  `.counter-row`), node compatibility matrix (`.kv` + ACTIVE/INACTIVE
+  capability badges), sensor-coverage list (reuse `.sensor-list`), and
+  health LEDs whose word is always rendered (healthy/degraded/blocked/
+  offline — never color alone).
 
 ## 8. First-class view states
 
@@ -153,3 +178,12 @@ Every data view renders exactly one of, in precedence order:
 - Fonts are CDN-loaded with system fallbacks; vendoring woff2 is deferred
   to keep the repository binary-light.
 - No virtualized table yet; pages are capped at the API's 1000-row limit.
+- Process identity on the dashboard wire is `(pid, task_start_time)` per
+  node; boot_id scoping arrives when the batch envelope (`boot_id_hex`,
+  `agent_generation`) is surfaced on the REST/stream contract. The `G<m>`
+  generation badge is the ordinal of that identity among all identities
+  seen for the same PID inside the observation window.
+- Remote-agent health is derived from heartbeat staleness
+  (<90s healthy, <300s degraded, else offline) until a fleet-wide health
+  API exists; only the local agent (matched by `agent_id` against
+  `/health`) reports true sensor blocked/degraded state and event rate.

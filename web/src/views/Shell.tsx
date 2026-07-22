@@ -37,6 +37,12 @@ const NAV: NavSection[] = [
         icon: "M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z",
       },
       {
+        to: "/processes",
+        label: "Processes",
+        min: "viewer",
+        icon: "M10 2h4v4h-4V2zm1 4h2v3h-2V6zM6 9h12v2H6V9zm0 2h2v5H6v-5zm10 0h2v5h-2v-5zM4 16h4v4H4v-4zm12 0h4v4h-4v-4z",
+      },
+      {
         to: "/alerts",
         label: "Alerts",
         min: "viewer",
@@ -77,6 +83,7 @@ const NAV: NavSection[] = [
 const VIEW_NAMES: Record<string, string> = {
   "/": "Overview",
   "/events": "Event stream",
+  "/processes": "Process tree",
   "/alerts": "Alert feed",
   "/rules": "Detection rules",
   "/policies": "Policy lifecycle",

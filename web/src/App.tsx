@@ -14,6 +14,7 @@ import { CallbackPage } from "./views/CallbackPage";
 import { EventsView } from "./views/EventsView";
 import { OverviewView } from "./views/OverviewView";
 import { PoliciesView } from "./views/PoliciesView";
+import { ProcessTreeView } from "./views/ProcessTreeView";
 import { RulesView } from "./views/RulesView";
 import { Shell } from "./views/Shell";
 import { NotFoundView } from "./views/StaticPages";
@@ -39,6 +40,14 @@ export function App() {
                 element={
                   <RequireRole min="viewer">
                     <EventsView />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/processes"
+                element={
+                  <RequireRole min="viewer">
+                    <ProcessTreeView />
                   </RequireRole>
                 }
               />

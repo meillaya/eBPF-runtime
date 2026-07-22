@@ -33,6 +33,14 @@ export function formatMonoNs(ns: number | bigint): string {
   return typeof ns === "bigint" ? ns.toLocaleString("en-US") : formatInt(ns);
 }
 
+/** Monotonic ns → dense seconds "1 234.568s" for tree rows / timelines. */
+export function formatMonoShort(ns: number): string {
+  return `${(ns / 1e9).toLocaleString("en-US", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  })}s`;
+}
+
 /** Last-seen epoch → "12s ago" style relative label. */
 export function formatAgo(epochSec: number, nowEpochSec: number): string {
   const delta = Math.max(0, nowEpochSec - epochSec);

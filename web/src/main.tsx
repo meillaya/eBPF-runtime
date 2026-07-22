@@ -8,6 +8,7 @@ import "./styles/shell.css";
 import "./styles/ui.css";
 import "./styles/ui-data.css";
 import "./styles/ui-feedback.css";
+import "./styles/ui-tree.css";
 import "./styles/ui-views.css";
 
 const rootEl = document.getElementById("root");
