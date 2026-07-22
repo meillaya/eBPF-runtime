@@ -326,3 +326,71 @@
 - `tests/fixtures/spiffe/` — 13 PEM fixtures (ca, bundle, agent SVID, rotated SVID, expired SVID, wrong-td SVID + keys)
 - Workspace `Cargo.toml` updated to include `crates/identity-spiffe`
 - 82 tests pass (`cargo test -p identity-spiffe`): 61 unit + 21 integration
+
+## Task 37: OIDC PKCE/device authentication and server-side RBAC (crates/auth)
+
+### Architecture: fixture-driven auth without a live OIDC provider
+- BLOCKER: this host has no running OIDC provider (Dex/Keycloak). All flows are implemented and tested with pinned fixtures: test JWKS (RSA 2048 + EC P-256 keys generated via OpenSSL), a pinned Dex-compatible discovery document, and device-flow fixture data. Live OIDC integration re-opens on the declared self-hosted runner.
+- The `test_support` module (cfg(test)-only) signs JWTs with the fixture private keys using ring, enabling full signature-validation round-trip tests without a live provider.
+
+### OIDC discovery: exact issuer pin (the central anti-spoofing invariant)
+- `OidcDiscovery::validate_pinned()` uses `!=` (exact equality). The issuer `https://dex.kernel-v1.test` does NOT match `https://dex.kernel-v1` (prefix), `https://dex.kernel-v1.test.evil` (suffix), `https://DEX.KERNEL-V1.TEST` (case), or `https://dex.kernel-v1.test/` (trailing slash). This mirrors the SPIFFE crate's exact trust-domain matching.
+- The discovery fixture explicitly excludes implicit flow response types (`id_token`, `token`); only `code` is supported.
+
+### PKCE: S256 only, never plain
+- `PkceVerifier::generate()` produces 32 random bytes → base64url (43 chars). The S256 challenge is `BASE64URL(SHA256(verifier))` per RFC 7636.
+- The RFC 7636 Appendix B test vector (`dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk` → `E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM`) is pinned as a test.
+- Verifier length is validated (43..=128). The `plain` method is structurally absent.
+
+### JWKS + JWT validation: ring-based, no external JWT library
+- `Jwks::resolve_key()` validates the algorithm BEFORE key lookup (RS256/ES256 only; `none`/HS256 rejected as `UnsupportedAlgorithm`). This ordering ensures precise error types.
+- RSA public keys are encoded as PKCS#1 DER (`SEQUENCE { INTEGER n, INTEGER e }`) for ring's `RSA_PKCS1_2048_8192_SHA256`. NOT SubjectPublicKeyInfo — ring expects the inner RSAPublicKey structure. This was the root cause of 8 test failures during development.
+- EC P-256 keys use the uncompressed point format (`0x04 || x || y`) for ring's `ECDSA_P256_SHA256_ASN1`.
+- JWT validation order: (1) parse header, (2) reject unsupported alg, (3) verify signature via JWKS, (4) parse claims, (5) exact issuer match, (6) audience contains client_id, (7) azp match if present, (8) expiry check, (9) iat future check with 120s skew, (10) nonce match if expected.
+- The `aud` claim deserializes from both single-string and array forms (OIDC spec allows both).
+
+### RFC 8628 device flow: state machine with backoff
+- States: `Idle → Pending → Authorized / Expired / Denied`. The `slow_down` response increases the polling interval by 5 seconds per RFC 8628 §3.5.
+- Expiry is checked on every `poll()` call against `started_at + expires_in`. The device code has a bounded lifetime (1800s in the fixture).
+- `TokenPollResponse::from_error()` maps OAuth2 error strings to typed variants; unknown errors map to `Denied` (fail closed).
+
+### RBAC: four roles, group/sub bindings, NEVER email
+- Roles: `viewer < analyst < policy-admin < admin` (total order via `Ord`).
+- Actions: `Read` (all roles), `Write` (analyst+), `Admin` (policy-admin+), `SuperAdmin` (admin only).
+- Role resolution: sub bindings and group bindings are both checked; the HIGHEST matching role wins. Multiple group memberships compose (e.g., `["viewers", "admins"]` → Admin).
+- Authorization is NEVER by email. A user with an email but no group/sub binding is denied (`NoRoleBinding`).
+- The default control-plane policy maps routes to actions mirroring task 6 OpenAPI annotations: `/api/v1/policies/stage` → Admin, `/api/v1/config` → SuperAdmin, `/api/v1/agents/register` → Write, everything else → Read.
+
+### Session management: short-lived, revocable, group-change-aware
+- Default TTL is 900 seconds (15 minutes). Sessions are NEVER static production tokens.
+- `invalidate_on_group_change()` revokes all sessions for a sub whose groups differ from the stored snapshot. This is the mechanism that enforces "group removal → session invalidation".
+- `revoke_all_for_sub()` provides explicit full revocation for a user.
+
+### Middleware: loopback-only dev bypass
+- `AuthMiddleware::dev_bypass()` REFUSES non-loopback bind addresses at construction time. `0.0.0.0`, `10.0.0.1`, `::` are all rejected. Only `127.0.0.1` and `::1` are accepted.
+- In OIDC mode, every route authorization validates the session (existence → expiry → revocation → RBAC). Mutations (non-Read actions) emit an actor-bound audit intent.
+- The loopback check mirrors the agent API's existing pattern (crates/agent/src/api.rs:243).
+
+### Audit intent: actor-bound, append-only
+- Every mutation emits an `AuditIntent` binding actor (sub), action, resource, and a monotonic sequence number. Read-only operations do NOT emit intents.
+- The `AuditSink` is append-only with `parking_lot::Mutex` for thread safety.
+
+### Pinned fixtures (tests/fixtures/oidc/)
+- `discovery.json`: pinned Dex-compatible discovery document with issuer `https://dex.kernel-v1.test`, device authorization endpoint, PKCE S256 support, NO implicit flow.
+- `jwks.json`: RSA 2048 (kid=test-rsa-key-1, alg=RS256) + EC P-256 (kid=test-ec-key-1, alg=ES256) public keys.
+- `keys/rsa-test.pem`, `keys/ec-test.pem`: OpenSSL-generated PKCS#8 private keys for test JWT signing.
+- `device-flow.json`: RFC 8628 fixture data with polling sequence (pending → slow_down → success).
+
+### Dependencies added to workspace
+- `ring = "0.17"` — RS256/ES256 signature verification and test JWT signing.
+- `base64 = "0.22"` — JWT/JWKS base64url encoding/decoding.
+- `sha2 = "0.10"` — PKCE S256 challenge computation.
+- `rand = "0.9"` — PKCE verifier and nonce/state generation.
+- `parking_lot = "0.12"` — thread-safe audit sink.
+- All other deps (serde, serde_json, thiserror, tracing, uuid) were already in the workspace.
+
+### Files created
+- `crates/auth/` — new crate (Cargo.toml, src/{lib,error,discovery,pkce,jwks,jwt,device,session,rbac,middleware,audit,test_support}.rs)
+- `tests/fixtures/oidc/` — discovery.json, jwks.json, device-flow.json, keys/{rsa-test.pem,ec-test.pem,rsa-test-pub.pem,ec-test-pub.pem}
+- Workspace `Cargo.toml` updated to include `crates/auth`
+- 94 tests pass (`cargo test -p auth`): covering PKCE happy/failure, device flow lifecycle, JWT validation (RS256+ES256 happy, expired/wrong-issuer/wrong-audience/wrong-azp/wrong-nonce/iat-future/tampered-sig/alg-none failures), RBAC negative matrix (all 4 roles × denied actions), session expiry/revocation/group-change, middleware loopback/non-loopback, audit intent emission
