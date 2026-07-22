@@ -1,44 +1,47 @@
 {
-  "reviewer": "F1+F2+F3+F4-consolidated",
+  "reviewer": "F1+F2+F3+F4-consolidated-rerun",
   "verdict": "REJECT",
   "rerun_after_remediation": true,
   "remediation_commits_reviewed": [
-    "1cc8a1f fix: resolve F2 code quality gate failures",
-    "ba21765 refactor: decompose oversized modules to satisfy 250-LOC ceiling",
+    "8ec10ba fix: replace production unwrap() calls with expect() (F2 gate)",
+    "db4539f refactor: split 5 oversized modules to satisfy 250-LOC ceiling (F4 gate)",
+    "4f127bc fix(quality): update loc-lint baseline for Wave 4 crates and legitimate exemptions",
     "4e1b5be fix(evidence): remediate F1 plan-compliance failures",
-    "3500005 feat: add Wave 4 crates, fixtures, bench scripts, and deployment configs"
+    "3500005 feat: add Wave 4 crates, fixtures, bench scripts, and deployment configs",
+    "1cc8a1f fix: resolve F2 code quality gate failures"
   ],
-  "previous_verdicts": {"F1": "REJECT", "F2": "REJECT", "F3": "APPROVE", "F4": "REJECT"},
+  "previous_verdicts": {"F1": "APPROVE", "F2": "REJECT", "F3": "APPROVE", "F4": "REJECT"},
   "f1_plan_compliance": {
     "verdict": "APPROVE",
     "evidence_count": 43,
     "evidence_total_files": 46,
-    "notes": "All 43 tasks (1-43) have a task-N-ebpf-runtime-security-observability.json evidence file; zero gaps (verified by explicit loop, missing=''). 46 glob matches = 43 JSON + 3 auxiliary .log (tasks 1,2,7). task-37 in-task text now reads 'Parallelization: Wave 4 | Blocked by: 35,36 | Blocks: 38,42,43,44,47,48,56' (.omo/plans/ebpf-runtime-security-observability.md:427), reconciling the prior matrix contradiction flagged in the draft (rows 2,3,4,5,37). bench/schemas/metrics.v1.json exists (1866 bytes); all 7 schemas present: enforcement.v1.json, kafka.v1.json, metrics.v1.json, protocol.v1.json, rule-budget.v1.json, storage.v1.json, supported-load.v1.json. F1 prior REJECT causes (16 missing evidence files, task-37 matrix contradiction, missing metrics.v1.json) are all resolved."
+    "notes": "All 43 tasks (1-43) have a task-N-ebpf-runtime-security-observability.json evidence file; zero gaps (verified by explicit seq 1..43 loop, no MISSING). 46 glob matches = 43 JSON + 3 auxiliary .log (tasks 1,2,7). task-37 in-task text reads 'Parallelization: Wave 4 | Blocked by: 35,36 | Blocks: 38,42,43,44,47,48,56' (.omo/plans/ebpf-runtime-security-observability.md:427), matching dependency-matrix row 95 ('| 37 | 35,36 | ...'). bench/schemas/metrics.v1.json exists (1866 bytes); all 7 schemas present (enforcement, kafka, metrics, protocol, rule-budget, storage, supported-load). F1 = APPROVE."
   },
   "f2_code_quality": {
     "verdict": "REJECT",
-    "fmt_pass": true,
+    "fmt_pass": false,
     "tests_pass": true,
     "tests_count": 1398,
-    "notes": "cargo fmt --all --check exit 0 (PASS). cargo test --workspace exit 0: 1398 passed, 0 failed across 96 test-result lines (PASS, matches expected 1398). TWO GATES FAIL: (1) scripts/loc-lint.sh exit 1 - 65 files exceed 250 pure-LOC across 296 files (2 baseline waivers). Production src violations (not baselined): crates/transport/src/channel.rs=480, crates/transport/src/transport.rs=408, crates/rules/src/sequences.rs=417, crates/protocol/src/state_machine.rs=368, crates/transport/src/ack.rs=271; plus many test/bpf/scripts files (largest = crates/sensor-tests/tests/process_events.rs=2581). This contradicts commit ba21765's claim 'loc-lint passes' - the Wave 4 crates added in 3500005 reintroduced oversized modules. (2) Production unwrap() NOT eliminated: true production count = 7 (outside #[cfg(test)] modules and *_tests.rs files), at crates/analytics-clickhouse/src/dlq.rs:136,164,192 (self.records.last().unwrap()), crates/event-bus-kafka/src/dlq.rs:101 (self.routed.last().unwrap()), crates/event-bus-kafka/src/producer.rs:256,275 (partitions/sequences get_mut().unwrap() in the produce path), crates/rules/src/lists.rs:109 (position().unwrap()). The task's naive line-based grep returns 658 but is dominated by ~461 test-module unwraps; the accurate production-only count is 7. This violates plan guardrail line 29 ('no unwrap/panic/any in production code') and contradicts commit 1cc8a1f's '4 unwrap->expect' claim. F2 = REJECT on LOC gate + production unwrap."
+    "loc_lint_pass": true,
+    "notes": "ONE GATE FAILS: cargo fmt --all --check exits 1 (verified twice, plus a direct unpiped run FMT_DIRECT_EXIT=1). Exactly 2 files have diffs: crates/rules/src/sequences/evaluator.rs:6 and crates/rules/src/sequences/predicates.rs:7 (import-grouping/use-statement reformatting). These are NEW files created by remediation commit db4539f (split 5 oversized modules) which landed AFTER the fmt fix 1cc8a1f, so the split reintroduced a formatting regression that was never re-formatted. Toolchain is the project-pinned one (rust-toolchain.toml channel=1.95.0; running rustfmt 1.9.0-stable / cargo 1.95.0, same 59807616e commit as evidence files) - NOT an environment artifact. PASSES: cargo test --workspace exit 0, 1398 passed / 0 failed (matches expected 1398). scripts/loc-lint.sh exit 0 - PASS (305 files checked, 62 baseline waivers; prior REJECT cause of 65 oversized files is RESOLVED by db4539f split + 4f127bc baseline). Production unwrap() = 0: the 4 previously-flagged files (analytics-clickhouse/src/dlq.rs, event-bus-kafka/src/dlq.rs, event-bus-kafka/src/producer.rs, rules/src/lists.rs) now carry 7 .expect() calls (3+1+2+1) replacing the 7 production unwraps per commit 8ec10ba; the residual .unwrap() calls in event-bus-kafka dlq.rs (lines 186,207,214) and producer.rs (lines 362-478) are ALL inside #[cfg(test)] mod tests (test-only, not production). F2 = REJECT solely on the cargo fmt gate."
   },
   "f3_manual_qa": {
     "verdict": "APPROVE",
     "bench_scripts_pass": true,
-    "notes": "bench/enforcement-audit.sh --schema bench/schemas/enforcement.v1.json exit 0: 19 fixtures, TP=6 FP=0 FN=0 TN=13, precision 1.0000, recall 1.0000 (>= 1.0 threshold), all 5 safety invariants hold (audit-mode result changes=0, prior-ret not preserved=0, false own-denial attributions=0, fail-open denials=0, own-denial without errno=0), verdict PASS. Privileged lane BLOCKED only because host cannot load BPF (unprivileged_bpf_disabled=2, CapEff=0) - deferred to rootful runner as designed, not a failure. bench/rules-sensitive-files.sh --schema bench/schemas/rule-budget.v1.json --fixtures tests/fixtures/sensitive-files/ exit 0: 12 fixtures, TP=7 FP=0 FN=0 TN=5, precision 1.0000, recall 1.0000 (>= 1.0), verdict PASS. F3 prior APPROVE confirmed still passing."
+    "notes": "bench/enforcement-audit.sh --schema bench/schemas/enforcement.v1.json exit 0: 19 fixtures, TP=6 FP=0 FN=0 TN=13, precision 1.0000, recall 1.0000 (>= 1.0), all 5 safety invariants hold, verdict PASS (privileged lane BLOCKED only because host cannot load BPF: unprivileged_bpf_disabled=2, CapEff=0 - deferred to rootful runner by design, not a failure). bench/rules-sensitive-files.sh --schema bench/schemas/rule-budget.v1.json --fixtures tests/fixtures/sensitive-files/ exit 0: 12 fixtures, TP=7 FP=0 FN=0 TN=5, precision 1.0000, recall 1.0000 (>= 1.0), verdict PASS. F3 = APPROVE."
   },
   "f4_scope_fidelity": {
-    "verdict": "REJECT",
-    "unwrap_count": 7,
-    "loc_pass": false,
-    "notes": "TWO GUARDRAILS FAIL. (1) LOC: scripts/loc-lint.sh exit 1 (65 files > 250 pure-LOC; see f2_code_quality for the production-src list). (2) Production unwrap() = 7 genuine calls (naive task grep 'grep -v test | grep -v expect' returns 435 but is inflated by inline test modules in non-test-named files; accurate production-only count = 7 at analytics-clickhouse/dlq.rs:136,164,192, event-bus-kafka/dlq.rs:101, event-bus-kafka/producer.rs:256,275, rules/lists.rs:109). GUARDRAILS THAT PASS: Windows/macOS code - literal grep 'windows.h|mach.h|#ifdef _WIN32' returns 1 but it is a regex false positive: bpf/sensors/vmlinux.h:156392 'struct xen_machphys_mapping' (the pattern 'mach.h' matches 'machph' because '.' matches 'p'); vmlinux.h is the auto-generated kernel BTF header (~156k lines), standard eBPF artifact, NOT platform-specific Windows/macOS code - true platform-code violations = 0. deny_links_pinned: present in crates/enforcement/src/policy.rs:340 (pub fn deny_links_pinned) and state_machine.rs:106,121,152 - this is legitimate BPF link-pin enforcement domain logic (a policy predicate), not a scope violation; reported as informational. F4 = REJECT on LOC gate + production unwrap."
+    "verdict": "APPROVE",
+    "unwrap_count": 0,
+    "loc_pass": true,
+    "notes": "ALL GUARDRAILS PASS. scripts/loc-lint.sh exit 0 (PASS, 305 files, 62 baseline waivers) - prior REJECT cause resolved. Production unwrap() = 0 in the 4 previously-flagged files (all 7 production sites now .expect(); residual unwraps are #[cfg(test)]-only). Windows/macOS code: grep 'windows.h|#ifdef _WIN32' over crates/ and bpf/ (*.rs,*.c, excluding vmlinux) returns 0. deny_links_pinned: crates/enforcement/src/{policy.rs:340, state_machine.rs:106,121,152,173} is legitimate BPF link-pin enforcement domain logic defaulting to false (state_machine.rs:121,152 'deny_links_pinned: false'; tests assert !deny_links_pinned()), not a scope violation. F4 = APPROVE (prior REJECT on LOC + production unwrap is fully resolved)."
   },
   "overall": "REJECT",
-  "overall_rationale": "F1 APPROVE and F3 APPROVE, but F2 REJECT and F4 REJECT. Consolidated verdict is REJECT because at least one reviewer failed. Decisive, unambiguous failures: (a) scripts/loc-lint.sh exits 1 with 65 files over the 250 pure-LOC ceiling, including production source modules (transport/channel.rs=480, transport/transport.rs=408, rules/sequences.rs=417, protocol/state_machine.rs=368, transport/ack.rs=271) - directly contradicting remediation commit ba21765's 'loc-lint passes' claim; (b) 7 genuine production unwrap() calls remain, contradicting commit 1cc8a1f's '4 unwrap->expect' claim and violating plan guardrail line 29. F1's prior failures (missing evidence, task-37 matrix, metrics schema) are fully resolved; F3 bench scripts still pass with precision/recall 1.0. To reach APPROVE: split the 65 oversized files (or baseline the legitimately-out-of-scope test/bpf/script files and split the 5 production-src offenders) so loc-lint exits 0, and convert the 7 production unwrap() calls to expect()/proper error handling.",
+  "overall_rationale": "F1 APPROVE, F3 APPROVE, F4 APPROVE, but F2 REJECT. Consolidated verdict is REJECT because at least one reviewer failed. The single decisive failure: cargo fmt --all --check exits 1 on exactly 2 files - crates/rules/src/sequences/evaluator.rs and crates/rules/src/sequences/predicates.rs - which remediation commit db4539f created (module split) AFTER the fmt fix 1cc8a1f, without re-running rustfmt. Every other gate now passes: the prior F2/F4 REJECT causes are resolved (loc-lint exit 0 with 305 files / 62 waivers; production unwrap reduced 7 -> 0 via expect()); cargo test 1398/0; both F3 bench scripts precision/recall 1.0; F1 evidence complete (43 tasks, task-37 'Blocked by: 35,36', metrics.v1.json present). To reach APPROVE: run 'cargo fmt --all' (or fix the 2 use-statement groupings in those 2 files) so 'cargo fmt --all --check' exits 0. This is a 2-file formatting fix; no logic change required. Per task constraints the reviewer did NOT modify source code, so the failure is reported rather than fixed.",
   "commands_and_exit_codes": {
-    "cargo_fmt_all_check": 0,
+    "cargo_fmt_all_check": 1,
     "cargo_test_workspace": 0,
-    "loc_lint_sh": 1,
+    "loc_lint_sh": 0,
     "enforcement_audit_sh": 0,
     "rules_sensitive_files_sh": 0
   }
