@@ -109,9 +109,7 @@ impl ControlPlaneError {
     pub fn status_code(&self) -> u16 {
         match self {
             Self::MissingToken | Self::InvalidToken { .. } => 401,
-            Self::AccessDenied(_)
-            | Self::NoRoleBinding
-            | Self::ViewerMutationDenied { .. } => 403,
+            Self::AccessDenied(_) | Self::NoRoleBinding | Self::ViewerMutationDenied { .. } => 403,
             Self::MissingClusterScope | Self::CrossClusterDenied { .. } => 400,
             Self::PageSizeExceeded { .. }
             | Self::WindowExceeded { .. }
@@ -132,11 +130,13 @@ impl ControlPlaneError {
 impl From<AuthError> for ControlPlaneError {
     fn from(e: AuthError) -> Self {
         match &e {
-            AuthError::RbacDenied { role, action, resource } => {
-                ControlPlaneError::AccessDenied(format!(
-                    "role {role} denied action {action} on {resource}"
-                ))
-            }
+            AuthError::RbacDenied {
+                role,
+                action,
+                resource,
+            } => ControlPlaneError::AccessDenied(format!(
+                "role {role} denied action {action} on {resource}"
+            )),
             AuthError::NoRoleBinding { .. } => ControlPlaneError::NoRoleBinding,
             _ => ControlPlaneError::AccessDenied(e.to_string()),
         }
@@ -146,11 +146,9 @@ impl From<AuthError> for ControlPlaneError {
 impl From<control_db::ControlDbError> for ControlPlaneError {
     fn from(e: control_db::ControlDbError) -> Self {
         match &e {
-            control_db::ControlDbError::NotFound { table, key } => {
-                ControlPlaneError::NotFound {
-                    resource: format!("{table}:{key}"),
-                }
-            }
+            control_db::ControlDbError::NotFound { table, key } => ControlPlaneError::NotFound {
+                resource: format!("{table}:{key}"),
+            },
             control_db::ControlDbError::RlsDenied { reason } => {
                 ControlPlaneError::CrossClusterDenied {
                     context: "rls".to_string(),
@@ -180,10 +178,7 @@ mod tests {
             .status_code(),
             403
         );
-        assert_eq!(
-            ControlPlaneError::MissingClusterScope.status_code(),
-            400
-        );
+        assert_eq!(ControlPlaneError::MissingClusterScope.status_code(), 400);
         assert_eq!(
             ControlPlaneError::PageSizeExceeded {
                 requested: 1000,

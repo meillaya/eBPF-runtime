@@ -20,10 +20,7 @@ use uuid::Uuid;
 use crate::error::{ControlPlaneError, Result};
 
 /// Get a cluster by ID.
-pub async fn get_cluster(
-    fleet: &impl FleetRepository,
-    cluster_id: Uuid,
-) -> Result<Cluster> {
+pub async fn get_cluster(fleet: &impl FleetRepository, cluster_id: Uuid) -> Result<Cluster> {
     fleet
         .get_cluster(cluster_id)
         .await
@@ -52,10 +49,7 @@ pub async fn get_node(
 }
 
 /// Get a policy by ID.
-pub async fn get_policy(
-    policy_repo: &impl PolicyRepository,
-    policy_id: Uuid,
-) -> Result<Policy> {
+pub async fn get_policy(policy_repo: &impl PolicyRepository, policy_id: Uuid) -> Result<Policy> {
     policy_repo
         .get_policy(policy_id)
         .await
@@ -74,10 +68,7 @@ pub async fn get_latest_policy_version(
 }
 
 /// Get a rollout by ID.
-pub async fn get_rollout(
-    policy_repo: &impl PolicyRepository,
-    rollout_id: Uuid,
-) -> Result<Rollout> {
+pub async fn get_rollout(policy_repo: &impl PolicyRepository, rollout_id: Uuid) -> Result<Rollout> {
     policy_repo
         .get_rollout(rollout_id)
         .await
@@ -178,7 +169,10 @@ mod tests {
         let (_db, _fleet, pr, _cid) = setup().await;
 
         // Create policy.
-        let policy = pr.create_policy("test-policy", "A test policy").await.unwrap();
+        let policy = pr
+            .create_policy("test-policy", "A test policy")
+            .await
+            .unwrap();
         assert_eq!(policy.name, "test-policy");
 
         // Get policy.
@@ -186,16 +180,9 @@ mod tests {
         assert_eq!(fetched.id, policy.id);
 
         // Stage version.
-        let pv = stage_policy_version(
-            &pr,
-            policy.id,
-            1,
-            "sha256:abc",
-            "deadbeef",
-            "admin-1",
-        )
-        .await
-        .unwrap();
+        let pv = stage_policy_version(&pr, policy.id, 1, "sha256:abc", "deadbeef", "admin-1")
+            .await
+            .unwrap();
         assert_eq!(pv.status, "staged");
 
         // Get latest version.

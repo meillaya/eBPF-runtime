@@ -14,7 +14,8 @@ use serde::{Deserialize, Serialize};
 use crate::error::{ControlPlaneError, Result};
 
 /// The base64 engine for cursor encoding (URL-safe, no pad).
-const CURSOR_ENGINE: base64::engine::GeneralPurpose = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+const CURSOR_ENGINE: base64::engine::GeneralPurpose =
+    base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 /// A paginated request with bounded limit and optional cursor.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,21 +47,20 @@ impl PageRequest {
         match &self.cursor {
             None => Ok(None),
             Some(raw) => {
-                let decoded = CURSOR_ENGINE
-                    .decode(raw)
-                    .map_err(|e| ControlPlaneError::InvalidCursor {
-                        reason: format!("base64 decode failed: {e}"),
-                    })?;
-                let json = String::from_utf8(decoded).map_err(|e| {
-                    ControlPlaneError::InvalidCursor {
+                let decoded =
+                    CURSOR_ENGINE
+                        .decode(raw)
+                        .map_err(|e| ControlPlaneError::InvalidCursor {
+                            reason: format!("base64 decode failed: {e}"),
+                        })?;
+                let json =
+                    String::from_utf8(decoded).map_err(|e| ControlPlaneError::InvalidCursor {
                         reason: format!("cursor is not valid UTF-8: {e}"),
-                    }
-                })?;
-                let inner: CursorInner = serde_json::from_str(&json).map_err(|e| {
-                    ControlPlaneError::InvalidCursor {
+                    })?;
+                let inner: CursorInner =
+                    serde_json::from_str(&json).map_err(|e| ControlPlaneError::InvalidCursor {
                         reason: format!("cursor JSON invalid: {e}"),
-                    }
-                })?;
+                    })?;
                 Ok(Some(inner.offset))
             }
         }
@@ -131,11 +131,7 @@ impl<T> PageResponse<T> {
 }
 
 /// Apply a time window bound check.
-pub fn validate_time_window(
-    start_epoch_s: u64,
-    end_epoch_s: u64,
-    max_window_s: u64,
-) -> Result<()> {
+pub fn validate_time_window(start_epoch_s: u64, end_epoch_s: u64, max_window_s: u64) -> Result<()> {
     if end_epoch_s < start_epoch_s {
         return Err(ControlPlaneError::InvalidCursor {
             reason: "end time before start time".into(),

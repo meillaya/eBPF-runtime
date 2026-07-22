@@ -75,29 +75,20 @@ impl CrioProvider {
 
     /// Parse a `ContainerStatusResponse` JSON projection into a
     /// `ContainerRecord`. Missing required fields produce a typed error.
-    pub fn parse_container_status(
-        &self,
-        json: &str,
-    ) -> Result<ContainerRecord, ProviderError> {
-        let envelope: ContainerStatusEnvelope = serde_json::from_str(json).map_err(|err| {
-            ProviderError::Unavailable(format!("malformed crio response: {err}"))
-        })?;
+    pub fn parse_container_status(&self, json: &str) -> Result<ContainerRecord, ProviderError> {
+        let envelope: ContainerStatusEnvelope = serde_json::from_str(json)
+            .map_err(|err| ProviderError::Unavailable(format!("malformed crio response: {err}")))?;
         let status = envelope.status.ok_or_else(|| {
             ProviderError::Unavailable("crio response missing status field".to_string())
         })?;
         let container_id = status.id.clone().ok_or_else(|| {
+            ProviderError::Unavailable("crio response missing container id field".to_string())
+        })?;
+        let pod_uid = status.pod_sandbox_id.clone().ok_or_else(|| {
             ProviderError::Unavailable(
-                "crio response missing container id field".to_string(),
+                "crio response missing pod_uid field (pod_sandbox_id)".to_string(),
             )
         })?;
-        let pod_uid = status
-            .pod_sandbox_id
-            .clone()
-            .ok_or_else(|| {
-                ProviderError::Unavailable(
-                    "crio response missing pod_uid field (pod_sandbox_id)".to_string(),
-                )
-            })?;
         Ok(ContainerRecord {
             container_id: container_id.clone(),
             pod_uid,
@@ -121,13 +112,9 @@ impl CrioProvider {
     }
 
     /// Parse a `PodSandboxStatusResponse` JSON projection into a `PodRecord`.
-    pub fn parse_pod_sandbox_status(
-        &self,
-        json: &str,
-    ) -> Result<PodRecord, ProviderError> {
-        let envelope: PodSandboxStatusEnvelope = serde_json::from_str(json).map_err(|err| {
-            ProviderError::Unavailable(format!("malformed crio response: {err}"))
-        })?;
+    pub fn parse_pod_sandbox_status(&self, json: &str) -> Result<PodRecord, ProviderError> {
+        let envelope: PodSandboxStatusEnvelope = serde_json::from_str(json)
+            .map_err(|err| ProviderError::Unavailable(format!("malformed crio response: {err}")))?;
         let status = envelope.status.ok_or_else(|| {
             ProviderError::Unavailable("crio response missing status field".to_string())
         })?;
@@ -201,10 +188,7 @@ impl RuntimeProvider for CrioProvider {
         })
     }
 
-    fn lookup_pod(
-        &self,
-        _pod_uid: &str,
-    ) -> crate::BoxFuture<'_, Result<PodRecord, ProviderError>> {
+    fn lookup_pod(&self, _pod_uid: &str) -> crate::BoxFuture<'_, Result<PodRecord, ProviderError>> {
         let socket = self.socket.clone();
         Box::pin(async move {
             if !socket.exists() {

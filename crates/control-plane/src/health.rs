@@ -131,7 +131,9 @@ mod tests {
     fn compatibility_lists_event_kinds() {
         let c = build_compatibility(1, 1, 200, 86_400);
         assert_eq!(c.supported_event_kinds.len(), 15);
-        assert!(c.supported_event_kinds.contains(&"EVENT_KIND_FILE_OPEN".to_string()));
+        assert!(c
+            .supported_event_kinds
+            .contains(&"EVENT_KIND_FILE_OPEN".to_string()));
         assert_eq!(c.max_page_size, 200);
         assert_eq!(c.max_window_s, 86_400);
     }

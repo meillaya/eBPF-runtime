@@ -322,7 +322,7 @@ mod tests {
         let report = make_report("spiffe://kernel-v1.test/agent/prod/node-1", 5, None);
         rec.reconcile(&report, &mut audit, 0).unwrap();
         assert!(!audit.is_empty());
-        assert!(audit.query_by_action("reconcile.", 10).len() >= 1);
+        assert!(!audit.query_by_action("reconcile.", 10).is_empty());
     }
 
     #[test]

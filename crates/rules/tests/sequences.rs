@@ -34,7 +34,10 @@ fn step(field: &str, op: Operator, value: Value) -> Step {
 
 /// Helper: count completed non-uncertain matches.
 fn completed_count(matches: &[SequenceMatch]) -> usize {
-    matches.iter().filter(|m| m.completed && !m.uncertain).count()
+    matches
+        .iter()
+        .filter(|m| m.completed && !m.uncertain)
+        .count()
 }
 
 // --- Core sequence behavior tests ---
@@ -50,20 +53,34 @@ fn sequence_in_order_matches_once() {
             step("syscall", Operator::Eq, Value::String("connect".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
-    let e2 = ev(101, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    let m1 = eval.process_event(&e1, &[s.clone()]).unwrap();
-    assert_eq!(completed_count(&m1), 0, "first step alone should not complete");
+    let m1 = eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    assert_eq!(
+        completed_count(&m1),
+        0,
+        "first step alone should not complete"
+    );
 
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
-    assert_eq!(completed_count(&m2), 1, "in-order sequence should complete exactly once");
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
+    assert_eq!(
+        completed_count(&m2),
+        1,
+        "in-order sequence should complete exactly once"
+    );
     assert!(!m2[0].uncertain);
 }
 
@@ -82,25 +99,43 @@ fn sequence_out_of_order_matches_once() {
     // The evaluator matches steps in order, so connect at t=101 won't match
     // step 0 (which expects exec). Then exec at t=100 matches step 0.
     // But since t=100 < t=101 (the started_at), this is out-of-order.
-    let e_connect = ev(101, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
-    let e_exec = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e_connect = ev(
+        101,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
+    let e_exec = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    let m1 = eval.process_event(&e_connect, &[s.clone()]).unwrap();
-    assert_eq!(completed_count(&m1), 0, "out-of-order first event should not complete");
+    let m1 = eval
+        .process_event(&e_connect, std::slice::from_ref(&s))
+        .unwrap();
+    assert_eq!(
+        completed_count(&m1),
+        0,
+        "out-of-order first event should not complete"
+    );
 
-    let m2 = eval.process_event(&e_exec, &[s.clone()]).unwrap();
+    let m2 = eval
+        .process_event(&e_exec, std::slice::from_ref(&s))
+        .unwrap();
     // exec matches step 0, but connect already arrived and didn't match step 0.
     // The sequence is incomplete because step 1 was never matched after step 0.
     // However, the evaluator processes step-by-step: exec matches step 0.
     // connect was already processed and didn't match step 0 (it was looking for exec).
     // So the sequence has step 0 matched but step 1 not matched.
-    assert_eq!(completed_count(&m2), 0, "out-of-order should not complete without both steps in order");
+    assert_eq!(
+        completed_count(&m2),
+        0,
+        "out-of-order should not complete without both steps in order"
+    );
 }
 
 #[test]
@@ -116,19 +151,29 @@ fn sequence_missing_step_yields_incomplete() {
         ],
     );
     // Only send exec and write (skip connect).
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
-    let e2 = ev(101, &[
-        ("syscall", Value::String("write".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("write".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     // write doesn't match step 1 (expects connect), so sequence stays incomplete.
-    assert_eq!(completed_count(&m2), 0, "missing step should yield incomplete");
+    assert_eq!(
+        completed_count(&m2),
+        0,
+        "missing step should yield incomplete"
+    );
     assert!(!m2[0].completed);
 }
 
@@ -143,23 +188,33 @@ fn sequence_duplicate_event_matches_once() {
             step("syscall", Operator::Eq, Value::String("connect".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
-    let e2 = ev(101, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     assert_eq!(completed_count(&m2), 1);
 
     // Send the same connect event again (duplicate).
-    let m3 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    let m3 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     // Already completed: should still report completed but not double-count.
-    assert_eq!(completed_count(&m3), 1, "duplicate event should not create a second match");
+    assert_eq!(
+        completed_count(&m3),
+        1,
+        "duplicate event should not create a second match"
+    );
 }
 
 #[test]
@@ -173,20 +228,33 @@ fn sequence_late_event_yields_incomplete() {
             step("syscall", Operator::Eq, Value::String("connect".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
     // Late event: arrives at t=200, well beyond the 10s window from t=100.
-    let e2 = ev(200, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e2 = ev(
+        200,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
-    assert_eq!(completed_count(&m2), 0, "late event should not complete the sequence");
-    assert!(m2[0].uncertain, "late event should mark sequence as uncertain");
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
+    assert_eq!(
+        completed_count(&m2),
+        0,
+        "late event should not complete the sequence"
+    );
+    assert!(
+        m2[0].uncertain,
+        "late event should mark sequence as uncertain"
+    );
 }
 
 #[test]
@@ -202,23 +270,36 @@ fn sequence_gap_yields_incomplete() {
         ],
     );
     // exec at t=100, connect at t=105 (within window), write at t=200 (gap beyond window).
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
-    let e2 = ev(105, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
-    let e3 = ev(200, &[
-        ("syscall", Value::String("write".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
+    let e2 = ev(
+        105,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
+    let e3 = ev(
+        200,
+        &[
+            ("syscall", Value::String("write".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    eval.process_event(&e2, &[s.clone()]).unwrap();
-    let m3 = eval.process_event(&e3, &[s.clone()]).unwrap();
-    assert_eq!(completed_count(&m3), 0, "gap beyond window should yield incomplete");
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
+    let m3 = eval.process_event(&e3, std::slice::from_ref(&s)).unwrap();
+    assert_eq!(
+        completed_count(&m3),
+        0,
+        "gap beyond window should yield incomplete"
+    );
     assert!(m3[0].uncertain, "gap should mark sequence as uncertain");
 }
 
@@ -234,21 +315,31 @@ fn sequence_pid_reuse_does_not_correlate() {
         ],
     );
     // Process generation 1: exec
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
     // PID reuse: same PID but different generation (2). Connect from gen 2.
-    let e2 = ev(101, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(2)),
-    ]);
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(2)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     // gen 2 is a different group key, so it starts a new sequence instance.
     // The connect from gen 2 doesn't complete the gen 1 sequence.
-    assert_eq!(completed_count(&m2), 0, "PID reuse (different generation) should not correlate");
+    assert_eq!(
+        completed_count(&m2),
+        0,
+        "PID reuse (different generation) should not correlate"
+    );
 }
 
 #[test]
@@ -263,20 +354,30 @@ fn sequence_socket_reuse_does_not_correlate() {
         ],
     );
     // Socket inode 1000: connect
-    let e1 = ev(100, &[
-        ("syscall", Value::String("connect".into())),
-        ("socket.inode", Value::Integer(1000)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("socket.inode", Value::Integer(1000)),
+        ],
+    );
     // Socket reuse: different inode 2000. Write from inode 2000.
-    let e2 = ev(101, &[
-        ("syscall", Value::String("write".into())),
-        ("socket.inode", Value::Integer(2000)),
-    ]);
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("write".into())),
+            ("socket.inode", Value::Integer(2000)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     // inode 2000 is a different group key, so it starts a new sequence instance.
-    assert_eq!(completed_count(&m2), 0, "socket reuse (different inode) should not correlate");
+    assert_eq!(
+        completed_count(&m2),
+        0,
+        "socket reuse (different inode) should not correlate"
+    );
 }
 
 #[test]
@@ -290,11 +391,14 @@ fn sequence_ttl_eviction() {
             step("syscall", Operator::Eq, Value::String("connect".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
-    eval.process_event(&e1, &[s.clone()]).unwrap();
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
     assert_eq!(eval.state.sequences.len(), 1);
 
     // Evict at t=200 (well beyond 100+10=110).
@@ -318,15 +422,21 @@ fn sequence_lru_eviction() {
 
     // Create 3 sequence instances (capacity is 2).
     for gen in 1..=3 {
-        let e = ev(100, &[
-            ("syscall", Value::String("exec".into())),
-            ("process.generation", Value::Integer(gen)),
-        ]);
-        eval.process_event(&e, &[s.clone()]).unwrap();
+        let e = ev(
+            100,
+            &[
+                ("syscall", Value::String("exec".into())),
+                ("process.generation", Value::Integer(gen)),
+            ],
+        );
+        eval.process_event(&e, std::slice::from_ref(&s)).unwrap();
     }
 
     // LRU eviction should have kept only 2.
-    assert!(eval.state.sequences.len() <= 2, "LRU eviction should bound state to capacity");
+    assert!(
+        eval.state.sequences.len() <= 2,
+        "LRU eviction should bound state to capacity"
+    );
 }
 
 #[test]
@@ -340,27 +450,36 @@ fn sequence_restart_replay() {
         ],
     );
     let events = vec![
-        ev(100, &[
-            ("syscall", Value::String("exec".into())),
-            ("process.generation", Value::Integer(1)),
-        ]),
-        ev(101, &[
-            ("syscall", Value::String("connect".into())),
-            ("process.generation", Value::Integer(1)),
-        ]),
+        ev(
+            100,
+            &[
+                ("syscall", Value::String("exec".into())),
+                ("process.generation", Value::Integer(1)),
+            ],
+        ),
+        ev(
+            101,
+            &[
+                ("syscall", Value::String("connect".into())),
+                ("process.generation", Value::Integer(1)),
+            ],
+        ),
     ];
 
     // First replay.
     let mut eval1 = SequenceEvaluator::new(default_budget());
-    let m1 = eval1.replay(&events, &[s.clone()]).unwrap();
+    let m1 = eval1.replay(&events, std::slice::from_ref(&s)).unwrap();
     let completed1 = completed_count(&m1);
 
     // Second replay (simulating restart): same events, same result.
     let mut eval2 = SequenceEvaluator::new(default_budget());
-    let m2 = eval2.replay(&events, &[s.clone()]).unwrap();
+    let m2 = eval2.replay(&events, std::slice::from_ref(&s)).unwrap();
     let completed2 = completed_count(&m2);
 
-    assert_eq!(completed1, completed2, "restart replay should produce identical results");
+    assert_eq!(
+        completed1, completed2,
+        "restart replay should produce identical results"
+    );
     assert_eq!(completed1, 1, "replay should complete the sequence once");
 }
 
@@ -376,25 +495,34 @@ fn sequence_deterministic_replay() {
         ],
     );
     let events = vec![
-        ev(100, &[
-            ("syscall", Value::String("exec".into())),
-            ("process.generation", Value::Integer(1)),
-        ]),
-        ev(101, &[
-            ("syscall", Value::String("connect".into())),
-            ("process.generation", Value::Integer(1)),
-        ]),
-        ev(102, &[
-            ("syscall", Value::String("write".into())),
-            ("process.generation", Value::Integer(1)),
-        ]),
+        ev(
+            100,
+            &[
+                ("syscall", Value::String("exec".into())),
+                ("process.generation", Value::Integer(1)),
+            ],
+        ),
+        ev(
+            101,
+            &[
+                ("syscall", Value::String("connect".into())),
+                ("process.generation", Value::Integer(1)),
+            ],
+        ),
+        ev(
+            102,
+            &[
+                ("syscall", Value::String("write".into())),
+                ("process.generation", Value::Integer(1)),
+            ],
+        ),
     ];
 
     // Run replay multiple times; results must be identical.
     let mut eval = SequenceEvaluator::new(default_budget());
-    let m1 = eval.replay(&events, &[s.clone()]).unwrap();
-    let m2 = eval.replay(&events, &[s.clone()]).unwrap();
-    let m3 = eval.replay(&events, &[s.clone()]).unwrap();
+    let m1 = eval.replay(&events, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.replay(&events, std::slice::from_ref(&s)).unwrap();
+    let m3 = eval.replay(&events, std::slice::from_ref(&s)).unwrap();
 
     assert_eq!(m1, m2, "deterministic replay: run 1 == run 2");
     assert_eq!(m2, m3, "deterministic replay: run 2 == run 3");
@@ -414,17 +542,23 @@ fn sequence_never_correlates_by_pid_alone() {
     // Event with PID but NO process.generation. The evaluator should NOT
     // use PID as the group key. Without a valid group key field, it falls
     // back to Custom("default").
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.pid", Value::Integer(1234)),
-    ]);
-    let e2 = ev(101, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.pid", Value::Integer(1234)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.pid", Value::Integer(1234)),
+        ],
+    );
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.pid", Value::Integer(1234)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     // Both events fall into Custom("default") group since no generation/container/socket.
     // They DO correlate (same group), but NOT by PID. The group key is Custom, not PID.
     // Verify the group key is NOT a PID-based key.
@@ -445,21 +579,30 @@ fn sequence_never_hides_loss_gap_uncertainty() {
             step("syscall", Operator::Eq, Value::String("connect".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
     // Late event beyond window.
-    let e2 = ev(200, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e2 = ev(
+        200,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     // The sequence MUST be marked uncertain; loss/gap is never hidden.
     assert!(m2[0].uncertain, "loss/gap uncertainty must never be hidden");
-    assert!(!m2[0].completed || m2[0].uncertain, "uncertain sequence must not appear as clean completion");
+    assert!(
+        !m2[0].completed || m2[0].uncertain,
+        "uncertain sequence must not appear as clean completion"
+    );
 }
 
 #[test]
@@ -475,19 +618,29 @@ fn sequence_never_uses_wall_clock_for_ordering() {
     );
     // Events with monotonic timestamps that differ from any wall clock.
     // The evaluator uses the `ts` field, not system time.
-    let e1 = ev(999999, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
-    let e2 = ev(1000000, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        999999,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
+    let e2 = ev(
+        1000000,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     // Should complete using monotonic ts, regardless of wall clock.
-    assert_eq!(completed_count(&m2), 1, "ordering must use monotonic ts, not wall clock");
+    assert_eq!(
+        completed_count(&m2),
+        1,
+        "ordering must use monotonic ts, not wall clock"
+    );
     assert!(!m2[0].uncertain);
 }
 
@@ -506,11 +659,14 @@ fn sequence_never_lets_unbounded_keys_exhaust_memory() {
 
     // Insert 200 unique group keys (exceeds capacity of 100).
     for gen in 0..200 {
-        let e = ev(100, &[
-            ("syscall", Value::String("exec".into())),
-            ("process.generation", Value::Integer(gen)),
-        ]);
-        eval.process_event(&e, &[s.clone()]).unwrap();
+        let e = ev(
+            100,
+            &[
+                ("syscall", Value::String("exec".into())),
+                ("process.generation", Value::Integer(gen)),
+            ],
+        );
+        eval.process_event(&e, std::slice::from_ref(&s)).unwrap();
     }
 
     assert!(
@@ -532,23 +688,36 @@ fn sequence_shell_exec_socket_stdio_matches_once() {
             step("syscall", Operator::Eq, Value::String("stdio".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(42)),
-    ]);
-    let e2 = ev(101, &[
-        ("syscall", Value::String("socket".into())),
-        ("process.generation", Value::Integer(42)),
-    ]);
-    let e3 = ev(102, &[
-        ("syscall", Value::String("stdio".into())),
-        ("process.generation", Value::Integer(42)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(42)),
+        ],
+    );
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("socket".into())),
+            ("process.generation", Value::Integer(42)),
+        ],
+    );
+    let e3 = ev(
+        102,
+        &[
+            ("syscall", Value::String("stdio".into())),
+            ("process.generation", Value::Integer(42)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    eval.process_event(&e2, &[s.clone()]).unwrap();
-    let m3 = eval.process_event(&e3, &[s.clone()]).unwrap();
-    assert_eq!(completed_count(&m3), 1, "shell exec→socket→stdio should match exactly once");
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
+    let m3 = eval.process_event(&e3, std::slice::from_ref(&s)).unwrap();
+    assert_eq!(
+        completed_count(&m3),
+        1,
+        "shell exec→socket→stdio should match exactly once"
+    );
     assert!(!m3[0].uncertain);
 }
 
@@ -564,19 +733,29 @@ fn sequence_negative_clause_safely_expressible() {
             step("syscall", Operator::Ne, Value::String("connect".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
     // "write" is NOT "connect", so the Ne step matches.
-    let e2 = ev(101, &[
-        ("syscall", Value::String("write".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("write".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
-    assert_eq!(completed_count(&m2), 1, "negative clause (Ne) should be safely expressible");
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
+    assert_eq!(
+        completed_count(&m2),
+        1,
+        "negative clause (Ne) should be safely expressible"
+    );
     assert!(!m2[0].uncertain);
 }
 
@@ -592,18 +771,28 @@ fn sequence_within_window_timer() {
         ],
     );
     // Within window: exec at t=100, connect at t=125 (25s < 30s window).
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
-    let e2 = ev(125, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(1)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
+    let e2 = ev(
+        125,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(1)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
-    assert_eq!(completed_count(&m2), 1, "within-window timer should allow completion");
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
+    assert_eq!(
+        completed_count(&m2),
+        1,
+        "within-window timer should allow completion"
+    );
     assert!(!m2[0].uncertain);
 }
 
@@ -618,17 +807,23 @@ fn sequence_group_key_process_generation() {
             step("syscall", Operator::Eq, Value::String("connect".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("process.generation", Value::Integer(7)),
-    ]);
-    let e2 = ev(101, &[
-        ("syscall", Value::String("connect".into())),
-        ("process.generation", Value::Integer(7)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("process.generation", Value::Integer(7)),
+        ],
+    );
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("process.generation", Value::Integer(7)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     assert!(
         matches!(m2[0].group_key, GroupKey::ProcessGeneration(7)),
         "group key should be ProcessGeneration(7)"
@@ -647,17 +842,23 @@ fn sequence_group_key_container() {
             step("syscall", Operator::Eq, Value::String("connect".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-        ("container.id", Value::String("abc123".into())),
-    ]);
-    let e2 = ev(101, &[
-        ("syscall", Value::String("connect".into())),
-        ("container.id", Value::String("abc123".into())),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("exec".into())),
+            ("container.id", Value::String("abc123".into())),
+        ],
+    );
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("container.id", Value::String("abc123".into())),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     assert!(
         matches!(&m2[0].group_key, GroupKey::Container(id) if id == "abc123"),
         "group key should be Container(abc123)"
@@ -676,17 +877,23 @@ fn sequence_group_key_socket() {
             step("syscall", Operator::Eq, Value::String("write".into())),
         ],
     );
-    let e1 = ev(100, &[
-        ("syscall", Value::String("connect".into())),
-        ("socket.inode", Value::Integer(5555)),
-    ]);
-    let e2 = ev(101, &[
-        ("syscall", Value::String("write".into())),
-        ("socket.inode", Value::Integer(5555)),
-    ]);
+    let e1 = ev(
+        100,
+        &[
+            ("syscall", Value::String("connect".into())),
+            ("socket.inode", Value::Integer(5555)),
+        ],
+    );
+    let e2 = ev(
+        101,
+        &[
+            ("syscall", Value::String("write".into())),
+            ("socket.inode", Value::Integer(5555)),
+        ],
+    );
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     assert!(
         matches!(m2[0].group_key, GroupKey::Socket(5555)),
         "group key should be Socket(5555)"
@@ -706,15 +913,11 @@ fn sequence_group_key_custom() {
         ],
     );
     // No process.generation, container.id, or socket.inode -> Custom("default").
-    let e1 = ev(100, &[
-        ("syscall", Value::String("exec".into())),
-    ]);
-    let e2 = ev(101, &[
-        ("syscall", Value::String("connect".into())),
-    ]);
+    let e1 = ev(100, &[("syscall", Value::String("exec".into()))]);
+    let e2 = ev(101, &[("syscall", Value::String("connect".into()))]);
 
-    eval.process_event(&e1, &[s.clone()]).unwrap();
-    let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+    eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+    let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
     assert!(
         matches!(&m2[0].group_key, GroupKey::Custom(s) if s == "default"),
         "group key should be Custom(default) as fallback"
@@ -749,10 +952,10 @@ fn property_test_deterministic_sequence_evaluation() {
         ];
 
         let mut eval1 = SequenceEvaluator::new(default_budget());
-        let m1 = eval1.replay(&events, &[s.clone()]).unwrap();
+        let m1 = eval1.replay(&events, std::slice::from_ref(&s)).unwrap();
 
         let mut eval2 = SequenceEvaluator::new(default_budget());
-        let m2 = eval2.replay(&events, &[s.clone()]).unwrap();
+        let m2 = eval2.replay(&events, std::slice::from_ref(&s)).unwrap();
 
         prop_assert_eq!(&m1, &m2, "deterministic: same input -> same output");
     });
@@ -777,7 +980,7 @@ fn property_test_sequence_state_bounded() {
                 ("syscall", Value::String("exec".into())),
                 ("process.generation", Value::Integer(gen as i64)),
             ]);
-            eval.process_event(&e, &[s.clone()]).unwrap();
+            eval.process_event(&e, std::slice::from_ref(&s)).unwrap();
         }
 
         prop_assert!(
@@ -813,8 +1016,8 @@ fn property_test_sequence_never_denies_on_uncertain() {
             ("process.generation", Value::Integer(1)),
         ]);
 
-        eval.process_event(&e1, &[s.clone()]).unwrap();
-        let m2 = eval.process_event(&e2, &[s.clone()]).unwrap();
+        eval.process_event(&e1, std::slice::from_ref(&s)).unwrap();
+        let m2 = eval.process_event(&e2, std::slice::from_ref(&s)).unwrap();
 
         for m in &m2 {
             if m.uncertain {

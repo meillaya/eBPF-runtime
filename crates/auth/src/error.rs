@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn error_variants_are_distinct() {
-        let errors = vec![
+        let errors = [
             AuthError::PkceVerificationFailed,
             AuthError::SignatureInvalid,
             AuthError::DeviceCodeExpired,

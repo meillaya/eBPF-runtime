@@ -64,7 +64,7 @@ impl ExponentialBackoff {
         // Full jitter: uniform in [0, computed].
         // Use a simple deterministic jitter for reproducibility
         // in tests: alternate between 50% and 75% of computed.
-        let jittered = if self.attempt % 2 == 0 {
+        let jittered = if self.attempt.is_multiple_of(2) {
             computed / 2
         } else {
             computed * 3 / 4

@@ -119,6 +119,12 @@ pub struct WorkloadApiState {
     pub reconnect_count: u64,
 }
 
+impl Default for WorkloadApiState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WorkloadApiState {
     /// Create a new empty state.
     pub fn new() -> Self {

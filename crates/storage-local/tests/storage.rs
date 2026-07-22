@@ -174,9 +174,15 @@ fn ack_event_marks_acked() {
 fn ack_batch_marks_all_events_acked() {
     let dir = temp_db();
     let storage = open_test_storage(&dir);
-    let e1 = storage.insert_event(&test_event(Kind::FileOpen)).expect("e1");
-    let e2 = storage.insert_event(&test_event(Kind::FileCreate)).expect("e2");
-    let batch_id = storage.insert_batch(&[e1.clone(), e2.clone()]).expect("batch");
+    let e1 = storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e1");
+    let e2 = storage
+        .insert_event(&test_event(Kind::FileCreate))
+        .expect("e2");
+    let batch_id = storage
+        .insert_batch(&[e1.clone(), e2.clone()])
+        .expect("batch");
     storage.ack_batch(&batch_id).expect("ack_batch failed");
     assert!(!storage.is_event_unacked(&e1).expect("check e1"));
     assert!(!storage.is_event_unacked(&e2).expect("check e2"));
@@ -224,8 +230,12 @@ fn delete_acked_batches_older_than_duration() {
 fn query_events_by_kind() {
     let dir = temp_db();
     let storage = open_test_storage(&dir);
-    storage.insert_event(&test_event(Kind::FileOpen)).expect("e1");
-    storage.insert_event(&test_event(Kind::NetworkConnect)).expect("e2");
+    storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e1");
+    storage
+        .insert_event(&test_event(Kind::NetworkConnect))
+        .expect("e2");
     let query = EventQuery {
         event_kind: Some(4), // FileOpen
         ..Default::default()
@@ -239,7 +249,9 @@ fn query_events_by_kind() {
 fn query_events_by_created_at_range() {
     let dir = temp_db();
     let storage = open_test_storage(&dir);
-    storage.insert_event(&test_event(Kind::FileOpen)).expect("e1");
+    storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e1");
     let now = storage_local::current_timestamp();
     let query = EventQuery {
         created_at_from: Some(now - 10),
@@ -254,8 +266,12 @@ fn query_events_by_created_at_range() {
 fn query_events_by_acked_status() {
     let dir = temp_db();
     let storage = open_test_storage(&dir);
-    let id = storage.insert_event(&test_event(Kind::FileOpen)).expect("e1");
-    storage.insert_event(&test_event(Kind::FileCreate)).expect("e2");
+    let id = storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e1");
+    storage
+        .insert_event(&test_event(Kind::FileCreate))
+        .expect("e2");
     storage.ack_event(&id).expect("ack");
     let query = EventQuery {
         acked: Some(false),
@@ -271,7 +287,9 @@ fn query_events_with_limit() {
     let dir = temp_db();
     let storage = open_test_storage(&dir);
     for _ in 0..5 {
-        storage.insert_event(&test_event(Kind::FileOpen)).expect("e");
+        storage
+            .insert_event(&test_event(Kind::FileOpen))
+            .expect("e");
     }
     let query = EventQuery {
         limit: Some(3),
@@ -330,7 +348,9 @@ fn query_outbox_with_limit() {
 fn checkpoint_truncates_wal() {
     let dir = temp_db();
     let storage = open_test_storage(&dir);
-    storage.insert_event(&test_event(Kind::FileOpen)).expect("e");
+    storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e");
     storage.checkpoint().expect("checkpoint failed");
     // After checkpoint, WAL should be truncated (size 0 or very small).
     let wal_path = dir.path().join("test.db-wal");
@@ -344,7 +364,9 @@ fn checkpoint_truncates_wal() {
 fn integrity_check_passes_on_valid_db() {
     let dir = temp_db();
     let storage = open_test_storage(&dir);
-    storage.insert_event(&test_event(Kind::FileOpen)).expect("e");
+    storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e");
     storage.integrity_check().expect("integrity check failed");
 }
 
@@ -354,7 +376,9 @@ fn integrity_check_fails_on_corrupt_db() {
     let db_path = dir.path().join("test.db");
     let storage = LocalStorage::open_with_test_key(&db_path).expect("open");
     storage.run_migrations().expect("migrations");
-    storage.insert_event(&test_event(Kind::FileOpen)).expect("e");
+    storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e");
     storage.checkpoint().expect("checkpoint");
     drop(storage);
     // Corrupt a page in the middle of the file.
@@ -388,13 +412,15 @@ fn retention_policy_loaded_from_schema() {
 fn apply_retention_deletes_old_acked_events() {
     let dir = temp_db();
     let storage = open_test_storage(&dir);
-    let id = storage.insert_event(&test_event(Kind::FileOpen)).expect("e");
+    let id = storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e");
     storage.ack_event(&id).expect("ack");
     // retention_seconds=0 means delete all acked.
     let result = storage.apply_retention().expect("retention failed");
     // The event was just created so it won't be older than 86400s.
     // But we can verify the function runs without error.
-    assert!(result.deleted_events >= 0);
+    let _ = result.deleted_events;
 }
 
 #[test]
@@ -404,7 +430,7 @@ fn apply_retention_deletes_old_acked_batches() {
     let batch_id = storage.insert_batch(&["x".to_string()]).expect("b");
     storage.ack_batch(&batch_id).expect("ack");
     let result = storage.apply_retention().expect("retention failed");
-    assert!(result.deleted_batches >= 0);
+    let _ = result.deleted_batches;
 }
 
 #[test]
@@ -413,7 +439,9 @@ fn apply_retention_respects_retention_bytes() {
     let storage = open_test_storage(&dir);
     // Insert several events and ack them.
     for _ in 0..10 {
-        let id = storage.insert_event(&test_event(Kind::FileOpen)).expect("e");
+        let id = storage
+            .insert_event(&test_event(Kind::FileOpen))
+            .expect("e");
         storage.ack_event(&id).expect("ack");
     }
     let result = storage.apply_retention().expect("retention failed");
@@ -431,7 +459,7 @@ fn crash_after_insert_before_ack_replays_same_event_ids() {
     let event = test_event(Kind::ProcessExecResult);
     let event_id = storage.insert_event(&event).expect("insert");
     drop(storage); // simulate crash
-    // Phase 2: reopen and verify the event is still there, unacked.
+                   // Phase 2: reopen and verify the event is still there, unacked.
     let storage2 = LocalStorage::open_with_test_key(&db_path).expect("reopen");
     assert!(storage2.is_event_unacked(&event_id).expect("check"));
     // The same event_id is preserved across crash/reopen.
@@ -450,13 +478,17 @@ fn long_reader_does_not_block_writer() {
     let storage = LocalStorage::open_with_test_key(&db_path).expect("open");
     storage.run_migrations().expect("migrations");
     // Insert an event (writer).
-    storage.insert_event(&test_event(Kind::FileOpen)).expect("e1");
+    storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e1");
     // Query (reader) — in WAL mode, readers don't block writers.
     let query = EventQuery::default();
     let results = storage.query_events(&query).expect("query");
     assert_eq!(results.len(), 1);
     // Write again while "reader" context exists.
-    storage.insert_event(&test_event(Kind::FileCreate)).expect("e2");
+    storage
+        .insert_event(&test_event(Kind::FileCreate))
+        .expect("e2");
     let results2 = storage.query_events(&query).expect("query2");
     assert_eq!(results2.len(), 2);
 }
@@ -468,14 +500,19 @@ fn full_disk_returns_typed_pressure_error() {
     let storage = LocalStorage::open_with_test_key(&db_path).expect("open");
     storage.run_migrations().expect("migrations");
     // Simulate full disk by making the directory read-only.
-    let mut perms = std::fs::metadata(dir.path()).expect("metadata").permissions();
+    let mut perms = std::fs::metadata(dir.path())
+        .expect("metadata")
+        .permissions();
     perms.set_readonly(true);
     std::fs::set_permissions(dir.path(), perms).expect("set perms");
     // Attempt to insert — should fail with FullDisk or a typed error.
     let result = storage.insert_event(&test_event(Kind::FileOpen));
     // Restore permissions for cleanup.
-    let mut perms2 = std::fs::metadata(dir.path()).expect("metadata").permissions();
-    perms2.set_readonly(false);
+    let mut perms2 = std::fs::metadata(dir.path())
+        .expect("metadata")
+        .permissions();
+    use std::os::unix::fs::PermissionsExt;
+    perms2.set_mode(0o755);
     std::fs::set_permissions(dir.path(), perms2).expect("restore perms");
     // The insert may succeed if WAL is already allocated; the typed error
     // path is verified by the error mapping. We assert it doesn't panic.
@@ -493,7 +530,9 @@ fn encrypted_header_is_not_plaintext() {
     let db_path = dir.path().join("test.db");
     let storage = LocalStorage::open_with_test_key(&db_path).expect("open");
     storage.run_migrations().expect("migrations");
-    storage.insert_event(&test_event(Kind::FileOpen)).expect("e");
+    storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e");
     storage.checkpoint().expect("checkpoint");
     drop(storage);
     // Read the raw file header.
@@ -561,7 +600,9 @@ fn key_never_stored_in_db_config_or_log() {
     };
     let storage = LocalStorage::open(&db_path, &key).expect("open");
     storage.run_migrations().expect("migrations");
-    storage.insert_event(&test_event(Kind::FileOpen)).expect("e");
+    storage
+        .insert_event(&test_event(Kind::FileOpen))
+        .expect("e");
     storage.checkpoint().expect("checkpoint");
     drop(storage);
     // Read the raw DB file and verify the key bytes are not present.

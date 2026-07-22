@@ -64,7 +64,9 @@ fn main() -> ExitCode {
     if argv.len() < 2 {
         eprintln!(
             "usage: {} <output-dir>\n  records .binpb fixtures under <output-dir>/dns/",
-            argv.first().map(String::as_str).unwrap_or("record-dns-fixtures")
+            argv.first()
+                .map(String::as_str)
+                .unwrap_or("record-dns-fixtures")
         );
         return ExitCode::from(2);
     }
@@ -80,7 +82,10 @@ fn main() -> ExitCode {
 
     // Toolchain probe — clear error if clang -target bpf is
     // missing. The recorder refuses to silently skip.
-    match Command::new("clang").args(["--target=bpf", "-E", "-x", "c", "/dev/null"]).output() {
+    match Command::new("clang")
+        .args(["--target=bpf", "-E", "-x", "c", "/dev/null"])
+        .output()
+    {
         Ok(o) if o.status.success() => {}
         Ok(o) => {
             eprintln!(
@@ -137,7 +142,11 @@ fn main() -> ExitCode {
         FIXTURE_NAMES.len()
     );
     for (i, name) in FIXTURE_NAMES.iter().enumerate() {
-        let sep = if i + 1 == FIXTURE_NAMES.len() { "" } else { "," };
+        let sep = if i + 1 == FIXTURE_NAMES.len() {
+            ""
+        } else {
+            ","
+        };
         let _ = writeln!(f, "  \"{name}\"{sep}");
     }
     let _ = writeln!(f, "] }}");
@@ -157,11 +166,7 @@ fn main() -> ExitCode {
     // correctly refuses to emit on them. If a future contributor
     // accidentally adds one of these .binpb files, the
     // corresponding decoder test fails with a clear diagnostic.
-    let must_not_exist: &[&str] = &[
-        "encrypted",
-        "oversized_compressed",
-        "ephemeral_mdns",
-    ];
+    let must_not_exist: &[&str] = &["encrypted", "oversized_compressed", "ephemeral_mdns"];
     eprintln!(
         "record-dns-fixtures: negative-evidence list (must NOT have fixtures): {}",
         must_not_exist.join(", ")

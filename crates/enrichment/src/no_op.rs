@@ -11,7 +11,9 @@
 
 use std::fmt;
 
-use crate::{ContainerRecord, PodRecord, ProviderError, RuntimeMetadata, RuntimeProvider, WorkloadRecord};
+use crate::{
+    ContainerRecord, PodRecord, ProviderError, RuntimeMetadata, RuntimeProvider, WorkloadRecord,
+};
 
 /// Fallback provider. The reason string is part of the documented surface so
 /// health/readiness surfaces can include it in their degraded-mode report.
@@ -41,10 +43,7 @@ impl RuntimeProvider for NoOpProvider {
         Box::pin(async move { Err(ProviderError::Unavailable(reason.to_string())) })
     }
 
-    fn lookup_pod(
-        &self,
-        _pod_uid: &str,
-    ) -> crate::BoxFuture<'_, Result<PodRecord, ProviderError>> {
+    fn lookup_pod(&self, _pod_uid: &str) -> crate::BoxFuture<'_, Result<PodRecord, ProviderError>> {
         let reason = self.reason;
         Box::pin(async move { Err(ProviderError::Unavailable(reason.to_string())) })
     }

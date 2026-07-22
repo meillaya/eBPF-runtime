@@ -32,27 +32,26 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const FIXTURE_NAMES: &[&str] = &[
-    "fork",
-    "exec_success",
-    "exec_failed",
-    "exit",
-    "thread_exit",
-];
+const FIXTURE_NAMES: &[&str] = &["fork", "exec_success", "exec_failed", "exit", "thread_exit"];
 
 fn main() -> ExitCode {
     let argv: Vec<String> = env::args().collect();
     if argv.len() < 2 {
         eprintln!(
             "usage: {} <output-dir>\n  records .binpb fixtures under <output-dir>/process/",
-            argv.first().map(String::as_str).unwrap_or("record-fixtures")
+            argv.first()
+                .map(String::as_str)
+                .unwrap_or("record-fixtures")
         );
         return ExitCode::from(2);
     }
     let out_dir = PathBuf::from(&argv[1]);
     let process_dir = out_dir.join("process");
     if let Err(e) = fs::create_dir_all(&process_dir) {
-        eprintln!("record-fixtures: cannot create {}: {e}", process_dir.display());
+        eprintln!(
+            "record-fixtures: cannot create {}: {e}",
+            process_dir.display()
+        );
         return ExitCode::from(1);
     }
 

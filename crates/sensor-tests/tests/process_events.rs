@@ -2166,9 +2166,15 @@ mod syscall_fixture {
         let orphan_exit_count = u64::from(replaced.is_some());
         assert!(orphan_exit_count > 0, "ORPHAN_EXIT_COUNT must be positive");
         assert_eq!(entry_state.len(), 1, "PID reuse must replace stale state");
-        assert_eq!(first.latency_ns, 0, "orphan cleanup must not fabricate latency");
+        assert_eq!(
+            first.latency_ns, 0,
+            "orphan cleanup must not fabricate latency"
+        );
         assert!(entry_state.remove(&key).is_some());
-        assert!(entry_state.is_empty(), "no stale TID state may survive cleanup");
+        assert!(
+            entry_state.is_empty(),
+            "no stale TID state may survive cleanup"
+        );
     }
 
     #[test]
@@ -2419,27 +2425,21 @@ fn decode_identity(bytes: &[u8]) -> Result<IdentityDecoded<'_>, String> {
     let identity_valids = lo | hi;
 
     let mut boot_id = [0u8; 16];
-    boot_id.copy_from_slice(&tail[identity_payload::BOOT_ID_OFF
-        ..identity_payload::BOOT_ID_OFF + 16]);
+    boot_id
+        .copy_from_slice(&tail[identity_payload::BOOT_ID_OFF..identity_payload::BOOT_ID_OFF + 16]);
 
     Ok(IdentityDecoded {
         header: event,
-        pid_tgid: read_u64_le(primary, identity_payload::PID_TGID_OFF)
-            .expect("pid_tgid offset"),
-        real_uid: read_u32_le(primary, identity_payload::REAL_UID_OFF)
-            .expect("real_uid"),
+        pid_tgid: read_u64_le(primary, identity_payload::PID_TGID_OFF).expect("pid_tgid offset"),
+        real_uid: read_u32_le(primary, identity_payload::REAL_UID_OFF).expect("real_uid"),
         effective_uid: read_u32_le(primary, identity_payload::EFFECTIVE_UID_OFF)
             .expect("effective_uid"),
-        saved_uid: read_u32_le(primary, identity_payload::SAVED_UID_OFF)
-            .expect("saved_uid"),
-        real_gid: read_u32_le(primary, identity_payload::REAL_GID_OFF)
-            .expect("real_gid"),
+        saved_uid: read_u32_le(primary, identity_payload::SAVED_UID_OFF).expect("saved_uid"),
+        real_gid: read_u32_le(primary, identity_payload::REAL_GID_OFF).expect("real_gid"),
         effective_gid: read_u32_le(primary, identity_payload::EFFECTIVE_GID_OFF)
             .expect("effective_gid"),
-        saved_gid: read_u32_le(primary, identity_payload::SAVED_GID_OFF)
-            .expect("saved_gid"),
-        loginuid: read_u32_le(primary, identity_payload::LOGINUID_OFF)
-            .expect("loginuid"),
+        saved_gid: read_u32_le(primary, identity_payload::SAVED_GID_OFF).expect("saved_gid"),
+        loginuid: read_u32_le(primary, identity_payload::LOGINUID_OFF).expect("loginuid"),
         cgroup_v2_default_id: read_u64_le(primary, identity_payload::CGROUP_V2_DEFAULT_OFF)
             .expect("cgroup_v2"),
         cgroup_v1_hierarchy_id: read_u64_le(primary, identity_payload::CGROUP_V1_HIERARCHY_OFF)
@@ -2447,8 +2447,7 @@ fn decode_identity(bytes: &[u8]) -> Result<IdentityDecoded<'_>, String> {
         flags,
         identity_valids,
         boot_id,
-        ns_pid_for_children: read_u64_le(primary, identity_payload::NS_PID_OFF)
-            .expect("ns_pid"),
+        ns_pid_for_children: read_u64_le(primary, identity_payload::NS_PID_OFF).expect("ns_pid"),
         ns_mnt: read_u64_le(primary, identity_payload::NS_MNT_OFF).expect("ns_mnt"),
         ns_net: read_u64_le(primary, identity_payload::NS_NET_OFF).expect("ns_net"),
         ns_user: read_u64_le(primary, identity_payload::NS_USER_OFF).expect("ns_user"),
@@ -2936,9 +2935,7 @@ mod saturation {
             .expect("failure_count MUST be an integer");
         must(
             failure_count > 0,
-            &format!(
-                "gap_detected fixture failure_count MUST be > 0 (got: {failure_count})"
-            ),
+            &format!("gap_detected fixture failure_count MUST be > 0 (got: {failure_count})"),
         );
     }
 
@@ -2981,13 +2978,14 @@ mod saturation {
         let schema = supported_load_schema_path();
         must(
             schema.exists(),
-            &format!("supported-load schema MUST be present at {}", schema.display()),
+            &format!(
+                "supported-load schema MUST be present at {}",
+                schema.display()
+            ),
         );
 
-        let out_dir = std::env::temp_dir().join(format!(
-            "saturation-test-oversize-{}",
-            std::process::id()
-        ));
+        let out_dir =
+            std::env::temp_dir().join(format!("saturation-test-oversize-{}", std::process::id()));
         let _ = fs::create_dir_all(&out_dir);
 
         let output = Command::new(&sh)
@@ -3037,10 +3035,8 @@ mod saturation {
         ));
         fs::write(&tmp_schema, &corrupted).expect("write corrupted schema");
 
-        let out_dir = std::env::temp_dir().join(format!(
-            "saturation-test-corrupt-{}",
-            std::process::id()
-        ));
+        let out_dir =
+            std::env::temp_dir().join(format!("saturation-test-corrupt-{}", std::process::id()));
         let _ = fs::create_dir_all(&out_dir);
 
         let output = Command::new(&sh)
@@ -3107,9 +3103,7 @@ mod saturation {
         expected.sort();
         must(
             observed == expected,
-            &format!(
-                "verdict enum coverage drifted: observed={observed:?} expected={expected:?}"
-            ),
+            &format!("verdict enum coverage drifted: observed={observed:?} expected={expected:?}"),
         );
     }
 
@@ -3146,4 +3140,3 @@ mod saturation {
         }
     }
 }
-

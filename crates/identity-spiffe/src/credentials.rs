@@ -342,6 +342,10 @@ mod tests {
     use crate::svid::{SvidSet, X509Bundle, X509Svid};
     use crate::workload::WorkloadApiState;
 
+    fn install_ring_provider() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+
     const FIXTURE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/spiffe");
 
     fn load_fixture(name: &str) -> String {
@@ -369,6 +373,7 @@ mod tests {
 
     #[test]
     fn rebuild_produces_valid_configs() {
+        install_ring_provider();
         let state = make_state_with_svid();
         let mgr = CredentialManager::new(state);
 
@@ -443,6 +448,7 @@ mod tests {
 
     #[test]
     fn needs_rebuild_on_rotation() {
+        install_ring_provider();
         let state = make_state_with_svid();
         let mgr = CredentialManager::new(state.clone());
 

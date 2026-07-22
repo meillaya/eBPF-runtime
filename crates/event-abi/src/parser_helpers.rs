@@ -81,7 +81,10 @@ pub fn format_valids(valids: u32) -> String {
         (crate::generated::dns_valid::FLAGS, "dns_flags"),
         (crate::generated::dns_valid::COUNTS, "dns_counts"),
         (crate::generated::dns_valid::DST_IP, "dns_dst_ip"),
-        (crate::generated::dns_valid::PAYLOAD_TRUNC, "dns_payload_trunc"),
+        (
+            crate::generated::dns_valid::PAYLOAD_TRUNC,
+            "dns_payload_trunc",
+        ),
     ];
     let mut s = String::new();
     for (bit, name) in names {

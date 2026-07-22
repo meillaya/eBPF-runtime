@@ -31,8 +31,8 @@ use std::time::{Duration, SystemTime};
 use serde::Deserialize;
 
 use crate::{
-    AttributionScope, ContainerRecord, PodRecord, ProviderError, RuntimeMetadata,
-    RuntimeProvider, WorkloadRecord,
+    AttributionScope, ContainerRecord, PodRecord, ProviderError, RuntimeMetadata, RuntimeProvider,
+    WorkloadRecord,
 };
 
 /// HTTP client placeholder. When the wire is wired in, this resolves to the
@@ -156,10 +156,7 @@ impl RuntimeProvider for ContainerdProvider {
         })
     }
 
-    fn lookup_pod(
-        &self,
-        _pod_uid: &str,
-    ) -> crate::BoxFuture<'_, Result<PodRecord, ProviderError>> {
+    fn lookup_pod(&self, _pod_uid: &str) -> crate::BoxFuture<'_, Result<PodRecord, ProviderError>> {
         Box::pin(async move {
             Err(ProviderError::Unavailable(
                 "containerd wire not wired in this build".to_string(),

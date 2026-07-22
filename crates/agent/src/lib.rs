@@ -186,7 +186,11 @@ pub async fn run_agent(args: AgentArgs) -> Result<(), AgentError> {
     let timeout = drain_timeout();
     let drain_storage = storage.clone();
     let drain_result =
-        tokio::time::timeout(timeout, async move { drain_and_flush(&drain_storage).await }).await;
+        tokio::time::timeout(
+            timeout,
+            async move { drain_and_flush(&drain_storage).await },
+        )
+        .await;
 
     drip_handle.abort();
     server_handle.abort();
@@ -198,7 +202,10 @@ pub async fn run_agent(args: AgentArgs) -> Result<(), AgentError> {
         }
         Ok(Err(e)) => Err(e),
         Err(_elapsed) => {
-            tracing::error!(timeout_ms = timeout.as_millis() as u64, "drain/flush timed out");
+            tracing::error!(
+                timeout_ms = timeout.as_millis() as u64,
+                "drain/flush timed out"
+            );
             Err(AgentError::TimeoutError)
         }
     }
@@ -207,7 +214,10 @@ pub async fn run_agent(args: AgentArgs) -> Result<(), AgentError> {
 /// Validate the listen address. The standalone service is local-only: it only
 /// ever binds a loopback address. A non-loopback bind (e.g. `0.0.0.0:8080`) is
 /// rejected by a strict check.
-pub fn validate_listen(listen: Option<&str>, dev: bool) -> Result<std::net::SocketAddr, AgentError> {
+pub fn validate_listen(
+    listen: Option<&str>,
+    dev: bool,
+) -> Result<std::net::SocketAddr, AgentError> {
     let raw = listen.unwrap_or(api::DEFAULT_DEV_BIND);
     let addr: std::net::SocketAddr = raw.parse().map_err(|e| {
         AgentError::IoError(std::io::Error::new(
@@ -262,9 +272,7 @@ pub fn init_logging(level: Option<&str>) {
     use tracing_subscriber::EnvFilter;
     let filter = level.unwrap_or("info");
     let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_new(filter).unwrap_or_else(|_| EnvFilter::new("info")),
-        )
+        .with_env_filter(EnvFilter::try_new(filter).unwrap_or_else(|_| EnvFilter::new("info")))
         .try_init();
 }
 

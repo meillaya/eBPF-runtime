@@ -47,23 +47,12 @@ impl AuditHook {
     }
 
     /// Record a mutation audit intent.
-    pub fn record_mutation(
-        &self,
-        actor: &str,
-        action: &str,
-        resource: &str,
-    ) {
+    pub fn record_mutation(&self, actor: &str, action: &str, resource: &str) {
         self.sink.record(AuditIntent::new(actor, action, resource));
     }
 
     /// Record a denied mutation attempt (for security audit).
-    pub fn record_denied(
-        &self,
-        actor: &str,
-        action: &str,
-        resource: &str,
-        reason: &str,
-    ) {
+    pub fn record_denied(&self, actor: &str, action: &str, resource: &str, reason: &str) {
         self.sink.record(AuditIntent::new(
             actor,
             &format!("denied:{action}"),

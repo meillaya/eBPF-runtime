@@ -101,9 +101,7 @@ impl AuditLog {
         error_msg: &str,
         tick: u64,
     ) -> u64 {
-        self.append(
-            actor, action, resource, detail_json, false, error_msg, tick,
-        )
+        self.append(actor, action, resource, detail_json, false, error_msg, tick)
     }
 
     /// All entries in order.

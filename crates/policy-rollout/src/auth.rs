@@ -75,11 +75,7 @@ impl RolloutAuthorizer {
 
     /// Authorize an operator command (STAGE, COMMIT, CANCEL,
     /// ROLLBACK). The issuer must be in the operator list.
-    pub fn authorize_operator(
-        &self,
-        spiffe_id: &str,
-        operation: &str,
-    ) -> RolloutResult<()> {
+    pub fn authorize_operator(&self, spiffe_id: &str, operation: &str) -> RolloutResult<()> {
         self.validate_trust_domain(spiffe_id)?;
 
         if !self.operator_ids.iter().any(|id| id == spiffe_id) {
@@ -106,9 +102,7 @@ impl RolloutAuthorizer {
             return Err(RolloutError::Unauthorized {
                 spiffe_id: agent_spiffe_id.to_string(),
                 operation: operation.to_string(),
-                reason: format!(
-                    "agent ID mismatch: expected {expected_agent_id}"
-                ),
+                reason: format!("agent ID mismatch: expected {expected_agent_id}"),
             });
         }
         Ok(())
@@ -147,10 +141,7 @@ mod tests {
     fn operator_authorized() {
         let auth = authorizer();
         assert!(auth
-            .authorize_operator(
-                "spiffe://kernel-v1.test/operator/admin",
-                "stage"
-            )
+            .authorize_operator("spiffe://kernel-v1.test/operator/admin", "stage")
             .is_ok());
     }
 
@@ -158,10 +149,7 @@ mod tests {
     fn operator_not_in_list_rejected() {
         let auth = authorizer();
         let err = auth
-            .authorize_operator(
-                "spiffe://kernel-v1.test/operator/other",
-                "stage",
-            )
+            .authorize_operator("spiffe://kernel-v1.test/operator/other", "stage")
             .unwrap_err();
         assert!(matches!(err, RolloutError::Unauthorized { .. }));
     }
@@ -170,10 +158,7 @@ mod tests {
     fn wrong_trust_domain_rejected() {
         let auth = authorizer();
         let err = auth
-            .authorize_operator(
-                "spiffe://evil.example/operator/admin",
-                "stage",
-            )
+            .authorize_operator("spiffe://evil.example/operator/admin", "stage")
             .unwrap_err();
         assert!(matches!(err, RolloutError::Unauthorized { .. }));
     }
@@ -182,14 +167,10 @@ mod tests {
     fn trust_domain_exact_match_not_substring() {
         let auth = authorizer();
         // "kernel-v1.test" should NOT match "kernel-v1.test.evil"
-        assert!(!auth.is_in_trust_domain(
-            "spiffe://kernel-v1.test.evil/operator/admin"
-        ));
+        assert!(!auth.is_in_trust_domain("spiffe://kernel-v1.test.evil/operator/admin"));
         // "kernel-v1" should NOT match "kernel-v1.test"
         let auth2 = RolloutAuthorizer::new("kernel-v1", vec![]);
-        assert!(!auth2.is_in_trust_domain(
-            "spiffe://kernel-v1.test/operator/admin"
-        ));
+        assert!(!auth2.is_in_trust_domain("spiffe://kernel-v1.test/operator/admin"));
     }
 
     #[test]

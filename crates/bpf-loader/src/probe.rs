@@ -81,11 +81,7 @@ pub enum ProbeOutcome {
 /// docs for the contract; on this unprivileged build host the
 /// function returns the documented Blocked entry; the
 /// privileged-runner path lives in task 53+.
-pub fn probe_sensor(
-    artifacts: &BpfArtifacts,
-    arch: &str,
-    sensor: &str,
-) -> SensorCoverage {
+pub fn probe_sensor(artifacts: &BpfArtifacts, arch: &str, sensor: &str) -> SensorCoverage {
     let mut coverage = SensorCoverage {
         sensor: sensor.to_string(),
         arch: arch.to_string(),
@@ -158,9 +154,7 @@ pub fn now_utc_iso8601() -> String {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let (year, month, day, hour, minute, second) = epoch_to_ymdhms(secs);
-    format!(
-        "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z"
-    )
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
 }
 
 fn epoch_to_ymdhms(secs: u64) -> (u32, u32, u32, u32, u32, u32) {
@@ -248,7 +242,7 @@ pub fn build_state(artifacts: &BpfArtifacts, arch: &str) -> LoaderState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::embedded::{BpfArtifact, BpfArtifacts, EMPTY_ARTIFACTS, artifact_key};
+    use crate::embedded::{artifact_key, BpfArtifact, BpfArtifacts, EMPTY_ARTIFACTS};
 
     #[test]
     fn probe_with_empty_artifacts_records_blocked_for_every_sensor() {
@@ -277,9 +271,14 @@ mod tests {
         );
         let cov = probe_sensor(&artifacts, "amd64", "process");
         assert_eq!(cov.status, SensorStatus::Blocked);
-        assert!(cov.reasons.iter().any(|r| r.contains("cap-bpf-or-cap-perfmon-required")));
+        assert!(cov
+            .reasons
+            .iter()
+            .any(|r| r.contains("cap-bpf-or-cap-perfmon-required")));
         assert!(
-            cov.ladder.iter().any(|r| r.section == "raw_tracepoint/sched_process_exec"),
+            cov.ladder
+                .iter()
+                .any(|r| r.section == "raw_tracepoint/sched_process_exec"),
             "first ladder rung was recorded"
         );
     }
@@ -321,7 +320,12 @@ mod tests {
         assert_eq!(state.pinned_deny_links_count(), 0);
         assert_eq!(state.active_links_count(), 0);
         assert_eq!(state.coverage.sensors.len(), 6);
-        let names: Vec<String> = state.coverage.sensors.iter().map(|s| s.sensor.clone()).collect();
+        let names: Vec<String> = state
+            .coverage
+            .sensors
+            .iter()
+            .map(|s| s.sensor.clone())
+            .collect();
         assert_eq!(
             names,
             vec!["dns", "file", "identity", "network", "process", "syscall"]

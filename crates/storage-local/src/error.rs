@@ -55,8 +55,9 @@ impl StorageError {
                 let code = sqlite_err.code;
                 let msg_str = msg.clone().unwrap_or_default();
                 match code {
-                    rusqlite::ErrorCode::DatabaseBusy
-                    | rusqlite::ErrorCode::DatabaseLocked => Self::DatabaseLocked,
+                    rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked => {
+                        Self::DatabaseLocked
+                    }
                     rusqlite::ErrorCode::DiskFull => Self::FullDisk,
                     rusqlite::ErrorCode::NotADatabase => Self::WrongKey,
                     _ => {

@@ -48,7 +48,9 @@ impl PredicateEvaluator {
             Operator::NotIn => Ok(!in_set(field_value, condition_value)?),
             Operator::Contains => contains(field_value, condition_value),
             Operator::NotContains => Ok(!contains(field_value, condition_value)?),
-            Operator::StartsWith => str_binop(field_value, condition_value, |h, n| h.starts_with(n)),
+            Operator::StartsWith => {
+                str_binop(field_value, condition_value, |h, n| h.starts_with(n))
+            }
             Operator::EndsWith => str_binop(field_value, condition_value, |h, n| h.ends_with(n)),
             Operator::Regex => {
                 let (haystack, pattern) = regex_operands(field_value, condition_value)?;
@@ -107,9 +109,7 @@ fn values_eq(a: &Value, b: &Value) -> Result<bool> {
 
 /// Numeric ordering without coercion. NaN is unordered (incompatible).
 fn compare(a: &Value, b: &Value) -> Result<Ordering> {
-    let err = || {
-        RuleError::IncompatibleTypes("cannot order NaN".to_string())
-    };
+    let err = || RuleError::IncompatibleTypes("cannot order NaN".to_string());
     match (a, b) {
         (Value::Integer(x), Value::Integer(y)) => Ok(x.cmp(y)),
         (Value::Float(x), Value::Float(y)) => x.partial_cmp(y).ok_or_else(err),
@@ -183,7 +183,10 @@ fn str_binop(
 }
 
 /// Extract `(haystack, pattern)` for a regex predicate; both must be strings.
-fn regex_operands<'a>(field_value: &'a Value, condition_value: &'a Value) -> Result<(&'a str, &'a str)> {
+fn regex_operands<'a>(
+    field_value: &'a Value,
+    condition_value: &'a Value,
+) -> Result<(&'a str, &'a str)> {
     match (field_value, condition_value) {
         (Value::String(haystack), Value::String(pattern)) => Ok((haystack, pattern)),
         _ => Err(RuleError::IncompatibleTypes(

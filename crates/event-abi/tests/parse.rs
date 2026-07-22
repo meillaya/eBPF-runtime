@@ -316,7 +316,7 @@ fn dns_payload_layout_matches_c_header_struct() {
     };
     assert_eq!(bytes.len(), DNS_PAYLOAD_LEN);
     assert!(bytes.len() >= 8 + DNS_QNAME_MAX);
-    assert!(DNS_PAYLOAD_LEN >= 320);
+    const _: () = assert!(DNS_PAYLOAD_LEN >= 320);
 }
 
 #[test]

@@ -26,9 +26,18 @@ fn health_status_degraded_with_multiple_reasons() {
     let health = registry.health();
     assert_eq!(health.status, HealthState::Degraded);
     assert!(health.reasons.len() >= 3);
-    assert!(health.reasons.iter().any(|r| r.contains("sensor process detached")));
-    assert!(health.reasons.iter().any(|r| r.contains("sensor network degraded")));
-    assert!(health.reasons.iter().any(|r| r.contains("sensor dns detached")));
+    assert!(health
+        .reasons
+        .iter()
+        .any(|r| r.contains("sensor process detached")));
+    assert!(health
+        .reasons
+        .iter()
+        .any(|r| r.contains("sensor network degraded")));
+    assert!(health
+        .reasons
+        .iter()
+        .any(|r| r.contains("sensor dns detached")));
 }
 
 #[test]
@@ -40,9 +49,18 @@ fn health_status_unhealthy_with_multiple_reasons() {
 
     let health = registry.health();
     assert_eq!(health.status, HealthState::Unhealthy);
-    assert!(health.reasons.iter().any(|r| r.contains("storage unavailable")));
-    assert!(health.reasons.iter().any(|r| r.contains("sensor process detached")));
-    assert!(health.reasons.iter().any(|r| r.contains("sensor file detached")));
+    assert!(health
+        .reasons
+        .iter()
+        .any(|r| r.contains("storage unavailable")));
+    assert!(health
+        .reasons
+        .iter()
+        .any(|r| r.contains("sensor process detached")));
+    assert!(health
+        .reasons
+        .iter()
+        .any(|r| r.contains("sensor file detached")));
 }
 
 #[test]
@@ -55,9 +73,18 @@ fn readiness_status_not_ready_with_multiple_reasons() {
 
     let readiness = registry.readiness();
     assert_eq!(readiness.status, ReadinessState::NotReady);
-    assert!(readiness.reasons.iter().any(|r| r.contains("storage unavailable")));
-    assert!(readiness.reasons.iter().any(|r| r.contains("sensor file not attached")));
-    assert!(readiness.reasons.iter().any(|r| r.contains("sensor network not attached")));
+    assert!(readiness
+        .reasons
+        .iter()
+        .any(|r| r.contains("storage unavailable")));
+    assert!(readiness
+        .reasons
+        .iter()
+        .any(|r| r.contains("sensor file not attached")));
+    assert!(readiness
+        .reasons
+        .iter()
+        .any(|r| r.contains("sensor network not attached")));
 }
 
 // ---------------------------------------------------------------------------

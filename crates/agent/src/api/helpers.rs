@@ -240,7 +240,7 @@ pub(crate) fn json_response(status: StatusCode, value: Value) -> Response<Full<B
         .status(status)
         .header("content-type", "application/json")
         .body(Full::new(Bytes::from(body)))
-        .unwrap()
+        .expect("static header names are valid")
 }
 
 pub(crate) fn text_response(
@@ -252,7 +252,7 @@ pub(crate) fn text_response(
         .status(status)
         .header("content-type", content_type)
         .body(Full::new(Bytes::from(text.into_bytes())))
-        .unwrap()
+        .expect("static header names are valid")
 }
 
 pub(crate) fn error_response(

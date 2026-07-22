@@ -71,9 +71,7 @@ fn main() -> ExitCode {
                 Some(ExitCode::from(1))
             }
             Err(e) => {
-                eprintln!(
-                    "record-saturation-fixtures: {tool} not on PATH ({e}); {hint}; aborting"
-                );
+                eprintln!("record-saturation-fixtures: {tool} not on PATH ({e}); {hint}; aborting");
                 Some(ExitCode::from(1))
             }
         }
@@ -100,9 +98,7 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
         Err(e) => {
-            eprintln!(
-                "record-saturation-fixtures: clang not on PATH ({e}); aborting"
-            );
+            eprintln!("record-saturation-fixtures: clang not on PATH ({e}); aborting");
             return ExitCode::from(1);
         }
     }
@@ -141,13 +137,14 @@ fn main() -> ExitCode {
         FIXTURE_NAMES.len()
     );
     for (i, name) in FIXTURE_NAMES.iter().enumerate() {
-        let sep = if i + 1 == FIXTURE_NAMES.len() { "" } else { "," };
+        let sep = if i + 1 == FIXTURE_NAMES.len() {
+            ""
+        } else {
+            ","
+        };
         let _ = writeln!(f, "  \"{name}\"{sep}");
     }
-    let _ = writeln!(
-        f,
-        "] }}"
-    );
+    let _ = writeln!(f, "] }}");
 
     for name in FIXTURE_NAMES {
         let placeholder = sat_dir.join(format!("{name}.json"));

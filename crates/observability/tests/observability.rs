@@ -40,7 +40,10 @@ fn health_status_degraded_when_sensor_detached() {
 
     let health = registry.health();
     assert_eq!(health.status, HealthState::Degraded);
-    assert!(health.reasons.iter().any(|r| r.contains("sensor process detached")));
+    assert!(health
+        .reasons
+        .iter()
+        .any(|r| r.contains("sensor process detached")));
 }
 
 #[test]
@@ -53,7 +56,10 @@ fn health_status_unhealthy_when_storage_unavailable() {
 
     let health = registry.health();
     assert_eq!(health.status, HealthState::Unhealthy);
-    assert!(health.reasons.iter().any(|r| r.contains("storage unavailable")));
+    assert!(health
+        .reasons
+        .iter()
+        .any(|r| r.contains("storage unavailable")));
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +90,10 @@ fn readiness_status_not_ready_when_sensor_detached() {
 
     let readiness = registry.readiness();
     assert_eq!(readiness.status, ReadinessState::NotReady);
-    assert!(readiness.reasons.iter().any(|r| r.contains("sensor network not attached")));
+    assert!(readiness
+        .reasons
+        .iter()
+        .any(|r| r.contains("sensor network not attached")));
 }
 
 #[test]
@@ -97,7 +106,10 @@ fn readiness_status_not_ready_when_storage_unavailable() {
 
     let readiness = registry.readiness();
     assert_eq!(readiness.status, ReadinessState::NotReady);
-    assert!(readiness.reasons.iter().any(|r| r.contains("storage unavailable")));
+    assert!(readiness
+        .reasons
+        .iter()
+        .any(|r| r.contains("storage unavailable")));
 }
 
 // ---------------------------------------------------------------------------
@@ -323,14 +335,17 @@ fn metrics_labels_are_bounded_enums() {
     let metrics = registry.metrics();
 
     // Verify all label values come from bounded sets.
-    let valid_sources: Vec<&str> = Source::ALL.iter().map(|s| match s {
-        Source::Process => "process",
-        Source::File => "file",
-        Source::Network => "network",
-        Source::Dns => "dns",
-        Source::Syscall => "syscall",
-        Source::Identity => "identity",
-    }).collect();
+    let valid_sources: Vec<&str> = Source::ALL
+        .iter()
+        .map(|s| match s {
+            Source::Process => "process",
+            Source::File => "file",
+            Source::Network => "network",
+            Source::Dns => "dns",
+            Source::Syscall => "syscall",
+            Source::Identity => "identity",
+        })
+        .collect();
     for source in &valid_sources {
         assert!(metrics.contains(&format!("source=\"{source}\"")));
     }
@@ -502,9 +517,12 @@ fn saturation_increments_exact_loss_counters() {
     let metrics = registry.metrics();
 
     // Verify exact counter values.
-    assert!(metrics.contains("ebpf_agent_source_drops_total{reason=\"ring_full\",source=\"process\"} 2"));
-    assert!(metrics.contains("ebpf_agent_source_drops_total{reason=\"channel_full\",source=\"process\"} 1"));
-    assert!(metrics.contains("ebpf_agent_source_drops_total{reason=\"ring_full\",source=\"network\"} 1"));
+    assert!(metrics
+        .contains("ebpf_agent_source_drops_total{reason=\"ring_full\",source=\"process\"} 2"));
+    assert!(metrics
+        .contains("ebpf_agent_source_drops_total{reason=\"channel_full\",source=\"process\"} 1"));
+    assert!(metrics
+        .contains("ebpf_agent_source_drops_total{reason=\"ring_full\",source=\"network\"} 1"));
     assert!(metrics.contains("ebpf_agent_channel_shedding_total{channel=\"data\"} 2"));
     assert!(metrics.contains("ebpf_agent_channel_shedding_total{channel=\"control\"} 1"));
 }

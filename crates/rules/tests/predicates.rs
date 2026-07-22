@@ -128,7 +128,11 @@ fn evaluate_not_in_predicate_succeeds() {
 fn evaluate_contains_predicate_succeeds() {
     let event = Event::new().with_field("file.path", s("/etc/passwd"));
     let result = ev()
-        .evaluate_condition(&field("file.path", Operator::Contains, s("/etc")), &event, &[])
+        .evaluate_condition(
+            &field("file.path", Operator::Contains, s("/etc")),
+            &event,
+            &[],
+        )
         .unwrap();
     assert!(result.matched);
 }
@@ -137,7 +141,11 @@ fn evaluate_contains_predicate_succeeds() {
 fn evaluate_not_contains_predicate_succeeds() {
     let event = Event::new().with_field("file.path", s("/etc/passwd"));
     let result = ev()
-        .evaluate_condition(&field("file.path", Operator::NotContains, s("/var")), &event, &[])
+        .evaluate_condition(
+            &field("file.path", Operator::NotContains, s("/var")),
+            &event,
+            &[],
+        )
         .unwrap();
     assert!(result.matched);
 }
@@ -146,7 +154,11 @@ fn evaluate_not_contains_predicate_succeeds() {
 fn evaluate_starts_with_predicate_succeeds() {
     let event = Event::new().with_field("file.path", s("/etc/passwd"));
     let result = ev()
-        .evaluate_condition(&field("file.path", Operator::StartsWith, s("/etc")), &event, &[])
+        .evaluate_condition(
+            &field("file.path", Operator::StartsWith, s("/etc")),
+            &event,
+            &[],
+        )
         .unwrap();
     assert!(result.matched);
 }
@@ -155,7 +167,11 @@ fn evaluate_starts_with_predicate_succeeds() {
 fn evaluate_ends_with_predicate_succeeds() {
     let event = Event::new().with_field("file.path", s("/etc/passwd"));
     let result = ev()
-        .evaluate_condition(&field("file.path", Operator::EndsWith, s("passwd")), &event, &[])
+        .evaluate_condition(
+            &field("file.path", Operator::EndsWith, s("passwd")),
+            &event,
+            &[],
+        )
         .unwrap();
     assert!(result.matched);
 }
@@ -164,7 +180,11 @@ fn evaluate_ends_with_predicate_succeeds() {
 fn evaluate_regex_predicate_succeeds() {
     let event = Event::new().with_field("file.path", s("/etc/passwd"));
     let result = ev()
-        .evaluate_condition(&field("file.path", Operator::Regex, s("^/etc/.*$")), &event, &[])
+        .evaluate_condition(
+            &field("file.path", Operator::Regex, s("^/etc/.*$")),
+            &event,
+            &[],
+        )
         .unwrap();
     assert!(result.matched);
 }
@@ -173,7 +193,11 @@ fn evaluate_regex_predicate_succeeds() {
 fn evaluate_not_regex_predicate_succeeds() {
     let event = Event::new().with_field("file.path", s("/etc/passwd"));
     let result = ev()
-        .evaluate_condition(&field("file.path", Operator::NotRegex, s("^/var/.*$")), &event, &[])
+        .evaluate_condition(
+            &field("file.path", Operator::NotRegex, s("^/var/.*$")),
+            &event,
+            &[],
+        )
         .unwrap();
     assert!(result.matched);
 }
@@ -296,8 +320,20 @@ fn evaluate_unknown_operator_fails() {
     ));
     // every known operator name parses
     for name in [
-        "eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in", "contains", "not_contains",
-        "starts_with", "ends_with", "regex", "not_regex",
+        "eq",
+        "ne",
+        "gt",
+        "lt",
+        "gte",
+        "lte",
+        "in",
+        "not_in",
+        "contains",
+        "not_contains",
+        "starts_with",
+        "ends_with",
+        "regex",
+        "not_regex",
     ] {
         assert!(parse_operator(name).is_ok(), "{name} should parse");
     }

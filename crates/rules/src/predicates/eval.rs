@@ -77,7 +77,9 @@ impl PredicateEvaluator {
                 // Unknown or null field value -> non-match, never true.
                 let matched = match event.lookup(field) {
                     None => false,
-                    Some(field_value) => self.evaluate_predicate(operator, field_value, &resolved)?,
+                    Some(field_value) => {
+                        self.evaluate_predicate(operator, field_value, &resolved)?
+                    }
                 };
                 Ok(EvaluationResult {
                     matched,
@@ -126,7 +128,12 @@ impl PredicateEvaluator {
     /// Resolution is exactly one level: list items are literal strings and are
     /// never re-expanded, so a list that names another list (or itself) cannot
     /// recurse. The resolved list is bounded by `max_list_items`.
-    fn resolve_list_value(&self, operator: &Operator, value: &Value, lists: &[List]) -> Result<Value> {
+    fn resolve_list_value(
+        &self,
+        operator: &Operator,
+        value: &Value,
+        lists: &[List],
+    ) -> Result<Value> {
         if !matches!(operator, Operator::In | Operator::NotIn) {
             return Ok(value.clone());
         }
@@ -136,7 +143,10 @@ impl PredicateEvaluator {
                     return Err(RuleError::TooManyListItems(list.items.len()));
                 }
                 return Ok(Value::Array(
-                    list.items.iter().map(|i| Value::String(i.clone())).collect(),
+                    list.items
+                        .iter()
+                        .map(|i| Value::String(i.clone()))
+                        .collect(),
                 ));
             }
         }

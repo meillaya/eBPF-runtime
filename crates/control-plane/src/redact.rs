@@ -200,7 +200,9 @@ mod tests {
         let row = test_row(r#"{"auth":"Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"}"#);
         let redacted = redact_event_row(&row);
         assert!(redacted.payload.contains(MASKED));
-        assert!(!redacted.payload.contains("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"));
+        assert!(!redacted
+            .payload
+            .contains("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"));
         assert!(redacted.payload_redacted);
     }
 

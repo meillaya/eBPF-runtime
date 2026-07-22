@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //! Standalone CLI for the eBPF runtime security observability agent.
+#![allow(clippy::result_large_err)]
 //!
 //! Safety invariants (plan task 26):
 //! - The CLI only READS events from local storage or the agent API; it never
@@ -185,17 +186,11 @@ fn init_logging(level: Option<&str>) {
 
 async fn preflight(base: &str) -> Result<(), CliError> {
     println!("PREFLIGHT COVERAGE MATRIX");
-    println!(
-        "{:<10} | {:<15} | {:<10} | {}",
-        "program", "sensor coverage", "attach", "kind"
-    );
+    println!("program    | sensor coverage | attach     | kind");
     for program in observability::Program::ALL {
         println!(
-            "{:<10} | {:<15} | {:<10} | {}",
-            program.to_string(),
-            "covered",
-            "tracing",
-            "kprobe/tp"
+            "{:<10} | covered         | tracing    | kprobe/tp",
+            program.to_string()
         );
     }
     match get_text(&format!("{base}/api/v1/health")).await {

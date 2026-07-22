@@ -106,7 +106,7 @@ fn compression_loop_fails_after_512_iterations() {
         result,
         Err(DnsDecodeError::CompressionLoopDetected)
     ));
-    assert!(MAX_NAME_ITERATIONS == 512);
+    const _: () = assert!(MAX_NAME_ITERATIONS == 512);
 }
 
 #[test]
@@ -120,7 +120,7 @@ fn oversized_record_payload_is_rejected() {
     push_u16(&mut packet, 1);
     push_u32(&mut packet, 0);
     push_u16(&mut packet, payload_len as u16);
-    packet.extend(std::iter::repeat(0_u8).take(payload_len));
+    packet.extend(std::iter::repeat_n(0_u8, payload_len));
     let result = parse_dns_message(&packet);
     assert!(matches!(result, Err(DnsDecodeError::PayloadOversized)));
 }

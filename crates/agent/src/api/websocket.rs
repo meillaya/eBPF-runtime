@@ -68,7 +68,7 @@ pub(crate) fn websocket(req: Request<Incoming>, state: &ApiState) -> Response<Fu
         .header(CONNECTION, "upgrade")
         .header(SEC_WEBSOCKET_ACCEPT, accept)
         .body(Full::new(Bytes::new()))
-        .unwrap()
+        .expect("static header names are valid")
 }
 
 /// Forward live events to a single WebSocket consumer. A consumer that falls

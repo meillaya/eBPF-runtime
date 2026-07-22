@@ -108,13 +108,11 @@ fn http_get(addr: SocketAddr, path: &str) {
 /// Parse the `--addr` argument from the CLI args.
 fn parse_addr(args: &[String]) -> SocketAddr {
     for i in 0..args.len() {
-        if args[i] == "--addr" {
-            if i + 1 < args.len() {
-                return args[i + 1].parse().unwrap_or_else(|e| {
-                    eprintln!("invalid address '{}': {e}", args[i + 1]);
-                    std::process::exit(1);
-                });
-            }
+        if args[i] == "--addr" && i + 1 < args.len() {
+            return args[i + 1].parse().unwrap_or_else(|e| {
+                eprintln!("invalid address '{}': {e}", args[i + 1]);
+                std::process::exit(1);
+            });
         }
     }
     // Default address.

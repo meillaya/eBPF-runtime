@@ -57,15 +57,20 @@ pub fn load_budget_from_schema(path: &Path) -> Result<RuleBudget> {
     let json: serde_json::Value = serde_json::from_str(&raw)?;
     let props = &json["properties"];
     let mut b = default_budget();
-    b.max_ops_per_evaluation = read_usize(props, "max_ops_per_evaluation", b.max_ops_per_evaluation);
-    b.max_nested_expressions = read_usize(props, "max_nested_expressions", b.max_nested_expressions);
+    b.max_ops_per_evaluation =
+        read_usize(props, "max_ops_per_evaluation", b.max_ops_per_evaluation);
+    b.max_nested_expressions =
+        read_usize(props, "max_nested_expressions", b.max_nested_expressions);
     b.max_list_items = read_usize(props, "max_list_items", b.max_list_items);
     b.max_regex_chars = read_usize(props, "max_regex_chars", b.max_regex_chars);
     b.max_regex_time_ms = read_u64(props, "max_regex_time_ms", b.max_regex_time_ms);
     b.max_exception_items = read_usize(props, "max_exception_items", b.max_exception_items);
     b.max_sequence_steps = read_usize(props, "max_sequence_steps", b.max_sequence_steps);
-    b.max_sequence_window_seconds =
-        read_u64(props, "max_sequence_window_seconds", b.max_sequence_window_seconds);
+    b.max_sequence_window_seconds = read_u64(
+        props,
+        "max_sequence_window_seconds",
+        b.max_sequence_window_seconds,
+    );
     Ok(b)
 }
 

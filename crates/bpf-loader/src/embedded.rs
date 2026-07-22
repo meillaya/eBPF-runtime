@@ -95,7 +95,11 @@ pub fn artifact_key(arch: &str, sensor: &str) -> String {
 /// `"{arch}/{sensor}"` key. Returns `None` when the build pipeline
 /// produced no entries (the documented graceful path). Callers
 /// must treat `None` and `Some(empty)` symmetrically.
-pub fn lookup<'a>(artifacts: &'a BpfArtifacts, arch: &str, sensor: &str) -> Option<&'a BpfArtifact> {
+pub fn lookup<'a>(
+    artifacts: &'a BpfArtifacts,
+    arch: &str,
+    sensor: &str,
+) -> Option<&'a BpfArtifact> {
     artifacts.get(&artifact_key(arch, sensor))
 }
 
@@ -105,14 +109,12 @@ pub fn lookup<'a>(artifacts: &'a BpfArtifacts, arch: &str, sensor: &str) -> Opti
 pub fn iter_sorted(artifacts: &BpfArtifacts) -> impl Iterator<Item = (&str, &str, &BpfArtifact)> {
     let mut entries: Vec<(&String, &BpfArtifact)> = artifacts.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
-    entries
-        .into_iter()
-        .map(|(k, v)| {
-            // `k` is `"{arch}/{sensor}"`; split on the single
-            // '/' that the `artifact_key` helper inserts.
-            let (arch, sensor) = k.split_once('/').unwrap_or(("?", "?"));
-            (arch, sensor, v)
-        })
+    entries.into_iter().map(|(k, v)| {
+        // `k` is `"{arch}/{sensor}"`; split on the single
+        // '/' that the `artifact_key` helper inserts.
+        let (arch, sensor) = k.split_once('/').unwrap_or(("?", "?"));
+        (arch, sensor, v)
+    })
 }
 
 #[cfg(test)]

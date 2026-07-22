@@ -47,6 +47,4 @@ pub use error::{RolloutError, RolloutResult};
 pub use model::*;
 pub use reconcile::Reconciler;
 pub use state_machine::FleetRolloutCoordinator;
-pub use store::{
-    AgentStateStore, LastKnownGoodStore, PolicyVersionStore, RolloutStore,
-};
+pub use store::{AgentStateStore, LastKnownGoodStore, PolicyVersionStore, RolloutStore};

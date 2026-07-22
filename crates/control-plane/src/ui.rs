@@ -52,7 +52,11 @@ impl StaticUi {
         let clean = request_path.trim_start_matches('/');
 
         // Empty path → index.html.
-        let clean = if clean.is_empty() { "index.html" } else { clean };
+        let clean = if clean.is_empty() {
+            "index.html"
+        } else {
+            clean
+        };
 
         let path = Path::new(clean);
 

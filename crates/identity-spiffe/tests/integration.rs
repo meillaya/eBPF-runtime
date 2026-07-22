@@ -300,6 +300,7 @@ fn authorization_callback_rejects_trust_domain_substring() {
 
 #[test]
 fn credentials_available_across_rotation() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let metrics = SpiffeMetrics::new();
     let mut client =
         WorkloadApiClient::with_socket_path("/tmp/test.sock", test_selector(), metrics);

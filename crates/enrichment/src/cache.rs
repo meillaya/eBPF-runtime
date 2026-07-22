@@ -89,12 +89,20 @@ impl EnrichmentCache {
     /// Construct a cache around the given provider with the default TTL and
     /// capacity.
     pub fn new(provider: Arc<dyn RuntimeProvider>) -> Self {
-        Self::with_options(provider, Duration::from_secs(DEFAULT_TTL_SECONDS), DEFAULT_CAPACITY)
+        Self::with_options(
+            provider,
+            Duration::from_secs(DEFAULT_TTL_SECONDS),
+            DEFAULT_CAPACITY,
+        )
     }
 
     /// Construct a cache with explicit TTL and capacity. Used by tests to
     /// exercise TTL expiry deterministically.
-    pub fn with_options(provider: Arc<dyn RuntimeProvider>, ttl: Duration, capacity: usize) -> Self {
+    pub fn with_options(
+        provider: Arc<dyn RuntimeProvider>,
+        ttl: Duration,
+        capacity: usize,
+    ) -> Self {
         assert!(capacity > 0, "EnrichmentCache capacity must be > 0");
         Self {
             provider,

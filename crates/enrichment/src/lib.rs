@@ -59,9 +59,11 @@ pub type BoxFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T
 /// on `ProviderError::Unavailable`.
 ///
 /// Implementations must NOT fabricate data:
-/// - if the runtime says the container was deleted, return `NotFound`;
-/// - if the socket is absent or the API times out, return `Unavailable`;
-/// - if credentials are wrong, return `AuthDenied`.
+///
+///   - if the runtime says the container was deleted, return `NotFound`;
+///   - if the socket is absent or the API times out, return `Unavailable`;
+///   - if credentials are wrong, return `AuthDenied`.
+///
 /// The cache layer above this trait translates these outcomes into honest
 /// scopes and TTL-bounded entries.
 pub trait RuntimeProvider: Send + Sync + fmt::Debug {
@@ -71,7 +73,10 @@ pub trait RuntimeProvider: Send + Sync + fmt::Debug {
     /// event. Implementations must look up by the kernel identity, not by the
     /// event-time container id recorded by the ABI (which can be stale across
     /// restarts).
-    fn lookup_container(&self, cgroup_id: u64) -> BoxFuture<'_, Result<ContainerRecord, ProviderError>>;
+    fn lookup_container(
+        &self,
+        cgroup_id: u64,
+    ) -> BoxFuture<'_, Result<ContainerRecord, ProviderError>>;
 
     /// Look up a Kubernetes pod by its Pod UID.
     ///
@@ -87,7 +92,10 @@ pub trait RuntimeProvider: Send + Sync + fmt::Debug {
     /// enriching a process event: it returns the full structured payload in
     /// a single round trip (best case) and degrades gracefully when only
     /// part of the join succeeds.
-    fn lookup_workload(&self, cgroup_id: u64) -> BoxFuture<'_, Result<WorkloadRecord, ProviderError>>;
+    fn lookup_workload(
+        &self,
+        cgroup_id: u64,
+    ) -> BoxFuture<'_, Result<WorkloadRecord, ProviderError>>;
 
     /// Report the runtime metadata (kind, socket path, rootless flag, cgroup
     /// hierarchy version). Used by health/readiness surfaces and by the

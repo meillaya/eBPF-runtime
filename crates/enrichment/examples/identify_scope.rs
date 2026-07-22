@@ -39,8 +39,8 @@ fn run() -> Result<(), String> {
         buf
     };
 
-    let input: IdentifyScopeInput = serde_json::from_str(&raw)
-        .map_err(|err| format!("invalid JSON input: {err}"))?;
+    let input: IdentifyScopeInput =
+        serde_json::from_str(&raw).map_err(|err| format!("invalid JSON input: {err}"))?;
     let scope = derive_scope_from_path(&input.cgroup_path);
     let envelope = serde_json::json!({
         "cgroup_path": input.cgroup_path,

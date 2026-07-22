@@ -217,7 +217,8 @@ mod tests {
 
     #[test]
     fn kubepods_burstable_v2_returns_pod_or_container() {
-        let path = "/kubepods.slice/kubepods-burstable.slice/pod-abc123.slice/cri-containerd-xyz789.slice";
+        let path =
+            "/kubepods.slice/kubepods-burstable.slice/pod-abc123.slice/cri-containerd-xyz789.slice";
         match derive_scope_from_path(path) {
             AttributionScope::Container(id) => assert_eq!(id, "xyz789"),
             AttributionScope::Pod(uid) => assert_eq!(uid, "abc123"),

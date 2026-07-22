@@ -24,8 +24,8 @@ use std::time::{Duration, SystemTime};
 use serde::Deserialize;
 
 use crate::{
-    AttributionScope, ContainerRecord, PodRecord, ProviderError, RuntimeMetadata,
-    RuntimeProvider, WorkloadRecord,
+    AttributionScope, ContainerRecord, PodRecord, ProviderError, RuntimeMetadata, RuntimeProvider,
+    WorkloadRecord,
 };
 
 /// Standalone Docker provider. Holds only the daemon socket path; the
@@ -134,10 +134,7 @@ impl RuntimeProvider for DockerProvider {
         })
     }
 
-    fn lookup_pod(
-        &self,
-        _pod_uid: &str,
-    ) -> crate::BoxFuture<'_, Result<PodRecord, ProviderError>> {
+    fn lookup_pod(&self, _pod_uid: &str) -> crate::BoxFuture<'_, Result<PodRecord, ProviderError>> {
         Box::pin(async move {
             Err(ProviderError::Unavailable(
                 "docker is not a kubernetes runtime; pod lookup unsupported".to_string(),

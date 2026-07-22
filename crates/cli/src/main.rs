@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //! Standalone CLI binary entry point.
+#![allow(clippy::result_large_err)]
 
 use clap::Parser;
 

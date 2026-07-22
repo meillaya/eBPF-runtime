@@ -186,9 +186,7 @@ impl CoverageMatrix {
 /// The v1 sensor set: `process`, `file`, `network`, `dns`,
 /// `syscall`, `identity`. The `placeholder` sensor is
 /// loader-internal and never appears in the matrix.
-pub const DEFAULT_SENSORS: &[&str] = &[
-    "process", "file", "network", "dns", "syscall", "identity",
-];
+pub const DEFAULT_SENSORS: &[&str] = &["process", "file", "network", "dns", "syscall", "identity"];
 
 /// Sorted version of `DEFAULT_SENSORS`. The matrix serialiser
 /// uses this order to keep the JSON stable across runs.
@@ -239,9 +237,7 @@ mod tests {
     fn default_sensor_names_are_sorted() {
         assert_eq!(
             default_sensor_names(),
-            vec![
-                "dns", "file", "identity", "network", "process", "syscall",
-            ]
+            vec!["dns", "file", "identity", "network", "process", "syscall",]
         );
     }
 

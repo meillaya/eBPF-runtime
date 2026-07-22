@@ -94,11 +94,7 @@ impl RuntimeProvider for FlakyProvider {
 #[tokio::test]
 async fn k8s_api_outage_with_cached_entry_returns_cached_value_then_unavailable_after_ttl() {
     let provider = Arc::new(FlakyProvider::new());
-    let cache = EnrichmentCache::with_options(
-        provider.clone(),
-        Duration::from_millis(50),
-        16,
-    );
+    let cache = EnrichmentCache::with_options(provider.clone(), Duration::from_millis(50), 16);
     // First call: provider returns Ok -> Miss.
     let first = cache.lookup_container_with_cache(42, 0).await;
     assert!(matches!(first, CacheResult::Miss(_)));
@@ -218,11 +214,7 @@ impl RuntimeProvider for RestartableProvider {
 #[tokio::test]
 async fn container_id_changes_after_restart_returns_fresh_entry_not_stale_cache() {
     let provider = Arc::new(RestartableProvider::new());
-    let cache = EnrichmentCache::with_options(
-        provider.clone(),
-        Duration::from_secs(60),
-        16,
-    );
+    let cache = EnrichmentCache::with_options(provider.clone(), Duration::from_secs(60), 16);
     // First container at generation 0.
     let first = cache.lookup_container_with_cache(42, 0).await;
     let first_id = match first {

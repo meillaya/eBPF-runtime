@@ -607,10 +607,10 @@ mod tests {
             ],
         );
 
-        let m1 = eval.process_event(&e1, &[seq.clone()]).unwrap();
+        let m1 = eval.process_event(&e1, std::slice::from_ref(&seq)).unwrap();
         assert!(!m1[0].completed);
 
-        let m2 = eval.process_event(&e2, &[seq.clone()]).unwrap();
+        let m2 = eval.process_event(&e2, std::slice::from_ref(&seq)).unwrap();
         assert!(m2[0].completed);
         assert!(!m2[0].uncertain);
     }

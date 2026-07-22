@@ -51,13 +51,11 @@ pub mod sha256;
 use thiserror::Error;
 
 pub use coverage::{CoverageMatrix, SensorCoverage, SensorStatus};
-pub use embedded::{
-    BpfArtifact, BpfArtifacts, EMPTY_ARTIFACTS, artifact_key, iter_sorted, lookup,
-};
-pub use ladder::{HookRung, ladder_for, select_hook};
+pub use embedded::{artifact_key, iter_sorted, lookup, BpfArtifact, BpfArtifacts, EMPTY_ARTIFACTS};
+pub use ladder::{ladder_for, select_hook, HookRung};
 pub use loader_state::{BpfLinkId, LoaderState, MapHandle};
 pub use matrix_serde::matrix_to_json;
-pub use probe::{ProbeOutcome, build_state};
+pub use probe::{build_state, ProbeOutcome};
 
 // ───────────────────────── task-10 embedded surface ─────────────────────────
 
@@ -200,7 +198,8 @@ impl From<libbpf_rs::Error> for LoaderError {
 /// during `build.rs`; runtime code reads it through this
 /// constant. When `bpf_build::build()` failed at compile time
 /// this is the empty table.
-pub static BPF_ARTIFACTS: std::sync::LazyLock<BpfArtifacts> = std::sync::LazyLock::new(build_static_artifacts);
+pub static BPF_ARTIFACTS: std::sync::LazyLock<BpfArtifacts> =
+    std::sync::LazyLock::new(build_static_artifacts);
 
 fn build_static_artifacts() -> BpfArtifacts {
     let mut out: BpfArtifacts = BTreeMap::new();
@@ -284,9 +283,7 @@ pub fn probe_and_load(arch: &str) -> Result<LoaderState, LoaderError> {
             .any(|r| r.section.contains("OWN_LSM_DENY"));
         if deny_hook.contains("OWN_LSM_DENY") || has_deny_in_ladder {
             state.cleanup();
-            return Err(LoaderError::DenyLinkAttachDisallowed {
-                hook: deny_hook,
-            });
+            return Err(LoaderError::DenyLinkAttachDisallowed { hook: deny_hook });
         }
     }
 
@@ -379,7 +376,8 @@ mod tests {
             "aarch64" => "arm64",
             _ => "amd64",
         };
-        let state = probe_and_load(arch_dir).expect("probe_and_load must not Err on unprivileged host");
+        let state =
+            probe_and_load(arch_dir).expect("probe_and_load must not Err on unprivileged host");
         assert_eq!(state.pinned_deny_links_count(), 0);
         assert_eq!(state.active_links_count(), 0);
         assert!(!state.coverage.sensors.is_empty());

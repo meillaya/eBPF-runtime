@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //! Host-side unit tests for the standalone agent (plan task 26).
+#![allow(clippy::await_holding_lock)]
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -95,8 +96,7 @@ fn agent_args_parse_dev_flag() {
 
 #[test]
 fn agent_args_parse_listen_flag() {
-    let args =
-        AgentArgs::try_parse_from(["agent", "--listen", "127.0.0.1:9999"]).expect("parse");
+    let args = AgentArgs::try_parse_from(["agent", "--listen", "127.0.0.1:9999"]).expect("parse");
     assert_eq!(args.listen.as_deref(), Some("127.0.0.1:9999"));
 }
 
@@ -137,8 +137,7 @@ async fn agent_run_with_dev_flag_binds_loopback() {
     let handle = tokio::spawn(run_agent(args));
     wait_for_health(&format!("http://{addr}/api/v1/health")).await;
     request_shutdown();
-    let result = handle.await.expect("join").expect("clean shutdown");
-    assert!(matches!(result, ()));
+    handle.await.expect("join").expect("clean shutdown");
     let _ = std::fs::remove_file(&db);
 }
 
@@ -205,10 +204,15 @@ async fn agent_run_with_sigint_drains_and_flushes() {
     assert!(result.is_ok(), "drain+flush should succeed on SIGINT");
     // Events were persisted before the flush.
     let reopened = LocalStorage::open_with_test_key(&db).expect("reopen");
-    let mut q = EventQuery::default();
-    q.limit = Some(1);
+    let q = EventQuery {
+        limit: Some(1),
+        ..Default::default()
+    };
     let events = reopened.query_events(&q).expect("query");
-    assert!(!events.is_empty(), "events should be persisted before flush");
+    assert!(
+        !events.is_empty(),
+        "events should be persisted before flush"
+    );
     let _ = std::fs::remove_file(&db);
 }
 
@@ -249,7 +253,11 @@ async fn agent_never_exposes_loader_map_mutation() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     // State-mutating methods are rejected.
-    for method in [reqwest::Method::POST, reqwest::Method::PUT, reqwest::Method::DELETE] {
+    for method in [
+        reqwest::Method::POST,
+        reqwest::Method::PUT,
+        reqwest::Method::DELETE,
+    ] {
         let resp = client
             .request(method.clone(), format!("{}/api/v1/events", server.base))
             .send()
@@ -268,7 +276,11 @@ async fn agent_never_exposes_loader_map_mutation() {
             .send()
             .await
             .expect("send");
-        assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST, "{route} must not exist");
+        assert_eq!(
+            resp.status(),
+            reqwest::StatusCode::BAD_REQUEST,
+            "{route} must not exist"
+        );
     }
     server.stop();
 }
@@ -323,7 +335,10 @@ async fn agent_never_bypasses_redaction() {
         .as_ref()
         .map(|b| String::from_utf8_lossy(b).into_owned())
         .unwrap_or_default();
-    assert!(argv_str.contains("[MASKED]"), "secrets must be masked: {argv_str}");
+    assert!(
+        argv_str.contains("[MASKED]"),
+        "secrets must be masked: {argv_str}"
+    );
     assert!(!argv_str.contains("hunter2secretvalue"), "password leaked");
     assert!(!argv_str.contains("AKIA1234567890ABCDEF"), "AWS key leaked");
     let msg = redacted.message.clone().unwrap_or_default();
@@ -334,8 +349,10 @@ async fn agent_never_bypasses_redaction() {
     let storage = LocalStorage::open_with_test_key(&db).expect("open");
     storage.run_migrations().expect("migrations");
     storage.insert_event(&redacted).expect("insert");
-    let mut q = EventQuery::default();
-    q.limit = Some(10);
+    let q = EventQuery {
+        limit: Some(10),
+        ..Default::default()
+    };
     let stored = storage.query_events(&q).expect("query");
     assert_eq!(stored.len(), 1);
     let json = serde_json::to_string(&stored[0].to_json()).unwrap();
@@ -351,7 +368,11 @@ async fn agent_never_returns_unbounded_results() {
 
     // An oversized page limit is rejected.
     let resp = client
-        .get(format!("{}/api/v1/events?limit={}", server.base, MAX_PAGE_LIMIT + 1))
+        .get(format!(
+            "{}/api/v1/events?limit={}",
+            server.base,
+            MAX_PAGE_LIMIT + 1
+        ))
         .send()
         .await
         .expect("send");
@@ -376,7 +397,10 @@ async fn agent_never_returns_unbounded_results() {
     // Paginating deeper than the window is rejected.
     let deep = encode_cursor(MAX_PAGE_WINDOW);
     let resp = client
-        .get(format!("{}/api/v1/events?cursor={deep}&limit=10", server.base))
+        .get(format!(
+            "{}/api/v1/events?cursor={deep}&limit=10",
+            server.base
+        ))
         .send()
         .await
         .expect("send");
@@ -390,6 +414,6 @@ async fn agent_never_returns_unbounded_results() {
         .expect("send");
     let body: serde_json::Value = resp.json().await.expect("json");
     assert!(body["count"].as_u64().unwrap() <= 5);
-    assert!(WS_BROADCAST_CAPACITY > 0);
+    const _: () = assert!(WS_BROADCAST_CAPACITY > 0);
     server.stop();
 }

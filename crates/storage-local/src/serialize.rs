@@ -14,8 +14,7 @@ pub fn serialize_event(event: &RedactedEvent) -> Result<Vec<u8>, serde_json::Err
 
 /// Deserialize a RedactedEvent from stored JSON bytes.
 pub fn deserialize_event(bytes: &[u8]) -> Result<RedactedEvent, String> {
-    let json: serde_json::Value =
-        serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
     redacted_event_from_json(&json)
 }
 
@@ -31,7 +30,11 @@ fn redacted_event_from_json(json: &serde_json::Value) -> Result<RedactedEvent, S
     let kind = parse_kind(json.get("kind").and_then(|v| v.as_str()).unwrap_or(""))?;
     let event_id = parse_event_id(json.get("event_id").and_then(|v| v.as_str()).unwrap_or(""))?;
     let sequence = Sequence(json.get("sequence").and_then(|v| v.as_u64()).unwrap_or(0));
-    let monotonic_ns = MonotonicNs(json.get("monotonic_ns").and_then(|v| v.as_u64()).unwrap_or(0));
+    let monotonic_ns = MonotonicNs(
+        json.get("monotonic_ns")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+    );
     let wall_clock = WallClock(
         json.get("wall_clock")
             .and_then(|v| v.as_str())
@@ -39,7 +42,11 @@ fn redacted_event_from_json(json: &serde_json::Value) -> Result<RedactedEvent, S
             .to_string(),
     );
     let pid_tgid = PidTgid(json.get("pid_tgid").and_then(|v| v.as_u64()).unwrap_or(0));
-    let task_start_ns = TaskStartNs(json.get("task_start_ns").and_then(|v| v.as_u64()).unwrap_or(0));
+    let task_start_ns = TaskStartNs(
+        json.get("task_start_ns")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+    );
     let cgroup_id = CgroupId(json.get("cgroup_id").and_then(|v| v.as_u64()).unwrap_or(0));
     let boot_id = parse_boot_id(json.get("boot_id").and_then(|v| v.as_str()).unwrap_or(""))?;
     let namespaces = parse_namespaces(json.get("namespaces"));
@@ -67,15 +74,30 @@ fn redacted_event_from_json(json: &serde_json::Value) -> Result<RedactedEvent, S
                 .collect()
         })
         .unwrap_or_default();
-    let dns_qname = json.get("dns_qname").and_then(|v| v.as_str()).map(String::from);
-    let dns_qtype = json.get("dns_qtype").and_then(|v| v.as_u64()).map(|v| v as u16);
-    let dns_qclass = json.get("dns_qclass").and_then(|v| v.as_u64()).map(|v| v as u16);
-    let dns_an_count = json.get("dns_an_count").and_then(|v| v.as_u64()).map(|v| v as u16);
+    let dns_qname = json
+        .get("dns_qname")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let dns_qtype = json
+        .get("dns_qtype")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as u16);
+    let dns_qclass = json
+        .get("dns_qclass")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as u16);
+    let dns_an_count = json
+        .get("dns_an_count")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as u16);
     let dns_rdata = json
         .get("dns_rdata")
         .and_then(|v| v.as_str())
         .map(|s| s.as_bytes().to_vec());
-    let message = json.get("message").and_then(|v| v.as_str()).map(String::from);
+    let message = json
+        .get("message")
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let truncation_flags = parse_truncation_flags(json.get("truncation_flags"));
 
     Ok(RedactedEvent {
@@ -156,23 +178,18 @@ fn parse_boot_id(s: &str) -> Result<BootId, String> {
 }
 
 fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err("odd-length hex string".to_string());
     }
     (0..s.len())
         .step_by(2)
-        .map(|i| {
-            u8::from_str_radix(&s[i..i + 2], 16)
-                .map_err(|e| format!("hex decode error: {e}"))
-        })
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| format!("hex decode error: {e}")))
         .collect()
 }
 
 fn parse_namespaces(v: Option<&serde_json::Value>) -> NamespaceBundle {
     let obj = v.and_then(|v| v.as_object());
-    let get = |key: &str| -> Option<u64> {
-        obj.and_then(|o| o.get(key)).and_then(|v| v.as_u64())
-    };
+    let get = |key: &str| -> Option<u64> { obj.and_then(|o| o.get(key)).and_then(|v| v.as_u64()) };
     NamespaceBundle {
         pid: get("pid"),
         mnt: get("mnt"),

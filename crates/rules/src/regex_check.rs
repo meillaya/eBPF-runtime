@@ -103,11 +103,9 @@ pub fn has_unbounded_nesting(pattern: &str) -> bool {
                     *slot = true;
                 }
             }
-            b'{' => {
-                if is_unbounded_brace(bytes, i) {
-                    if let Some(slot) = group_has_quant.last_mut() {
-                        *slot = true;
-                    }
+            b'{' if is_unbounded_brace(bytes, i) => {
+                if let Some(slot) = group_has_quant.last_mut() {
+                    *slot = true;
                 }
             }
             _ => {}

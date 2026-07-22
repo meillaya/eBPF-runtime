@@ -53,9 +53,7 @@ fn main() -> io::Result<()> {
     let repo_root = manifest_dir
         .parent()
         .and_then(|p| p.parent())
-        .ok_or_else(|| {
-            io::Error::other("could not resolve repo root from CARGO_MANIFEST_DIR")
-        })?
+        .ok_or_else(|| io::Error::other("could not resolve repo root from CARGO_MANIFEST_DIR"))?
         .to_path_buf();
 
     let bpf_sensors_dir = repo_root.join("bpf/sensors");
@@ -108,19 +106,15 @@ fn main() -> io::Result<()> {
             // so a 'skipping' line in the file is impossible.
         }
         Ok(s) => {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "bpftool btf dump returned {}; cannot produce vmlinux.h for CO-RE",
-                    s
-                ),
-            ));
+            return Err(io::Error::other(format!(
+                "bpftool btf dump returned {}; cannot produce vmlinux.h for CO-RE",
+                s
+            )));
         }
         Err(e) => {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("bpftool btf dump could not run: {e}"),
-            ));
+            return Err(io::Error::other(format!(
+                "bpftool btf dump could not run: {e}"
+            )));
         }
     }
 
@@ -178,39 +172,29 @@ fn main() -> io::Result<()> {
                 ])
                 .build()
                 .map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::Other,
-                        format!(
-                            "libbpf-cargo SkeletonBuilder::build failed for {source}/{arch}: {e}"
-                        ),
-                    )
+                    io::Error::other(format!(
+                        "libbpf-cargo SkeletonBuilder::build failed for {source}/{arch}: {e}"
+                    ))
                 })?;
             builder
                 .generate(skel_path.to_string_lossy().as_ref())
                 .map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("libbpf-cargo SkeletonBuilder::generate failed for {source}/{arch}: {e}"),
-                    )
+                    io::Error::other(format!(
+                        "libbpf-cargo SkeletonBuilder::generate failed for {source}/{arch}: {e}"
+                    ))
                 })?;
 
             if !o_path.is_file() || fs::metadata(&o_path)?.len() == 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!(
-                        "SkeletonBuilder did not produce a non-empty object at {}",
-                        o_path.display()
-                    ),
-                ));
+                return Err(io::Error::other(format!(
+                    "SkeletonBuilder did not produce a non-empty object at {}",
+                    o_path.display()
+                )));
             }
             if !skel_path.is_file() || fs::metadata(&skel_path)?.len() == 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!(
-                        "SkeletonBuilder did not produce a non-empty skeleton at {}",
-                        skel_path.display()
-                    ),
-                ));
+                return Err(io::Error::other(format!(
+                    "SkeletonBuilder did not produce a non-empty skeleton at {}",
+                    skel_path.display()
+                )));
             }
             artifacts.push((arch.to_string(), o_path, skel_path));
         }
@@ -238,10 +222,8 @@ fn main() -> io::Result<()> {
 
     let mut manifest = String::new();
     manifest.push_str("{\n");
-    manifest.push_str(&format!("  \"schema_version\": 1,\n"));
-    manifest.push_str(&format!(
-        "  \"generator\": \"bpf-build/build.rs (libbpf-cargo)\",\n"
-    ));
+    manifest.push_str("  \"schema_version\": 1,\n");
+    manifest.push_str("  \"generator\": \"bpf-build/build.rs (libbpf-cargo)\",\n");
     manifest.push_str(&format!(
         "  \"target_arch_set\": [{}],\n",
         ARCHES

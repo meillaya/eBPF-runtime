@@ -9,11 +9,11 @@ mod common;
 use std::sync::Arc;
 use std::time::Duration;
 
+use common::{arc_provider, block_on, container_record, workload_record};
 use enrichment::{
     derive_scope, derive_scope_from_path, AttributionScope, CacheResult, ContainerdProvider,
     CrioProvider, DockerProvider, EnrichmentCache, NoOpProvider, ProviderError, RuntimeProvider,
 };
-use common::{block_on, container_record, workload_record, arc_provider};
 
 #[test]
 fn cgroup_v2_kubepods_burstable_scope_is_pod_or_container() {
@@ -29,7 +29,8 @@ fn cgroup_v2_kubepods_burstable_scope_is_pod_or_container() {
 
 #[test]
 fn cgroup_v2_kubepods_besteffort_scope_is_pod_or_container() {
-    let path = "/kubepods.slice/kubepods-besteffort.slice/pod-deadbeef.slice/cri-containerd-id.slice";
+    let path =
+        "/kubepods.slice/kubepods-besteffort.slice/pod-deadbeef.slice/cri-containerd-id.slice";
     let workload = workload_record("deadbeef", &["id"]);
     match derive_scope(Some(&workload), 1, path) {
         AttributionScope::Container(id) => assert_eq!(id, "id"),
@@ -120,23 +121,36 @@ fn containerd_lookup_with_real_response_parses_correctly() {
     assert_eq!(record.pod_uid, "pod-uid-1");
     assert_eq!(record.image, "docker.io/library/nginx:latest");
     assert_eq!(record.runtime_handler, "runc");
-    assert_eq!(record.scope, AttributionScope::Container("cri-containerd-abc".to_string()));
+    assert_eq!(
+        record.scope,
+        AttributionScope::Container("cri-containerd-abc".to_string())
+    );
 }
 
 #[test]
 fn containerd_lookup_with_response_containerd_id_field_missing_returns_provider_error() {
     let provider = ContainerdProvider::connect_unchecked("/run/containerd/containerd.sock");
     let json = r#"{"containers":[{"pod_sandbox_id":"pod-uid-2","cgroup_id":"99999","image":"docker.io/library/redis:latest","image_digest":"sha256:redis","runtime_handler":"runc","created_at":"1700000000"}]}"#;
-    let err = provider.parse_list_response(json, 99999).expect_err("missing id");
-    assert!(matches!(err, ProviderError::Unavailable(ref m) if m.contains("container id")), "{err:?}");
+    let err = provider
+        .parse_list_response(json, 99999)
+        .expect_err("missing id");
+    assert!(
+        matches!(err, ProviderError::Unavailable(ref m) if m.contains("container id")),
+        "{err:?}"
+    );
 }
 
 #[test]
 fn crio_lookup_with_response_pod_uid_field_missing_returns_provider_error() {
     let provider = CrioProvider::connect_unchecked("/var/run/crio/crio.sock");
     let json = r#"{"status":{"id":"crio-ctr-1","image":"registry.k8s.io/pause:3.9","imageRef":"sha256:pause","runtimeHandler":"runc","createdAt":"1700000000"}}"#;
-    let err = provider.parse_container_status(json).expect_err("missing pod_uid");
-    assert!(matches!(err, ProviderError::Unavailable(ref m) if m.contains("pod_uid")), "{err:?}");
+    let err = provider
+        .parse_container_status(json)
+        .expect_err("missing pod_uid");
+    assert!(
+        matches!(err, ProviderError::Unavailable(ref m) if m.contains("pod_uid")),
+        "{err:?}"
+    );
 }
 
 #[tokio::test]
@@ -145,28 +159,45 @@ async fn cache_hit_returns_cached_value() {
     let record = container_record("c1", "p1");
     provider.with_container(record.clone());
     let cache = EnrichmentCache::with_options(provider.clone(), Duration::from_secs(60), 16);
-    assert!(matches!(cache.lookup_container_with_cache(42, 0).await, CacheResult::Miss(_)));
-    assert!(matches!(cache.lookup_container_with_cache(42, 0).await, CacheResult::Hit(ref r) if r == &record));
+    assert!(matches!(
+        cache.lookup_container_with_cache(42, 0).await,
+        CacheResult::Miss(_)
+    ));
+    assert!(
+        matches!(cache.lookup_container_with_cache(42, 0).await, CacheResult::Hit(ref r) if r == &record)
+    );
 }
 
 #[tokio::test]
 async fn cache_miss_falls_through_to_provider() {
     let provider = Arc::new(common::InMemoryProvider::new());
     let cache = EnrichmentCache::with_options(provider, Duration::from_secs(60), 16);
-    assert!(matches!(cache.lookup_container_with_cache(42, 0).await, CacheResult::Unavailable(_)));
+    assert!(matches!(
+        cache.lookup_container_with_cache(42, 0).await,
+        CacheResult::Unavailable(_)
+    ));
 }
 
 #[tokio::test]
 async fn cache_ttl_expiry_returns_unavailable_for_cached_key() {
     let provider = Arc::new(common::InMemoryProvider::new());
     let cache = EnrichmentCache::with_options(provider, Duration::from_millis(50), 16);
-    assert!(matches!(cache.lookup_container_with_cache(42, 0).await, CacheResult::Unavailable(_)));
+    assert!(matches!(
+        cache.lookup_container_with_cache(42, 0).await,
+        CacheResult::Unavailable(_)
+    ));
     let second_provider = Arc::new(common::InMemoryProvider::new());
     second_provider.with_container(container_record("c1", "p1"));
     let cache2 = EnrichmentCache::with_options(second_provider, Duration::from_millis(50), 16);
-    assert!(matches!(cache2.lookup_container_with_cache(42, 0).await, CacheResult::Miss(_)));
+    assert!(matches!(
+        cache2.lookup_container_with_cache(42, 0).await,
+        CacheResult::Miss(_)
+    ));
     tokio::time::sleep(Duration::from_millis(80)).await;
-    assert!(matches!(cache2.lookup_container_with_cache(42, 0).await, CacheResult::Miss(_)));
+    assert!(matches!(
+        cache2.lookup_container_with_cache(42, 0).await,
+        CacheResult::Miss(_)
+    ));
 }
 
 #[tokio::test]
@@ -174,10 +205,19 @@ async fn cache_invalidation_on_generation_change_evicts_old_entry() {
     let provider = Arc::new(common::InMemoryProvider::new());
     let cache = EnrichmentCache::with_options(provider.clone(), Duration::from_secs(60), 16);
     provider.with_container(container_record("c1", "p1"));
-    assert!(matches!(cache.lookup_container_with_cache(42, 0).await, CacheResult::Miss(_)));
-    assert!(matches!(cache.lookup_container_with_cache(42, 0).await, CacheResult::Hit(_)));
+    assert!(matches!(
+        cache.lookup_container_with_cache(42, 0).await,
+        CacheResult::Miss(_)
+    ));
+    assert!(matches!(
+        cache.lookup_container_with_cache(42, 0).await,
+        CacheResult::Hit(_)
+    ));
     cache.invalidate(42, 1);
-    assert!(matches!(cache.lookup_container_with_cache(42, 1).await, CacheResult::Miss(_)));
+    assert!(matches!(
+        cache.lookup_container_with_cache(42, 1).await,
+        CacheResult::Miss(_)
+    ));
 }
 
 #[test]
@@ -212,7 +252,10 @@ fn attribution_preserves_raw_kernel_identity_unchanged_after_lookup() {
 async fn deleted_container_lookup_returns_unavailable_not_pod_data() {
     let provider = Arc::new(common::InMemoryProvider::new());
     let cache = EnrichmentCache::with_options(provider, Duration::from_secs(60), 16);
-    assert!(matches!(cache.lookup_container_with_cache(42, 0).await, CacheResult::Unavailable(_)));
+    assert!(matches!(
+        cache.lookup_container_with_cache(42, 0).await,
+        CacheResult::Unavailable(_)
+    ));
 }
 
 #[test]
@@ -222,7 +265,9 @@ fn sandbox_only_pod_returns_sandbox_scope_not_container_scope() {
     workload.scope = AttributionScope::Sandbox;
     let path = "/kubepods.slice/kubepods-burstable.slice/pod-p1.slice";
     let scope = derive_scope(Some(&workload), 0, path);
-    assert!(matches!(scope, AttributionScope::Pod(_)) || matches!(scope, AttributionScope::Sandbox));
+    assert!(
+        matches!(scope, AttributionScope::Pod(_)) || matches!(scope, AttributionScope::Sandbox)
+    );
     assert!(!matches!(scope, AttributionScope::Container(_)));
 }
 
@@ -255,7 +300,8 @@ fn ephemeral_container_returns_ephemeral_scope() {
 #[test]
 fn cgroup_v2_unified_only_workload_with_no_v1_hierarchy_works() {
     let workload = workload_record("uid-2", &["ctr-2"]);
-    let path = "/kubepods.slice/kubepods-guaranteed.slice/pod-uid-2.slice/cri-containerd-ctr-2.slice";
+    let path =
+        "/kubepods.slice/kubepods-guaranteed.slice/pod-uid-2.slice/cri-containerd-ctr-2.slice";
     let provider = ContainerdProvider::connect_unchecked("/run/containerd/containerd.sock");
     let meta = provider.runtime_metadata();
     assert!(meta.cgroup_v2);
@@ -275,7 +321,10 @@ async fn cgroup_api_outage_falls_back_to_cgroup_only_scope() {
     assert!(matches!(containerd, Err(ProviderError::Unavailable(_))));
     assert!(matches!(crio, Err(ProviderError::Unavailable(_))));
     assert!(matches!(docker, Err(ProviderError::Unavailable(_))));
-    assert_eq!(derive_scope(None, 0, "/system.slice/sshd.service"), AttributionScope::Host);
+    assert_eq!(
+        derive_scope(None, 0, "/system.slice/sshd.service"),
+        AttributionScope::Host
+    );
 }
 
 #[tokio::test]
@@ -284,9 +333,16 @@ async fn cri_api_outage_falls_back_to_cgroup_only_scope() {
     let cache = EnrichmentCache::with_options(provider, Duration::from_secs(60), 16);
     let result = cache.lookup_container_with_cache(42, 0).await;
     assert!(matches!(result, CacheResult::Unavailable(ref m) if m.contains("CRI API unreachable")));
-    let path = "/kubepods.slice/kubepods-burstable.slice/pod-uid-3.slice/cri-containerd-ctr-3.slice";
+    let path =
+        "/kubepods.slice/kubepods-burstable.slice/pod-uid-3.slice/cri-containerd-ctr-3.slice";
     let scope = derive_scope(None, 42, path);
-    assert!(matches!(scope, AttributionScope::Pod(_) | AttributionScope::Container(_)), "got {scope:?}");
+    assert!(
+        matches!(
+            scope,
+            AttributionScope::Pod(_) | AttributionScope::Container(_)
+        ),
+        "got {scope:?}"
+    );
 }
 
 #[test]

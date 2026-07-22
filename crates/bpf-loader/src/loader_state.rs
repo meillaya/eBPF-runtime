@@ -158,7 +158,9 @@ mod tests {
     fn loader_state_cleanup_clears_attachments() {
         let mut state = LoaderState::new();
         state.attached_links.insert("process".into(), BpfLinkId(7));
-        state.map_handles.insert("process_events".into(), MapHandle(11));
+        state
+            .map_handles
+            .insert("process_events".into(), MapHandle(11));
         assert_eq!(state.active_links_count(), 1);
         state.cleanup();
         assert!(state.attached_links.is_empty());

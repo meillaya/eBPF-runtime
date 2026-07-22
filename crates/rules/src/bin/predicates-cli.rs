@@ -32,7 +32,9 @@ fn main() -> ExitCode {
 }
 
 fn usage() {
-    eprintln!("usage: predicates-cli evaluate <condition.json> --event <event.json> --lists <lists.json>");
+    eprintln!(
+        "usage: predicates-cli evaluate <condition.json> --event <event.json> --lists <lists.json>"
+    );
     eprintln!("       predicates-cli budget --schema <rule-budget.v1.json>");
 }
 

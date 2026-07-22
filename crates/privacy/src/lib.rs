@@ -138,22 +138,11 @@ impl Default for DnsFieldAllowlist {
 /// permits to be set when a field exceeds its bound (default: all enabled). In
 /// a [`RedactedEvent`] this is the *output*: which fields were actually
 /// truncated or redacted (default: none).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TruncationFlags {
     pub argv_truncated: bool,
     pub path_truncated: bool,
     pub dns_truncated: bool,
-}
-
-impl Default for TruncationFlags {
-    fn default() -> Self {
-        // Output default: nothing truncated yet.
-        Self {
-            argv_truncated: false,
-            path_truncated: false,
-            dns_truncated: false,
-        }
-    }
 }
 
 impl TruncationFlags {

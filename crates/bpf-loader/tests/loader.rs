@@ -27,9 +27,7 @@
 //! `libbpf_rs::Object::open_mem_bytes` + `program.attach()`
 //! paths.
 
-use bpf_loader::{
-    CoverageMatrix, LoaderState, SensorStatus, coverage_as_json, probe_and_load,
-};
+use bpf_loader::{coverage_as_json, probe_and_load, CoverageMatrix, LoaderState, SensorStatus};
 
 fn host_arch_dir() -> &'static str {
     match std::env::consts::ARCH {
@@ -113,7 +111,9 @@ fn loader_state_clears_attachments_on_failure() {
     // `bpftool link show` returns no changes after a forced
     // partial failure at the Nth attach.
     let mut state = LoaderState::new();
-    state.attached_links.insert("process".into(), bpf_loader::BpfLinkId(42));
+    state
+        .attached_links
+        .insert("process".into(), bpf_loader::BpfLinkId(42));
     state
         .map_handles
         .insert("process_events".into(), bpf_loader::MapHandle(7));
@@ -158,9 +158,7 @@ fn coverage_matrix_serializes_to_valid_json() {
     let _ = state;
     let raw = coverage_as_json();
     let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap_or_else(|e| {
-        panic!(
-            "coverage_as_json returned invalid JSON: {e}; raw output:\n{raw}"
-        )
+        panic!("coverage_as_json returned invalid JSON: {e}; raw output:\n{raw}")
     });
 
     let obj = parsed
@@ -188,10 +186,7 @@ fn coverage_matrix_serializes_to_valid_json() {
     // rely on so they can filter on the reason without
     // re-deriving the matrix.
     for (_name, value) in sensors {
-        let status = value
-            .get("status")
-            .and_then(|s| s.as_str())
-            .unwrap_or("");
+        let status = value.get("status").and_then(|s| s.as_str()).unwrap_or("");
         let reasons = value
             .get("reasons")
             .and_then(|r| r.as_array())

@@ -12,7 +12,9 @@ use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 
-use crate::{HealthState, MetricsRegistry, ObservabilityError, ObservabilityErrorKind, ReadinessState};
+use crate::{
+    HealthState, MetricsRegistry, ObservabilityError, ObservabilityErrorKind, ReadinessState,
+};
 
 /// The observability HTTP server. Serves health, readiness, and metrics
 /// endpoints on a given address.
@@ -32,9 +34,11 @@ impl ObservabilityServer {
     /// - `GET /readyz` — readiness status as JSON (200 if ready, 503 otherwise)
     /// - `GET /metrics` — Prometheus metrics as text (200)
     pub async fn serve(&self) -> Result<(), ObservabilityError> {
-        let listener = TcpListener::bind(self.addr).await.map_err(|e| ObservabilityError {
-            kind: ObservabilityErrorKind::BindError(e),
-        })?;
+        let listener = TcpListener::bind(self.addr)
+            .await
+            .map_err(|e| ObservabilityError {
+                kind: ObservabilityErrorKind::BindError(e),
+            })?;
 
         tracing::info!(addr = %self.addr, "observability server listening");
 

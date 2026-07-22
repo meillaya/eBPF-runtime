@@ -125,10 +125,7 @@ impl fmt::Display for RolloutError {
                 )
             }
             Self::DigestMismatch { expected, actual } => {
-                write!(
-                    f,
-                    "digest mismatch: expected {expected}, computed {actual}"
-                )
+                write!(f, "digest mismatch: expected {expected}, computed {actual}")
             }
             Self::InvalidTransition { from, action } => {
                 write!(f, "invalid transition: cannot {action} from {from}")
@@ -138,10 +135,7 @@ impl fmt::Display for RolloutError {
                 operation,
                 reason,
             } => {
-                write!(
-                    f,
-                    "unauthorized: {spiffe_id} cannot {operation}: {reason}"
-                )
+                write!(f, "unauthorized: {spiffe_id} cannot {operation}: {reason}")
             }
             Self::NotFound { entity, key } => {
                 write!(f, "not found: {entity} with key {key}")

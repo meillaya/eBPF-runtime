@@ -98,7 +98,11 @@ fn evaluate_null_value_returns_false() {
 fn evaluate_unicode_value_succeeds() {
     let event = Event::new().with_field("file.path", s("/etc/日本語"));
     let result = ev()
-        .evaluate_condition(&field("file.path", Operator::Eq, s("/etc/日本語")), &event, &[])
+        .evaluate_condition(
+            &field("file.path", Operator::Eq, s("/etc/日本語")),
+            &event,
+            &[],
+        )
         .unwrap();
     assert!(result.matched);
     // Regex char bound counts characters, not bytes.
@@ -109,7 +113,11 @@ fn evaluate_unicode_value_succeeds() {
 fn evaluate_special_characters_succeeds() {
     let event = Event::new().with_field("file.path", s("/etc/pa$$w0rd!@#"));
     let result = ev()
-        .evaluate_condition(&field("file.path", Operator::Contains, s("$$w0rd")), &event, &[])
+        .evaluate_condition(
+            &field("file.path", Operator::Contains, s("$$w0rd")),
+            &event,
+            &[],
+        )
         .unwrap();
     assert!(result.matched);
 }
@@ -259,9 +267,15 @@ fn evaluate_overflow_values_fails() {
 
 #[test]
 fn evaluate_negative_values_succeeds() {
-    assert!(ev().evaluate_predicate(&Operator::Lt, &i(-5), &i(0)).unwrap());
-    assert!(ev().evaluate_predicate(&Operator::Eq, &i(-5), &i(-5)).unwrap());
-    assert!(ev().evaluate_predicate(&Operator::Gt, &i(-5), &i(-10)).unwrap());
+    assert!(ev()
+        .evaluate_predicate(&Operator::Lt, &i(-5), &i(0))
+        .unwrap());
+    assert!(ev()
+        .evaluate_predicate(&Operator::Eq, &i(-5), &i(-5))
+        .unwrap());
+    assert!(ev()
+        .evaluate_predicate(&Operator::Gt, &i(-5), &i(-10))
+        .unwrap());
 }
 
 #[test]

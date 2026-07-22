@@ -84,8 +84,8 @@ fn cmd_insert(args: &[String]) -> Result<(), String> {
     let event_path = get_flag(args, "--event")?;
     let event_json = std::fs::read_to_string(&event_path)
         .map_err(|e| format!("failed to read event file: {e}"))?;
-    let event_value: serde_json::Value = serde_json::from_str(&event_json)
-        .map_err(|e| format!("invalid event JSON: {e}"))?;
+    let event_value: serde_json::Value =
+        serde_json::from_str(&event_json).map_err(|e| format!("invalid event JSON: {e}"))?;
     let event = storage_local::redacted_event_from_json_value(&event_value)
         .map_err(|e| format!("failed to parse event: {e}"))?;
     let storage = open_storage(&db_path, &key_path)?;
@@ -106,7 +106,10 @@ fn cmd_query(args: &[String]) -> Result<(), String> {
     };
     let events = storage.query_events(&query).map_err(|e| e.to_string())?;
     let json_events: Vec<serde_json::Value> = events.iter().map(|e| e.to_json()).collect();
-    println!("{}", serde_json::to_string_pretty(&json_events).unwrap_or_default());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json_events).unwrap_or_default()
+    );
     Ok(())
 }
 

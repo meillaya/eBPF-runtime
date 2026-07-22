@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use agent::{seed_simulated_events, ApiServer};
 use agent_core::{normalize_bytes, synthetic_record, Kind, NormalizedEvent, RawEvent};
-use cli::{resolve_addr, run_cli, CliArgs, CliCommand, CliError};
 use clap::Parser;
+use cli::{resolve_addr, run_cli, CliArgs, CliCommand, CliError};
 use observability::MetricsRegistry;
 use privacy::{apply_redaction, DecodedRecord, RedactionPolicy};
 use storage_local::LocalStorage;
@@ -134,8 +134,8 @@ fn cli_args_parse_live_events_command() {
 
 #[test]
 fn cli_args_parse_query_history_command() {
-    let args = CliArgs::try_parse_from(["cli", "query-history", "--kind", "DnsPacket"])
-        .expect("parse");
+    let args =
+        CliArgs::try_parse_from(["cli", "query-history", "--kind", "DnsPacket"]).expect("parse");
     assert!(matches!(args.command, CliCommand::QueryHistory));
     assert_eq!(args.kind.as_deref(), Some("DnsPacket"));
 }
@@ -151,9 +151,15 @@ fn cli_args_parse_process_tree_command() {
 
 #[test]
 fn cli_args_parse_sockets_command() {
-    let args =
-        CliArgs::try_parse_from(["cli", "sockets", "--state", "established", "--family", "inet"])
-            .expect("parse");
+    let args = CliArgs::try_parse_from([
+        "cli",
+        "sockets",
+        "--state",
+        "established",
+        "--family",
+        "inet",
+    ])
+    .expect("parse");
     assert!(matches!(args.command, CliCommand::Sockets));
     assert_eq!(args.state.as_deref(), Some("established"));
     assert_eq!(args.family.as_deref(), Some("inet"));
@@ -161,8 +167,8 @@ fn cli_args_parse_sockets_command() {
 
 #[test]
 fn cli_args_parse_dns_packets_command() {
-    let args = CliArgs::try_parse_from(["cli", "dns-packets", "--qname", "example.com"])
-        .expect("parse");
+    let args =
+        CliArgs::try_parse_from(["cli", "dns-packets", "--qname", "example.com"]).expect("parse");
     assert!(matches!(args.command, CliCommand::DnsPackets));
     assert_eq!(args.qname.as_deref(), Some("example.com"));
 }
@@ -176,8 +182,8 @@ fn cli_args_parse_files_command() {
 
 #[test]
 fn cli_args_parse_syscall_histograms_command() {
-    let args = CliArgs::try_parse_from(["cli", "syscall-histograms", "--syscall", "read"])
-        .expect("parse");
+    let args =
+        CliArgs::try_parse_from(["cli", "syscall-histograms", "--syscall", "read"]).expect("parse");
     assert!(matches!(args.command, CliCommand::SyscallHistograms));
     assert_eq!(args.syscall.as_deref(), Some("read"));
 }
@@ -197,11 +203,18 @@ fn cli_args_parse_export_command() {
 async fn cli_run_preflight_prints_coverage_matrix() {
     let server = start_test_server().await;
     let output = run_cli_binary(&server.addr_str(), &["preflight"]);
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = stdout_of(&output);
     assert!(stdout.contains("PREFLIGHT COVERAGE MATRIX"), "{stdout}");
     for program in ["process", "file", "network", "dns", "syscall", "identity"] {
-        assert!(stdout.contains(program), "coverage matrix lists {program}: {stdout}");
+        assert!(
+            stdout.contains(program),
+            "coverage matrix lists {program}: {stdout}"
+        );
     }
     server.stop();
 }
@@ -240,7 +253,11 @@ async fn cli_run_live_events_connects_to_websocket() {
     });
     let output = run_cli_binary(&server.addr_str(), &["live-events", "--limit", "3"]);
     drip.abort();
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = stdout_of(&output);
     let live_lines = stdout.lines().filter(|l| l.contains("live")).count();
     assert!(live_lines >= 3, "received >=3 live events: {stdout}");
@@ -390,12 +407,18 @@ async fn cli_never_bypasses_redaction() {
     };
     let policy = RedactionPolicy::with_default_secrets();
     let redacted = apply_redaction(&ev, &policy);
-    server.storage.insert_event(&redacted).expect("insert redacted");
+    server
+        .storage
+        .insert_event(&redacted)
+        .expect("insert redacted");
 
     let output = run_cli_binary(&server.addr_str(), &["query-history", "--limit", "1000"]);
     assert!(output.status.success());
     let stdout = stdout_of(&output);
-    assert!(!stdout.contains("hunter2secretvalue"), "secret printed by CLI");
+    assert!(
+        !stdout.contains("hunter2secretvalue"),
+        "secret printed by CLI"
+    );
     assert!(!stdout.contains("abcdefghijklmnop"), "token printed by CLI");
     assert!(stdout.contains("[MASKED]"), "masked projection printed");
     server.stop();
@@ -438,6 +461,9 @@ async fn cli_never_returns_unbounded_results() {
     })
     .await
     .expect_err("oversized limit errors");
-    assert!(matches!(err, CliError::QueryError(_)), "typed query error: {err}");
+    assert!(
+        matches!(err, CliError::QueryError(_)),
+        "typed query error: {err}"
+    );
     server.stop();
 }

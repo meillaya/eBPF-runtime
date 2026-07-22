@@ -6,7 +6,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use agent::api::{encode_cursor, ApiErrorKind, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT, MAX_PAGE_WINDOW};
+use agent::api::{
+    encode_cursor, ApiErrorKind, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT, MAX_PAGE_WINDOW,
+};
 use agent::{seed_simulated_events, ApiServer};
 use agent_core::{normalize_bytes, synthetic_record, Kind, NormalizedEvent, RawEvent};
 use futures_util::StreamExt;
@@ -123,7 +125,10 @@ async fn api_server_serves_metrics_endpoint() {
         .expect("send");
     assert!(resp.status().is_success());
     let text = resp.text().await.expect("text");
-    assert!(text.contains("ebpf_agent"), "prometheus metrics exposed: {text}");
+    assert!(
+        text.contains("ebpf_agent"),
+        "prometheus metrics exposed: {text}"
+    );
     server.stop();
 }
 
@@ -157,7 +162,11 @@ async fn api_server_serves_events_endpoint_with_pagination() {
 async fn api_server_serves_events_endpoint_with_filtering() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
-    let body = get_json(&client, &format!("{}/api/v1/events?kind=DnsPacket", server.base)).await;
+    let body = get_json(
+        &client,
+        &format!("{}/api/v1/events?kind=DnsPacket", server.base),
+    )
+    .await;
     let events = body["events"].as_array().expect("events array");
     assert!(!events.is_empty(), "expected DnsPacket events");
     for e in events {
@@ -171,7 +180,10 @@ async fn api_server_serves_single_event_by_id() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     let list = get_json(&client, &format!("{}/api/v1/events?limit=1", server.base)).await;
-    let id = list["events"][0]["event_id"].as_str().expect("event_id").to_string();
+    let id = list["events"][0]["event_id"]
+        .as_str()
+        .expect("event_id")
+        .to_string();
     let single = get_json(&client, &format!("{}/api/v1/events/{id}", server.base)).await;
     assert_eq!(single["event_id"], id, "single event matches requested id");
     // Unknown id -> 404.
@@ -212,7 +224,11 @@ async fn api_server_serves_sockets_endpoint() {
     assert!(sockets[0]["family"].is_string());
     assert!(sockets[0]["state"].is_string());
     // Filter by family.
-    let filtered = get_json(&client, &format!("{}/api/v1/sockets?family=inet", server.base)).await;
+    let filtered = get_json(
+        &client,
+        &format!("{}/api/v1/sockets?family=inet", server.base),
+    )
+    .await;
     for s in filtered["sockets"].as_array().unwrap() {
         assert_eq!(s["family"], "inet");
     }
@@ -228,8 +244,11 @@ async fn api_server_serves_dns_endpoint() {
     assert!(!dns.is_empty(), "dns events non-empty");
     assert!(dns[0]["qname"].is_string());
     // Filter by qname substring.
-    let filtered =
-        get_json(&client, &format!("{}/api/v1/dns?qname=example.com", server.base)).await;
+    let filtered = get_json(
+        &client,
+        &format!("{}/api/v1/dns?qname=example.com", server.base),
+    )
+    .await;
     for d in filtered["dns"].as_array().unwrap() {
         assert!(d["qname"].as_str().unwrap().contains("example.com"));
     }
@@ -252,7 +271,11 @@ async fn api_server_serves_files_endpoint() {
 async fn api_server_serves_syscall_histograms_endpoint() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
-    let body = get_json(&client, &format!("{}/api/v1/syscall-histograms", server.base)).await;
+    let body = get_json(
+        &client,
+        &format!("{}/api/v1/syscall-histograms", server.base),
+    )
+    .await;
     let histograms = body["histograms"].as_array().expect("histograms array");
     assert!(!histograms.is_empty(), "syscall histograms non-empty");
     assert!(histograms[0]["syscall"].is_string());
@@ -334,9 +357,16 @@ async fn api_server_rejects_invalid_cursor() {
             .send()
             .await
             .expect("send");
-        assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST, "cursor {bad}");
+        assert_eq!(
+            resp.status(),
+            reqwest::StatusCode::BAD_REQUEST,
+            "cursor {bad}"
+        );
         let body: serde_json::Value = resp.json().await.expect("json");
-        assert_eq!(body["error"]["kind"], "invalid_cursor_error", "cursor {bad}");
+        assert_eq!(
+            body["error"]["kind"], "invalid_cursor_error",
+            "cursor {bad}"
+        );
     }
     server.stop();
 }
@@ -347,7 +377,11 @@ async fn api_server_rejects_oversized_filter() {
     let client = reqwest::Client::new();
     // Oversized limit.
     let resp = client
-        .get(format!("{}/api/v1/events?limit={}", server.base, MAX_PAGE_LIMIT + 1))
+        .get(format!(
+            "{}/api/v1/events?limit={}",
+            server.base,
+            MAX_PAGE_LIMIT + 1
+        ))
         .send()
         .await
         .expect("send");
@@ -397,7 +431,10 @@ async fn api_server_rejects_slow_websocket_consumer() {
     let (mut fresh, _) = tokio_tungstenite::connect_async(server.ws_url())
         .await
         .expect("fresh consumer connects");
-    server.broadcaster.send("{\"fresh\":1}".to_string()).expect("send");
+    server
+        .broadcaster
+        .send("{\"fresh\":1}".to_string())
+        .expect("send");
     let msg = tokio::time::timeout(Duration::from_secs(5), fresh.next())
         .await
         .expect("fresh receives")
@@ -418,7 +455,11 @@ async fn api_server_rejects_slow_websocket_consumer() {
 async fn api_server_never_exposes_loader_map_mutation() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
-    for method in [reqwest::Method::POST, reqwest::Method::PUT, reqwest::Method::DELETE] {
+    for method in [
+        reqwest::Method::POST,
+        reqwest::Method::PUT,
+        reqwest::Method::DELETE,
+    ] {
         let resp = client
             .request(method.clone(), format!("{}/api/v1/events", server.base))
             .send()
@@ -455,7 +496,10 @@ async fn api_server_never_bypasses_redaction() {
     };
     let policy = RedactionPolicy::with_default_secrets();
     let redacted = apply_redaction(&ev, &policy);
-    server.storage.insert_event(&redacted).expect("insert redacted");
+    server
+        .storage
+        .insert_event(&redacted)
+        .expect("insert redacted");
 
     let client = reqwest::Client::new();
     let resp = client
@@ -476,7 +520,11 @@ async fn api_server_never_returns_unbounded_results() {
     let client = reqwest::Client::new();
     // Oversized limit rejected.
     let resp = client
-        .get(format!("{}/api/v1/events?limit={}", server.base, MAX_PAGE_LIMIT + 1))
+        .get(format!(
+            "{}/api/v1/events?limit={}",
+            server.base,
+            MAX_PAGE_LIMIT + 1
+        ))
         .send()
         .await
         .expect("send");
@@ -487,7 +535,10 @@ async fn api_server_never_returns_unbounded_results() {
     // Deep pagination beyond the window rejected.
     let deep = encode_cursor(MAX_PAGE_WINDOW);
     let resp = client
-        .get(format!("{}/api/v1/events?cursor={deep}&limit=10", server.base))
+        .get(format!(
+            "{}/api/v1/events?cursor={deep}&limit=10",
+            server.base
+        ))
         .send()
         .await
         .expect("send");

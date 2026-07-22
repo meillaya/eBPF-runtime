@@ -99,8 +99,8 @@ impl LocalStorage {
     pub fn insert_event(&self, event: &RedactedEvent) -> Result<String, StorageError> {
         let event_id = uuid::Uuid::new_v4().to_string();
         let kind_i32 = event_kind_to_i32(event);
-        let payload = serialize_event(event)
-            .map_err(|e| StorageError::InsertFailed(e.to_string()))?;
+        let payload =
+            serialize_event(event).map_err(|e| StorageError::InsertFailed(e.to_string()))?;
         let now = current_timestamp();
         let conn = self.conn.lock();
         conn.execute(
@@ -108,7 +108,7 @@ impl LocalStorage {
              VALUES (?1, ?2, ?3, ?4, 0)",
             rusqlite::params![event_id, kind_i32, payload, now],
         )
-        .map_err(|e| StorageError::from_sqlite(e))?;
+        .map_err(StorageError::from_sqlite)?;
         Ok(event_id)
     }
 
@@ -124,7 +124,7 @@ impl LocalStorage {
              VALUES (?1, ?2, ?3, 0)",
             rusqlite::params![batch_id, ids_json, now],
         )
-        .map_err(|e| StorageError::from_sqlite(e))?;
+        .map_err(StorageError::from_sqlite)?;
         Ok(batch_id)
     }
 
@@ -138,7 +138,7 @@ impl LocalStorage {
             "UPDATE events SET acked = 1, acked_at = ?1 WHERE event_id = ?2",
             rusqlite::params![now, event_id],
         )
-        .map_err(|e| StorageError::from_sqlite(e))?;
+        .map_err(StorageError::from_sqlite)?;
         Ok(())
     }
 
@@ -161,7 +161,7 @@ impl LocalStorage {
                         "UPDATE events SET acked = 1, acked_at = ?1 WHERE event_id = ?2",
                         rusqlite::params![now, id],
                     )
-                    .map_err(|e| StorageError::from_sqlite(e))?;
+                    .map_err(StorageError::from_sqlite)?;
                 }
             }
         }
@@ -169,12 +169,15 @@ impl LocalStorage {
             "UPDATE outbox SET acked = 1, acked_at = ?1 WHERE batch_id = ?2",
             rusqlite::params![now, batch_id],
         )
-        .map_err(|e| StorageError::from_sqlite(e))?;
+        .map_err(StorageError::from_sqlite)?;
         Ok(())
     }
 
     /// Delete acknowledged events older than the given duration.
-    pub fn delete_acked_events(&self, older_than: std::time::Duration) -> Result<usize, StorageError> {
+    pub fn delete_acked_events(
+        &self,
+        older_than: std::time::Duration,
+    ) -> Result<usize, StorageError> {
         let cutoff = current_timestamp() - older_than.as_secs() as i64;
         let conn = self.conn.lock();
         let deleted = conn
@@ -182,12 +185,15 @@ impl LocalStorage {
                 "DELETE FROM events WHERE acked = 1 AND created_at <= ?1",
                 rusqlite::params![cutoff],
             )
-            .map_err(|e| StorageError::from_sqlite(e))?;
+            .map_err(StorageError::from_sqlite)?;
         Ok(deleted)
     }
 
     /// Delete acknowledged batches older than the given duration.
-    pub fn delete_acked_batches(&self, older_than: std::time::Duration) -> Result<usize, StorageError> {
+    pub fn delete_acked_batches(
+        &self,
+        older_than: std::time::Duration,
+    ) -> Result<usize, StorageError> {
         let cutoff = current_timestamp() - older_than.as_secs() as i64;
         let conn = self.conn.lock();
         let deleted = conn
@@ -195,7 +201,7 @@ impl LocalStorage {
                 "DELETE FROM outbox WHERE acked = 1 AND created_at <= ?1",
                 rusqlite::params![cutoff],
             )
-            .map_err(|e| StorageError::from_sqlite(e))?;
+            .map_err(StorageError::from_sqlite)?;
         Ok(deleted)
     }
 

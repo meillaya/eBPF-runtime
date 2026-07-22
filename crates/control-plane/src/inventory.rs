@@ -34,11 +34,7 @@ pub async fn list_agents(
         .map_err(|e| ControlPlaneError::ControlQuery(e.to_string()))?;
 
     let total = all_agents.len() as u64;
-    let items: Vec<Agent> = all_agents
-        .into_iter()
-        .skip(offset)
-        .take(limit)
-        .collect();
+    let items: Vec<Agent> = all_agents.into_iter().skip(offset).take(limit).collect();
 
     let next_offset = offset + items.len();
     let next_cursor = if next_offset < total as usize {

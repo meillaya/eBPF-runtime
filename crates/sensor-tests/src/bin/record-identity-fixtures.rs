@@ -48,9 +48,9 @@ use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
 use event_abi::{
-    EventKind, Header, IDENTITY_FLAG_COMPAT, IDENTITY_FLAG_CGROUP_V1_HIERARCHY,
-    IDENTITY_FLAG_LOGINUID_INVALID, IDENTITY_PAYLOAD_LEN, IDENTITY_RECORD_LEN,
-    IDENTITY_TAIL_LEN, SCHEMA_MAJOR, SCHEMA_MINOR, HEADER_LEN,
+    EventKind, Header, HEADER_LEN, IDENTITY_FLAG_CGROUP_V1_HIERARCHY, IDENTITY_FLAG_COMPAT,
+    IDENTITY_FLAG_LOGINUID_INVALID, IDENTITY_PAYLOAD_LEN, IDENTITY_RECORD_LEN, IDENTITY_TAIL_LEN,
+    SCHEMA_MAJOR, SCHEMA_MINOR,
 };
 
 /// Identity-sensor fixture name list. Mirrors the per-fixture
@@ -325,8 +325,7 @@ fn encode(record: &IdentityRecord, sequence: u64) -> Vec<u8> {
     push_u32(&mut bytes, 0);
     // Header valids = canonical (PID_TGID + CGROUP_ID + TASK_START + PROCESSOR)
     // OR'd with the low 32 bits of the identity-side validity bitmask.
-    let header_valids: u32 =
-        0x0004 | 0x0002 | 0x0400 | 0x0800 | identity_lo;
+    let header_valids: u32 = 0x0004 | 0x0002 | 0x0400 | 0x0800 | identity_lo;
     push_u32(&mut bytes, header_valids);
     push_u64(&mut bytes, 0); // ns_pid in header is unused (identity uses payload field)
 
@@ -401,7 +400,9 @@ fn main() -> ExitCode {
     if argv.len() < 2 {
         eprintln!(
             "usage: {} <output-dir>\n  records .binpb fixtures under <output-dir>/identity/",
-            argv.first().map(String::as_str).unwrap_or("record-identity-fixtures")
+            argv.first()
+                .map(String::as_str)
+                .unwrap_or("record-identity-fixtures")
         );
         return ExitCode::from(2);
     }
@@ -432,15 +433,11 @@ fn _verify_encoder_layout() {
         NESTED_PID.real_uid
     );
     assert_eq!(
-        u64::from_le_bytes(
-            bytes[HEADER_LEN + 36..HEADER_LEN + 44].try_into().unwrap()
-        ),
+        u64::from_le_bytes(bytes[HEADER_LEN + 36..HEADER_LEN + 44].try_into().unwrap()),
         NESTED_PID.cgroup_v2_default_id
     );
     assert_eq!(
-        u64::from_le_bytes(
-            bytes[HEADER_LEN + 60..HEADER_LEN + 68].try_into().unwrap()
-        ),
+        u64::from_le_bytes(bytes[HEADER_LEN + 60..HEADER_LEN + 68].try_into().unwrap()),
         NESTED_PID.ns_pid_for_children
     );
     // Tail byte position.

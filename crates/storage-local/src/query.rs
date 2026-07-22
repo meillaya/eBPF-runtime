@@ -90,7 +90,9 @@ impl LocalStorage {
     /// Query batches from the outbox table with optional filters.
     pub fn query_outbox(&self, query: &OutboxQuery) -> Result<Vec<OutboxEntry>, StorageError> {
         let conn = self.conn.lock();
-        let mut sql = String::from("SELECT batch_id, event_ids, created_at, acked, acked_at FROM outbox WHERE 1=1");
+        let mut sql = String::from(
+            "SELECT batch_id, event_ids, created_at, acked, acked_at FROM outbox WHERE 1=1",
+        );
         let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
         if let Some(acked) = query.acked {
@@ -131,8 +133,7 @@ impl LocalStorage {
         for row in rows {
             let (batch_id, event_ids_json, created_at, acked, acked_at) =
                 row.map_err(|e| StorageError::QueryFailed(e.to_string()))?;
-            let event_ids: Vec<String> =
-                serde_json::from_str(&event_ids_json).unwrap_or_default();
+            let event_ids: Vec<String> = serde_json::from_str(&event_ids_json).unwrap_or_default();
             entries.push(OutboxEntry {
                 batch_id,
                 event_ids,
