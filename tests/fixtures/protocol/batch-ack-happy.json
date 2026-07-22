@@ -1,0 +1,26 @@
+{
+  "name": "batch-ack-happy",
+  "description": "Happy path: submit a valid batch with a unique idempotency key, expect Accepted.",
+  "idempotency_key": "batch-001",
+  "batch": {
+    "schema_major": 1,
+    "schema_minor": 0,
+    "events": [
+      {
+        "event_id": "00000000-0000-0000-0000-000000000000",
+        "seq": 0,
+        "ts_monotonic_ns": 0,
+        "sensor": "ops",
+        "event_kind": "FileOpen",
+        "valids": {}
+      }
+    ],
+    "agent_generation": "gen-1",
+    "node_name": "node-1",
+    "boot_id_hex": "00000000000000000000000000000000"
+  },
+  "expect": {
+    "state": "Accepted",
+    "error": null
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "description": "Duplicate event deliveries: same event_id replayed 100 times with increasing offsets. Before exact query: 100 physical rows visible. After exact query (FINAL/argMax): one logical row with highest version.",
+  "event_id": "evt-duplicate-001",
+  "schema_major": 1,
+  "schema_minor": 0,
+  "event_kind": "EVENT_KIND_FILE_OPEN",
+  "sensor": "ops",
+  "node_name": "node-1",
+  "cluster": "prod",
+  "replay_count": 100,
+  "offset_start": 0,
+  "offset_step": 1,
+  "expected_physical_rows": 100,
+  "expected_logical_rows": 1,
+  "expected_winning_version": 99,
+  "expected_winning_offset": 99
+}

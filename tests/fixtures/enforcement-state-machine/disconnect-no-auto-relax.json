@@ -1,0 +1,14 @@
+{
+  "name": "disconnect-no-auto-relax",
+  "description": "Loader disconnect does NOT auto-relax last-known-good; only explicit commands change enforcement state",
+  "transitions": [
+    {"action": "persist_deny", "version": 20, "generation": 5},
+    {"action": "loader_death"},
+    {"action": "check_lkg", "expect_mode": "deny", "expect_generation": 5}
+  ],
+  "expect": {
+    "lkg_unchanged": true,
+    "lkg_mode": "deny",
+    "lkg_generation": 5
+  }
+}

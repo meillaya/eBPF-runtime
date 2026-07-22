@@ -1,0 +1,25 @@
+{
+  "scenario": "audit_same_transaction_atomicity",
+  "description": "State change and audit entry are written in the same transaction. If the transaction rolls back, neither the state change nor the audit entry persists. No orphaned audits.",
+  "operations": [
+    {
+      "action": "agent.register",
+      "actor": "admin-user",
+      "resource": "spiffe://kernel-v1.test/agent/prod/node-1",
+      "cluster_scoped": true
+    },
+    {
+      "action": "policy.stage",
+      "actor": "policy-admin-1",
+      "resource": "policy_version:1",
+      "cluster_scoped": false
+    }
+  ],
+  "expected": {
+    "state_change_committed": true,
+    "audit_entry_committed": true,
+    "rollback_leaves_neither": true,
+    "no_orphaned_audit_on_failure": true,
+    "audit_seq_monotonic": true
+  }
+}

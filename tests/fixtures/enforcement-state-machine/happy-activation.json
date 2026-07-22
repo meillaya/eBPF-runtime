@@ -1,0 +1,15 @@
+{
+  "name": "happy-activation",
+  "description": "Full STAGE→READY→COMMIT→APPLIED lifecycle with a deny policy for file_open on /etc/shadow",
+  "transitions": [
+    {"action": "stage", "version": 1, "expect_state": "Staged", "expect_ok": true},
+    {"action": "verify", "expect_state": "Ready", "expect_ok": true},
+    {"action": "commit", "version": 1, "expect_state": "Applied", "expect_ok": true}
+  ],
+  "expect": {
+    "final_state": "Applied",
+    "active_mode_file_open": "deny",
+    "deny_links_pinned": false,
+    "loader_alive": true
+  }
+}

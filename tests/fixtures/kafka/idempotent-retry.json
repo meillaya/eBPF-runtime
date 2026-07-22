@@ -1,0 +1,15 @@
+{
+  "name": "idempotent-retry-deduplication",
+  "description": "The idempotent producer deduplicates retried batches. When a produce request is retried (e.g., after transient leader election), the broker recognizes the (producer_id, partition, sequence) triple and returns the original offset instead of writing again. The duplicate is DECLARED, not hidden.",
+  "producer_id": 1,
+  "partition": 0,
+  "sequence": 0,
+  "first_produce": {"batch_id": "batch-1", "offset": 0, "is_duplicate": false},
+  "retry_produce": {"batch_id": "batch-1-retry", "offset": 0, "is_duplicate": true},
+  "expect": {
+    "retry_returns_same_offset": true,
+    "duplicate_is_declared": true,
+    "no_hidden_write": true,
+    "declared_duplicate_count": 1
+  }
+}

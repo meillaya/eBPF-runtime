@@ -1,0 +1,14 @@
+{
+  "name": "duplicate-commit-idempotent",
+  "description": "Duplicate COMMIT after Applied with the same version is a safe no-op",
+  "transitions": [
+    {"action": "stage", "version": 1, "expect_state": "Staged", "expect_ok": true},
+    {"action": "verify", "expect_state": "Ready", "expect_ok": true},
+    {"action": "commit", "version": 1, "expect_state": "Applied", "expect_ok": true},
+    {"action": "commit", "version": 1, "expect_state": "Applied", "expect_ok": true}
+  ],
+  "expect": {
+    "final_state": "Applied",
+    "deny_links_pinned": false
+  }
+}

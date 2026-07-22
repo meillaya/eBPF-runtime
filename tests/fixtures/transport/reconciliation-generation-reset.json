@@ -1,0 +1,16 @@
+{
+  "name": "reconciliation-generation-reset",
+  "description": "Boot ID changed (agent rebooted); sequence resets to 0 regardless of prior ACKs",
+  "boot_id_hex": "ffffffffffffffffffffffffffffffff",
+  "agent_generation": "gen-2",
+  "sent_sequences": [0, 1, 2],
+  "server_last_acked_seq": 2,
+  "server_boot_id": "00000000000000000000000000000000",
+  "server_generation": "gen-1",
+  "expect": {
+    "action": "GenerationReset",
+    "new_boot_id": "ffffffffffffffffffffffffffffffff",
+    "new_generation": "gen-2",
+    "next_seq_after_reset": 0
+  }
+}

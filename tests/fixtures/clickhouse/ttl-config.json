@@ -1,0 +1,43 @@
+{
+  "description": "TTL fixture: events expire after configured TTL days. Default 30d for events_v1, 90d for events_dlq_v1.",
+  "events_ttl_days": 30,
+  "dlq_ttl_days": 90,
+  "test_cases": [
+    {
+      "name": "event-within-ttl",
+      "ingested_days_ago": 29,
+      "ttl_days": 30,
+      "expected_expired": false
+    },
+    {
+      "name": "event-at-ttl-boundary",
+      "ingested_days_ago": 30,
+      "ttl_days": 30,
+      "expected_expired": true
+    },
+    {
+      "name": "event-beyond-ttl",
+      "ingested_days_ago": 45,
+      "ttl_days": 30,
+      "expected_expired": true
+    },
+    {
+      "name": "dlq-within-ttl",
+      "ingested_days_ago": 89,
+      "ttl_days": 90,
+      "expected_expired": false
+    },
+    {
+      "name": "dlq-beyond-ttl",
+      "ingested_days_ago": 91,
+      "ttl_days": 90,
+      "expected_expired": true
+    },
+    {
+      "name": "ttl-disabled",
+      "ingested_days_ago": 365,
+      "ttl_days": 0,
+      "expected_expired": false
+    }
+  ]
+}
