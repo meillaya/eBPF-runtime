@@ -1,9 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/agent",
     "crates/agent-core",
     "crates/bpf-build",
     "crates/bpf-loader",
+    "crates/cli",
     "crates/enrichment",
     "crates/event-abi",
     "crates/observability",

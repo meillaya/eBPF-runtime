@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+description = "Standalone CLI for the eBPF runtime security observability agent (preflight, status, health, live events, queries, export)."
+publish = false
+
+[lib]
+name = "cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cli"
+path = "src/main.rs"
+
+[dependencies]
+event-abi = { path = "../event-abi" }
+agent-core = { path = "../agent-core" }
+agent = { path = "../agent" }
+enrichment = { path = "../enrichment" }
+privacy = { path = "../privacy" }
+storage-local = { path = "../storage-local" }
+observability = { path = "../observability" }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "signal"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
+
+[dev-dependencies]
+proptest = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }

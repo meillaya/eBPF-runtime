@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "agent"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+description = "Standalone node service: local REST/WebSocket API and agent loop for the eBPF runtime security observability platform."
+publish = false
+
+[lib]
+name = "agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "agent"
+path = "src/main.rs"
+
+[dependencies]
+event-abi = { path = "../event-abi" }
+agent-core = { path = "../agent-core" }
+enrichment = { path = "../enrichment" }
+privacy = { path = "../privacy" }
+storage-local = { path = "../storage-local" }
+observability = { path = "../observability" }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "signal", "net", "time"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+parking_lot = "0.12"
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
+
+[dev-dependencies]
+proptest = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }
+reqwest = { version = "0.12", features = ["json"] }
+tokio-tungstenite = "0.21"
