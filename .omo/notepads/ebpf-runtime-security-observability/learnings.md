@@ -185,3 +185,144 @@
 - No mode change without staged validated maps — every policy ships mode=0; promotion is task 34.
 - Deny links never pinned (loader pins nothing for this sensor).
 - Files touched only under bpf/sensors/, bench/, tests/fixtures/enforcement/, .omo/notepads/ (crates/bpf-loader/ was in-scope but deliberately untouched to avoid the deny-link policy test and build; the Rust map mirror is task 34).
+
+## Task 34: Agent-side staged policy maps, kill switch, and loader-death fail-open lifecycle
+
+### State machine design (crates/enforcement/src/state_machine.rs)
+- The enforcement lifecycle is `Idle → Staged → Ready → Committed → Applied` with `Rejected` reachable from Staged (digest mismatch) or any state (explicit rejection). STAGE writes to the inactive buffer; VERIFY recomputes the SHA-256 digest; COMMIT atomically flips active/inactive.
+- STAGE is valid from Idle, Staged (idempotent re-stage), Rejected (re-attempt), and Applied (new rollout with higher version). STAGE is NOT valid from Ready or Committed (mid-transition).
+- COMMIT is valid ONLY from Ready. COMMIT before READY is `InvalidTransition`. Duplicate COMMIT after Applied with the same version is a safe no-op (idempotent).
+- The monotonic version check happens AFTER the state check: commands with version ≤ `monotonic_version` are rejected as `VersionReplay`. This covers both stale (version < current) and exact replay (version == current).
+- After COMMIT, `staged_version` is NOT cleared — this enables the idempotent duplicate COMMIT check. But it means a re-STAGE with the same version after Applied hits the monotonic check (version ≤ monotonic_version) and is correctly rejected as a replay.
+
+### CRITICAL: digest computation must mirror stage() exactly
+- `compute_digest_for_entries()` MUST set `slot.generation` and `slot.version` on each entry, exactly as `stage()` does. If it doesn't, the digest computed by the caller (for the STAGE command's `content_digest` field) won't match the digest recomputed by `verify()` from the inactive buffer, causing a false `DigestMismatch` rejection. This was the root cause of 3 test failures during development.
+- The digest covers: generation (u64 LE) + per-entry [mode, hook_family, version (u64 LE), generation (u64 LE), deny_errno (i32 LE), selector_len (u32 LE), selector bytes]. The `_pad` fields are NOT included (they are zero-filled and carry no semantic content).
+
+### Double-buffered PolicyMap (crates/enforcement/src/policy.rs)
+- `PolicyMap` holds `active`, `inactive`, and `previous` (rollback target). `flip()` uses a 3-step `std::mem::replace` chain: (1) stash old_active, (2) swap inactive into active, (3) allocate fresh inactive at generation+1, store old_active as previous. The `next_gen` for the fresh inactive is `inactive.generation + 1` (NOT `active.generation + 1` — that would produce a duplicate generation number).
+- `rollback()` swaps active back to previous; the current active becomes the new inactive. Returns false if no previous exists.
+- `deny_links_pinned()` always returns false — this is a compile-time invariant, not a runtime check.
+
+### Kill switch (crates/enforcement/src/kill_switch.rs)
+- Wire-compatible with `struct lsm_kill_switch` (16 bytes): deny_disabled at offset 0, last_toggle_ns at offset 8. The `to_wire()`/`from_wire()` methods match the C struct layout exactly.
+- User-space engage latency is sub-microsecond (memory write). The real gRPC→BPF-map latency requires privileged BPF load and is BLOCKED on this host.
+- `benchmark_kill_switch(pairs, threshold_ms)` runs engage/disengage cycles, computes p99, and compares against the threshold. The bench script reads `kill_switch_max_ms` and `kill_switch_benchmark_pairs` from the schema (NOT hardcoded).
+
+### Persistence (crates/enforcement/src/persistence.rs)
+- Last-known-good is a JSON-serialized `PolicyGeneration` written atomically (write-to-temp + rename). The `PersistenceManager` wraps a path and provides save/load.
+- On restore (`from_persisted`), EVERY entry is forced to `PolicyMode::Audit` (startup audit-only invariant). The monotonic version is set to the max entry version, preventing replay of old commands.
+- Disconnect does NOT auto-relax LKG: `on_loader_death()` sets `loader_alive = false` but does NOT modify the persisted file. Only explicit ROLLBACK or KILL SWITCH commands change enforcement state.
+
+### Loader-death fail-open
+- `on_loader_death()` sets `loader_alive = false`, transitions to Idle, and records the event in the transition log. Subsequent STAGE commands return `Err(LoaderDead)`.
+- Deny links are never pinned by construction (`deny_links_pinned == false` always), so loader death cannot leave stale deny links attached. Observation links may use distinct pin roots (separate from enforcement).
+
+### Bench harness (bench/enforcement-state-machine.sh)
+- Phase 1: `cargo test -p enforcement` (54 tests covering all transitions, digest, version, idempotency, rollback, kill switch, persistence, loader death).
+- Phase 2: validates 12 fixture files in tests/fixtures/enforcement-state-machine/ are present and valid JSON.
+- Phase 3: kill-switch latency benchmark (user-space simulation; real gRPC latency BLOCKED).
+- Phase 4: 11 safety invariants checklist.
+- Privileged half (real BPF map ops, real kill-switch p99, forced SIGKILL) reported as BLOCKED.
+
+### Schema anchor (bench/schemas/enforcement.v1.json)
+- All constants read from schema, NOT hardcoded: kill_switch_max_ms=5000, kill_switch_benchmark_pairs=10, audit_first_default_mode=0.
+- The bench script asserts `audit_first_default_mode == 0` as a precondition.
+
+### Files created
+- `crates/enforcement/` — new crate (Cargo.toml, src/{lib,error,policy,digest,state_machine,kill_switch,persistence}.rs)
+- `bench/enforcement-state-machine.sh` — bench harness
+- `tests/fixtures/enforcement-state-machine/` — 12 JSON fixtures covering all transitions
+- Workspace `Cargo.toml` updated to include `crates/enforcement`
+
+## Task 35: Typed fleet protocol state machines (crates/protocol)
+
+### Hand-written Rust mirror of proto contracts (buf codegen disabled)
+- Task 6 intentionally disabled buf codegen (`buf.gen.yaml` has `enabled: false`). Task 35 provides the typed Rust surface as hand-written types that mirror `proto/kernel/v1/events/v1/events.proto` and `proto/kernel/v1/control/v1/control.proto` field-by-field.
+- The `PROTO_SCHEMA_DIGEST` constant (`42da5dcee9cc8a8de2fdf472dd2e325d5e6fd0759e0fab864c6a6dc5985349b5`) is the SHA-256 of the concatenated proto source files. The `proto_freshness_check` test recomputes the digest from `include_str!` and asserts equality — if the protos change, the test fails and the Rust types + digest must be updated.
+- serde `#[serde(rename = "EVENT_KIND_...")]` attributes on `EventKind` variants match the proto JSON enum names exactly, so the existing `tests/fixtures/proto/events/happy.json` fixture deserializes without modification. This is the Rust/TypeScript interop anchor: both sides serialize to the same proto JSON enum names.
+
+### Policy activation state machine (state_machine.rs)
+- Mirrors the enforcement crate's `Idle → Staged → Ready → Committed → Applied` lifecycle with `Rejected` reachable from Staged (digest mismatch) or any non-Idle state (explicit rejection).
+- STAGE is valid from Idle, Staged (idempotent re-stage), Rejected (re-attempt), Applied (new rollout with higher version). NOT valid from Ready or Committed (mid-transition).
+- COMMIT is valid ONLY from Ready. Duplicate COMMIT after Applied with the same version is a safe no-op (idempotent).
+- The monotonic version check happens BEFORE the state check in `stage()`: commands with version ≤ `monotonic_version` are rejected as `VersionReplay`. In `commit()`, the version must match the staged version AND be strictly greater than monotonic_version.
+- `PolicyActivationState` converts to `PolicyStatus` (the control.proto enum) via `From`, bridging the protocol-level SM to the wire contract.
+
+### Batch ACK state machine (batch_ack.rs)
+- States: `Pending → Accepted / Rejected`. Every batch carries an `IdempotencyKey`. Duplicate submissions are detected by the `IdempotencyTracker` and rejected with `DuplicateIdempotencyKey`.
+- Validation order: (1) idempotency key uniqueness, (2) schema major ≥ 1, (3) batch bounds (message count, per-message size). This ordering ensures a duplicate ID is caught before any payload inspection.
+- The `MessageBounds` struct anchors `max_message_size_bytes` (default 1 MiB) and `max_batch_messages` (default 1000) from `bench/schemas/protocol.v1.json`.
+
+### Idempotency keys (idempotency.rs)
+- Format: UUID v4 string or monotonic u64 counter rendered as decimal string (anchored as `idempotency_key_format` in protocol.v1.json).
+- `IdempotencyTracker` uses a `HashSet<IdempotencyKey>` bounded to `MAX_TRACKED_KEYS` (100,000). At capacity, the tracker clears entirely (cheaper than LRU for the MVP; the window is large enough for legitimate retries).
+
+### Deadline propagation (deadline.rs)
+- Deadlines are absolute epoch-millisecond timestamps. `is_expired()` takes an explicit `now` parameter to avoid hidden clock reads in tests.
+- `propagate()` implements the gRPC deadline inheritance rule: the child inherits `min(parent_remaining, child_default)`. An expired parent propagates a zero-budget child (immediately expired).
+- `saturating_add` prevents overflow when computing deadlines near `u64::MAX`.
+
+### Typed error codes (error.rs)
+- `ProtocolError` has 10 variants covering every QA failure case: `InvalidTransition`, `VersionReplay`, `DigestMismatch`, `OversizedMessage`, `OversizedBatch`, `ExpiredDeadline`, `DuplicateIdempotencyKey`, `StaleProtocolMajor`, `UnknownField`, `InvalidPolicy`.
+- No free strings for state transitions — all states are typed enums (`PolicyActivationState`, `BatchAckState`, `PolicyStatus`, `EventKind`).
+
+### Schema anchor (bench/schemas/protocol.v1.json)
+- Anchors: `max_message_size_bytes`=1048576, `max_batch_messages`=1000, `deadline_default_ms`=30000, `idempotency_key_format`="uuid_v4_or_monotonic_u64", `max_tracked_idempotency_keys`=100000, `compression_algorithm`="none", `schema_major`=1, `schema_minor`=0, `fixture_min_precision_and_recall`=1.0.
+- Modeled on `enforcement.v1.json` (no `$schema` key; `properties`/`defaults`; `additionalProperties: false`).
+
+### Files created
+- `crates/protocol/` — new crate (Cargo.toml, src/{lib,error,events,control,bounds,deadline,idempotency,state_machine,batch_ack,identity}.rs)
+- `bench/schemas/protocol.v1.json` — protocol constants schema
+- `tests/fixtures/protocol/` — 7 JSON fixtures (policy-activation-happy, batch-ack-happy, oversized-batch, stale-major, illegal-transition, duplicate-id, expired-deadline)
+- Workspace `Cargo.toml` updated to include `crates/protocol`
+- 75 tests pass (`cargo test -p protocol`), including proto freshness check and happy.json fixture interop
+
+## Task 36: SPIFFE Workload API identity and rotating gRPC mTLS credentials (crates/identity-spiffe)
+
+### Architecture: transport-abstracted Workload API client
+- The `SvidStream` trait abstracts the FetchX509SVID gRPC stream transport. `FixtureSvidStream` provides deterministic test streams; a real `GrpcSvidStream` (Unix socket + tonic) is deferred to the declared self-hosted runner with SPIRE deployed.
+- `WorkloadApiClient` manages the stream lifecycle: connect → stream → validate → complete-set replace → reconnect with backoff. The `run_with_reconnect` method takes a stream factory closure, enabling test injection without a live SPIRE agent.
+- The client reads `SPIFFE_ENDPOINT_SOCKET` env var (falls back to `/run/spire/agent-sockets/api.sock`). No insecure bootstrap: if the endpoint is unreachable, the client fails closed (no credentials, no plaintext fallback).
+
+### Complete-set replace/redact semantics (the central safety invariant)
+- Each `X509SVIDResponse` from the Workload API is a COMPLETE snapshot. The new set REPLACES the old entirely — no partial merge. On replacement, `SvidSet::redact_all()` zeroizes all private key material in the old set via `Zeroizing<Vec<u8>>`.
+- After redaction, `private_key_pem()` and `private_key_der()` return `Err(MaterialRedacted)`. Certificate chains (public material) remain accessible. The `Debug` impl shows `[REDACTED]` for key fields — private key bytes NEVER appear in logs.
+- `X509Svid` implements `Drop` which calls `redact()`, ensuring key material is zeroed even on unexpected scope exit.
+
+### SPIFFE ID validation: exact trust-domain match, NEVER substring
+- `SpiffeId::parse()` validates: scheme `spiffe://`, non-empty trust domain (no whitespace, no `/`), optional path starting with `/`, no fragment/query, no empty path segments (`//`).
+- `assert_trust_domain()` uses `!=` (exact equality). `SpiffeIdSelector::validate()` rejects substring matches: `kernel-v1` does NOT match `kernel-v1-evil` or `kernel-v1.test`.
+- Selectors support exact path match and path prefix match. The authorization callback expects `/agent/<cluster>/<node>` structure.
+
+### Credential manager: rustls mTLS with fail-closed semantics
+- `CredentialManager` builds `rustls::ServerConfig` (with `WebPkiClientVerifier` for mTLS) and `rustls::ClientConfig` from the current SVID set. Trust bundles are used ONLY for SVID authentication (peer cert verification), never for arbitrary TLS.
+- Fail-closed: `rebuild()` returns `Err(SvidExpired)` if the SVID is expired, `Err(MaterialRedacted)` if key material is redacted, `Err(NoCredentials)` if no SVID set exists. No fallback to expired/redacted/static material.
+- Hot-rebuild: `needs_rebuild()` triggers on rotation count change OR when SVID approaches expiry (80% of default 1-hour lifetime elapsed).
+
+### Authorization callback: SPIFFE ID → agent/node/cluster binding
+- `AuthorizationCallback::authorize()` decomposes `spiffe://<td>/agent/<cluster>/<node>` into an `AgentBinding` struct. Validates exact trust domain, path structure, and optional cluster/node restrictions.
+- `to_register_request()` bridges to the protocol crate's `RegisterRequest`, enabling `AgentIdentity::register()` with the SPIFFE-derived node/cluster identity.
+
+### Pinned ephemeral fixtures (tests/fixtures/spiffe/)
+- Generated with OpenSSL 3.6 EC P-256 keys. CA cert (bundle.pem) valid 10 years. Agent SVIDs signed by CA with SPIFFE URI SAN.
+- `svid-agent.pem` / `svid-agent-rotated.pem`: valid SVIDs with `spiffe://kernel-v1.test/agent/prod/node-1` (different keys, same ID — proves rotation).
+- `svid-expired.pem`: notAfter=2024-01-02 (already expired — proves fail-closed).
+- `svid-wrong-td.pem`: signed by a separate evil CA with `spiffe://evil.example/agent/prod/node-1` (proves trust-domain rejection).
+- The expired fixture uses OpenSSL 3.x `-not_before`/`-not_after` flags to pin dates in the past.
+
+### BLOCKER: no live SPIRE agent on this host
+- The gRPC streaming transport (Unix socket → SPIRE agent) cannot be tested end-to-end. All stream logic is validated via `FixtureSvidStream`. Live integration re-opens on the declared self-hosted runner.
+- The `run_with_reconnect` test uses `std::thread::sleep` with real backoff delays (100ms base). Tests complete in <1s total.
+
+### Dependencies added to workspace
+- `x509-parser = "0.17"` — X.509 certificate parsing (SAN URI extraction, notAfter timestamp).
+- `rustls = "0.23"` (ring backend) — TLS config building for mTLS.
+- `zeroize = "1"` (derive feature) — zeroizing memory for private keys.
+- All other deps (tokio, prometheus, parking_lot, thiserror, tracing) were already in the workspace lock file.
+
+### Files created
+- `crates/identity-spiffe/` — new crate (Cargo.toml, src/{lib,error,spiffe_id,svid,backoff,workload,credentials,authorization,metrics}.rs, tests/integration.rs)
+- `tests/fixtures/spiffe/` — 13 PEM fixtures (ca, bundle, agent SVID, rotated SVID, expired SVID, wrong-td SVID + keys)
+- Workspace `Cargo.toml` updated to include `crates/identity-spiffe`
+- 82 tests pass (`cargo test -p identity-spiffe`): 61 unit + 21 integration
