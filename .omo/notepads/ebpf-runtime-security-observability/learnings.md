@@ -394,3 +394,375 @@
 - `tests/fixtures/oidc/` — discovery.json, jwks.json, device-flow.json, keys/{rsa-test.pem,ec-test.pem,rsa-test-pub.pem,ec-test-pub.pem}
 - Workspace `Cargo.toml` updated to include `crates/auth`
 - 94 tests pass (`cargo test -p auth`): covering PKCE happy/failure, device flow lifecycle, JWT validation (RS256+ES256 happy, expired/wrong-issuer/wrong-audience/wrong-azp/wrong-nonce/iat-future/tampered-sig/alg-none failures), RBAC negative matrix (all 4 roles × denied actions), session expiry/revocation/group-change, middleware loopback/non-loopback, audit intent emission
+
+## Task 38: PostgreSQL authoritative fleet state and append-only audit (crates/control-db)
+
+### Architecture: trait-based repositories with SQLx + in-memory mocks
+- BLOCKER: this host has no running PostgreSQL instance. All repository logic is validated via in-memory mock repositories (`test_support` module). Live PostgreSQL integration (testcontainers/ephemeral) re-opens on the declared self-hosted runner.
+- Each repository is a trait (`FleetRepository`, `CursorRepository`, `PolicyRepository`, `AuthRepository`, `AuditRepository`, `NotifyChannel`) with two implementations: `Sqlx*Repository` (live PostgreSQL, runtime-checked queries) and `Mock*Repository` (in-memory, for logic validation).
+- SQLx queries use runtime checking (not compile-time `query!` macro) because no `DATABASE_URL` is available at build time. The `sqlx::migrate!("./migrations")` macro embeds migration SQL at compile time.
+
+### Migration design (7 up/down pairs)
+- `0001_fleet_state`: clusters/nodes/agents with SPIFFE identity references (`spiffe_id TEXT UNIQUE`), version columns for optimistic concurrency, `UNIQUE(cluster_id, name)` on nodes.
+- `0002_event_cursors`: per-agent sequence tracking with `UNIQUE(agent_id, sequence)` and `UNIQUE(agent_id, idempotency_key)` for idempotent ingestion.
+- `0003_policy_rollout`: policies/policy_versions/rollout_targets/rollouts/rollout_acks. `UNIQUE(policy_version_id)` on rollouts ensures one active rollout per version. `UNIQUE(rollout_id, agent_id)` on acks ensures one ack per agent per rollout.
+- `0004_oidc_auth`: oidc_role_bindings/oidc_sessions/oidc_revocations. CHECK constraints enforce valid roles (viewer/analyst/policy-admin/admin) and binding types (group/sub).
+- `0005_audit_log`: append-only audit_log with `audit_log_seq` sequence for monotonic ordering. NO UPDATE/DELETE grants to control_app role.
+- `0006_rls_policies`: RLS enabled on ALL tables. Cluster isolation via `current_setting('app.cluster_id', true)`. Role-gated writes via `current_setting('app.role', true)`. Audit log has INSERT + SELECT policies ONLY (no UPDATE/DELETE policy = RLS default-deny).
+- `0007_roles_privileges`: Three least-privilege roles: `control_app` (DML, INSERT-only on audit, NOBYPASSRLS), `control_audit` (read + insert audit, NOBYPASSRLS), `control_migrate` (DDL, BYPASSRLS for migrations).
+
+### Optimistic concurrency pattern
+- Every mutable table has a `version BIGINT NOT NULL DEFAULT 1` column.
+- Updates use `UPDATE ... SET version = version + 1 WHERE id = $1 AND version = $expected RETURNING ...`.
+- If no row is returned, the version didn't match → `ControlDbError::VersionConflict { table, expected, found }`.
+- The caller must re-read and retry. `is_retryable()` returns true for VersionConflict.
+
+### Idempotency pattern
+- Unique constraints + `ON CONFLICT DO UPDATE SET col = EXCLUDED.col` (no-op update) for safe retries.
+- For event cursors: `UNIQUE(agent_id, sequence)` and `UNIQUE(agent_id, idempotency_key)` → duplicate insert returns `IdempotentDuplicate`.
+- For rollouts: `UNIQUE(policy_version_id)` → second creation attempt returns `IdempotentDuplicate`.
+- For acks: `UNIQUE(rollout_id, agent_id)` → duplicate ack returns `IdempotentDuplicate`.
+- `is_idempotent_duplicate()` returns true for IdempotentDuplicate (safe no-op, not an error).
+
+### Advisory locks: bounded keys only
+- `advisory_key_for_cluster(cluster_id)` computes `i64::from_be_bytes(first_8_bytes).unsigned_abs() % MAX_ADVISORY_LOCK_KEY` (1,000,000).
+- Used in `create_node` to serialize node creation within a cluster (prevents duplicate names under concurrency).
+- Lock is `pg_advisory_xact_lock` (transaction-scoped, released at COMMIT/ROLLBACK). Short transactions only.
+
+### Same-transaction audit writes
+- Every state-changing operation (agent.register, policy.stage, rollout.create, rollout.complete, policy status transitions) writes its audit entry in the SAME transaction.
+- Pattern: `BEGIN → state change → nextval('audit_log_seq') → INSERT audit_log → COMMIT`.
+- If the transaction rolls back, NEITHER the state change NOR the audit entry persists. No orphaned audits.
+
+### LISTEN/NOTIFY as wake hint only
+- Two channels: `control_fleet_state`, `control_policy_rollout`.
+- NOTIFY payload is a hint (e.g. "nodes:<uuid>"), NOT state. Max 7999 bytes (pg_notify limit).
+- Consumer pattern: LISTEN → on wake → SELECT latest state from table. Periodic polling covers lost notifications.
+- `SqlxNotifyChannel::notify_in_tx()` sends NOTIFY in the same transaction as the state change.
+- Lost notifications are SAFE: the consumer falls back to polling and always re-reads authoritative state.
+
+### RLS defense-in-depth (NOT primary authz)
+- Service RBAC (task 37 auth crate) is the PRIMARY authorization mechanism.
+- Database RLS provides defense-in-depth: even if service logic is bypassed, the database prevents cross-cluster mutations and insufficient-role writes.
+- Cluster isolation: `app.cluster_id` session variable gates access to cluster-scoped rows.
+- Role gating: `app.role` session variable gates write access to policies/rollouts.
+- Owner bypass risk documented: without RLS context (superuser), all operations succeed. Mitigated by `ALTER ROLE control_app NOBYPASSRLS`.
+
+### Audit immutability (triple enforcement)
+1. **Repository API**: `AuditRepository` trait exposes ONLY `append` and read methods. `attempt_update`/`attempt_delete` always return `AuditImmutable`.
+2. **Database role**: `control_app` has `SELECT, INSERT` on audit_log. NO `UPDATE`/`DELETE` grants.
+3. **RLS**: audit_log has INSERT and SELECT policies ONLY. No UPDATE/DELETE policy → RLS default-deny.
+
+### Policy version monotonic enforcement
+- Mirrors the protocol crate's `PolicyActivation` state machine: version must be strictly greater than current max.
+- `stage_version()` checks `SELECT MAX(version) FROM policy_versions WHERE policy_id = $1` before insert.
+- Version ≤ max → `VersionConflict { expected: max+1, found: version }` (replay rejected).
+- Status transitions use `UPDATE ... WHERE status = $from_status` (optimistic on status).
+
+### Test coverage (36 tests: 7 unit + 29 integration)
+- Optimistic concurrency: cluster update conflict, agent health conflict.
+- Idempotency: cluster creation, agent registration, cursor advance, rollout creation.
+- Concurrent rollout race: one winner, loser gets IdempotentDuplicate.
+- Rollout ack: idempotent + aggregate count updates.
+- Rollout completion: optimistic version check.
+- Policy version: monotonic enforcement, status transitions (staged→ready→committed→applied).
+- Audit atomicity: same-transaction writes verified.
+- Audit immutability: UPDATE/DELETE always fail with AuditImmutable.
+- Audit monotonic sequence: seq always increases.
+- RLS negative matrix: cross-cluster read denied, cross-cluster node creation denied, viewer policy write denied, analyst policy stage denied, policy-admin can write, owner bypass risk documented.
+- Notification loss recovery: re-read pattern, wake hint not state.
+- Migration rollback: documented (7 down migrations in reverse order).
+- Fixture loading: 4 JSON fixtures validated.
+
+### Dependencies added to workspace
+- `sqlx = "0.8"` (runtime-tokio, postgres, uuid, chrono, migrate features) — PostgreSQL driver + migrations.
+- `parking_lot = "0.12"` — thread-safe mock state (already in workspace lock).
+- All other deps (tokio, serde, serde_json, thiserror, tracing, uuid, chrono) were already in the workspace.
+
+### Files created
+- `crates/control-db/` — new crate (Cargo.toml, src/{lib,error,models,pool,fleet,cursors,policy,auth,audit,notify,test_support}.rs, tests/integration.rs)
+- `crates/control-db/migrations/` — 7 up/down SQL pairs (0001-0007)
+- `tests/fixtures/control-db/` — 4 JSON fixtures (concurrent-rollout-race, audit-atomicity, rls-denial-matrix, notification-loss-recovery)
+- Workspace `Cargo.toml` updated to include `crates/control-db`
+- 36 tests pass (`cargo test -p control-db`): 7 unit + 29 integration
+
+## Task 39: Agent/control-plane transport with separate deadline-bound streams (crates/transport)
+
+### Architecture: separate channels, independent backpressure
+- The transport uses TWO completely independent channels: `ControlChannel` (low-volume, high-priority: kill-switch, policy, registration) and `EventChannel` (high-volume: event batches). Each has its own bounded `tokio::sync::mpsc` queue, its own shutdown `Notify`, and its own metrics.
+- Event backpressure NEVER blocks control delivery. Filling the event queue to capacity (tested with `event_queue_capacity: 2`) does not prevent the control channel from accepting a kill-switch command. This is the central safety invariant: the kill-switch must always be deliverable regardless of telemetry volume.
+- Both channels use `try_send` (non-blocking) for backpressure. `QueueFull` is returned immediately when the queue is at capacity — the caller drops or buffers, never blocks. This prevents deadlock by construction.
+
+### Deadlock-free read/write loops
+- Each channel's write loop (drains outbound queue) and read loop (processes inbound ACKs/responses) run in separate tokio tasks. Communication is via `tokio::sync::mpsc` (async, non-blocking) and `tokio::sync::Notify` (shutdown). Neither task holds a lock while awaiting the other.
+- The write loops check `protocol::Deadline` before sending; expired messages are dropped with a metric (`dropped_expired`). The ACK read loop validates `durable: true` on every inbound ACK; receipt-only ACKs are rejected and logged.
+- `tokio::select!` is used for shutdown signaling: the loop exits on `shutdown.notified()` OR when the channel closes. No busy-waiting.
+
+### Deterministic batch ACK after durable Kafka acceptance (the central ACK invariant)
+- `AckTracker` enforces a strict state machine: `AwaitingKafkaAcceptance → KafkaAccepted → AckedAndDeleted`. There is NO path from `AwaitingKafkaAcceptance` directly to `AckedAndDeleted`.
+- `try_receipt_only_ack()` ALWAYS returns `Err(ReceiptOnlyAck)` — receipt-only ACK is structurally forbidden, not just discouraged.
+- `complete_ack()` requires prior `KafkaAccepted` state. Attempting to complete an ACK before Kafka acceptance returns `Err(ReceiptOnlyAck)`.
+- `KafkaAcceptance` carries topic, partition, and offset — the offset confirms durability (the batch is committed to the Kafka log).
+- After `complete_ack()`, the outbox row is deleted via the `OutboxDeleter` trait. The trait abstracts the storage backend so the transport crate does not depend on `storage-local` directly (avoiding a circular dependency through the agent crate). The agent wires up the concrete `LocalStorage` implementation at startup.
+
+### Outbox deletion via trait abstraction
+- `OutboxDeleter` trait: `fn delete_outbox_row(&self, batch_id: &str) -> TransportResult<bool>`. Returns true if a row was deleted.
+- `MockOutboxDeleter` provides an in-memory implementation for tests. The mock tracks remaining rows, enabling assertions on which batches were deleted vs retained.
+- The transport crate does NOT depend on `storage-local` or `rusqlite`. The agent crate (which depends on both) wires up the concrete implementation. This keeps the transport crate's dependency graph clean.
+
+### Sequence reconciliation (boot/agent generation)
+- `SequenceTracker` tracks `boot_id_hex`, `agent_generation`, `next_seq`, and `last_acked_seq`. On reconnect, `reconcile()` compares the agent's state with the server's reported last-ACKed sequence.
+- Four reconciliation actions: `Continue` (contiguous), `ReplayFrom { replay_from_seq }` (gap detected), `SkipDuplicate` (already ACKed), `GenerationReset` (boot/agent generation changed → full reset to seq 0).
+- Gap detection: if `next_seq > server_seq + 1`, the agent replays from `server_seq + 1`. This covers batches lost in transit.
+- Generation change: if `boot_id` or `agent_generation` differs, the sequence resets to 0. This handles agent reboots and upgrades.
+- `saturating_add` prevents overflow at `u64::MAX`.
+
+### SPIFFE peer authorization (fail-closed)
+- `PeerAuthorizer` wraps `identity-spiffe`'s `AuthorizationCallback`. Trust domain matching is EXACT (inherited): `kernel-v1.test` does NOT match `kernel-v1.test.evil` or `kernel-v1`.
+- The transport is fail-closed: `authorize_peer()` must succeed before any data flows. Invalid SPIFFE ID → `PeerUnauthorized` → transport remains `Disconnected`.
+- Cluster and node restrictions are optional: `with_cluster("prod")` and `with_node("node-1")` narrow the authorization scope.
+
+### Reconnection with backoff (no redial storm)
+- `ReconnectPolicy` wraps `identity-spiffe`'s `ExponentialBackoff` (base 100ms, max 30s, multiplier 2.0, full jitter). The backoff resets on successful connection.
+- Circuit breaker: after `max_reconnect_attempts` consecutive failures, the circuit opens and `record_failure()` returns `Err(ReconnectExhausted)`. The transport transitions to `CircuitOpen` state.
+- SVID max-age rotation: `needs_rotation(connection_age)` returns true when the connection age exceeds `max_connection_age_ms` (default 1 hour). Force-closing the connection picks up rotated SVIDs.
+- `record_disconnect()` sets state to `CircuitOpen` (not `Reconnecting`) when the circuit breaker trips — the `?` operator on `record_failure()` would otherwise return early before the state update.
+
+### Configuration (anchored to protocol.v1.json)
+- `TransportConfig` composes protocol-crate constants (`MessageBounds`, `DEFAULT_DEADLINE_MS`) with transport-specific settings (queue capacities, keepalive, backoff, max-age, ACK deadline).
+- Defaults: event queue 4096, control queue 64, deadline 30s, keepalive 30s/10s, max-age 1h, backoff 100ms/30s/2.0x, max reconnect 20, ACK deadline 60s.
+- `validate()` returns a list of validation errors (empty = valid). Catches zero capacities, invalid backoff parameters, etc.
+
+### BLOCKER: no live gRPC server or Kafka broker
+- This host has no running gRPC server or Kafka broker. All transport logic is validated with in-memory mocks and fixtures. Live gRPC/Kafka integration re-opens on the declared self-hosted runner.
+- The write loops "send" by incrementing metrics (no actual gRPC stream). The ACK read loop processes `AckMessage` structs fed via `mpsc::Sender` in tests.
+- The `OutboxDeleter` trait abstracts the SQLite outbox; `MockOutboxDeleter` provides the test implementation.
+
+### Dependencies added to workspace
+- `parking_lot = "0.12"` — thread-safe metrics and mock state (already in workspace lock).
+- All other deps (tokio, serde, serde_json, thiserror, tracing, protocol, identity-spiffe) were already in the workspace.
+
+### Files created
+- `crates/transport/` — new crate (Cargo.toml, src/{lib,error,config,sequence,queue,ack,peer,reconnect,channel,transport}.rs)
+- `tests/fixtures/transport/` — 8 JSON fixtures (ack-ordering-happy, ack-ordering-receipt-only-rejected, reconciliation-gap-replay, reconciliation-generation-reset, queue-pressure-separate-channels, deadline-expiry-drop, backoff-no-redial-storm, peer-authorization-trust-domain)
+- Workspace `Cargo.toml` updated to include `crates/transport`
+- 90 tests pass (`cargo test -p transport`): covering ACK ordering, receipt-only rejection, outbox deletion, sequence reconciliation (gap/generation reset/contiguous), queue pressure independence, deadline expiry, backoff/circuit breaker, SPIFFE peer authorization, channel shutdown independence
+
+## Task 40: Idempotent Kafka event publisher (crates/event-bus-kafka)
+
+### Architecture: control-plane-only publisher with mock broker
+- BLOCKER: this host has no running Kafka broker. All publisher logic is validated via `MockKafkaProducer` which simulates the idempotent producer contract (producer ID + per-partition sequence numbers, broker-side deduplication, acks=all durability, bounded in-flight, retry with backoff, leader failover). Live Kafka integration (real rdkafka producer against a KRaft cluster) re-opens on the declared self-hosted runner.
+- The publisher runs EXCLUSIVELY in the control plane. Agents never see Kafka — no agent credentials beyond the control plane. The gRPC ACK to the agent is gated on the durable-delivery callback, which fires ONLY after the mock broker confirms acks=all acceptance.
+
+### Idempotent producer invariants (config.rs)
+- `acks = "all"`: every produce request waits for all in-sync replicas. Non-"all" values are rejected at config validation.
+- `enable.idempotence = true`: the producer assigns a producer ID and sequence numbers per partition, enabling broker-side deduplication. Disabling is rejected.
+- `max.in.flight.requests.per.connection <= 5`: required by Kafka's idempotent producer to guarantee ordering with retries. Values > 5 or 0 are rejected.
+- `max_retries = i32::MAX` (Kafka default): the producer retries transient failures indefinitely. The mock caps at 10 attempts for test tractability.
+- All constants anchored in `bench/schemas/kafka.v1.json` (default_broker_count=3, acks=all, enable_idempotence=true, max_in_flight_requests=5, topic_events=events.v1, topic_dlq=events.dlq.v1, delivery_semantics=at-least-once).
+
+### Per-agent partition ordering (partition.rs)
+- Partition key = `{cluster}/{agent_path}` (e.g., `prod/agent/prod/node-1`). SHA-256 of the key, first 8 bytes as big-endian u64, mod partition_count. Deterministic: same (cluster, agent) ALWAYS maps to the same partition for a given partition count.
+- This guarantees all events from a single agent land on the same partition, preserving per-agent ordering. Different agents may share a partition (hash collision), but events from one agent are NEVER split across partitions.
+- Default partition count is 12 (anchored in schema).
+
+### Protobuf schema/version headers (headers.rs)
+- Every record carries 5 headers: `schema_major` (u32 BE), `schema_minor` (u32 BE), `event_kind` (UTF-8 proto enum name from protocol crate's `EventKind::as_proto_name()`), `batch_id` (UTF-8), `idempotency_key` (UTF-8).
+- Downstream consumers validate `schema_major` BEFORE deserializing the payload. A mismatch routes the batch to `events.dlq.v1` (the DLQ path). This is the "rejected schema at downstream" requirement.
+- Header validation catches: missing schema_major, non-u32 value, major version mismatch.
+
+### Mock Kafka producer with idempotent semantics (producer.rs)
+- `MockKafkaProducer` simulates: per-partition offset assignment, (producer_id, sequence) deduplication, bounded in-flight tracking, transient failure injection, broker-down simulation, leader failover/recovery.
+- Idempotent deduplication: if the broker sees a (producer_id, partition, sequence) triple it already committed, it returns the original offset with `is_duplicate: true` (DECLARED duplicate, not hidden).
+- `produce_with_retry()` retries on `BrokerUnavailable` up to max_attempts (capped at 10 for tests). Non-retryable errors (QueueFull, SerializationFailed) return immediately.
+- `FailureMode` enum: None, Transient{fail_count}, BrokerDown, QueueFull — enables deterministic testing of all failure paths.
+
+### Durable-delivery callback (publisher.rs)
+- `DurableDeliveryCallback = Box<dyn FnMut(DurableAcceptance) + Send + Sync>`. Fires ONLY after the broker confirms durable acceptance. The gRPC ACK to the agent is gated on this callback.
+- Receipt-only callbacks are structurally absent — there is no code path that fires the callback without a `DurableAcceptance` from the producer.
+- ACK ordering matches publish order for batches on the same partition (per-agent ordering guarantee).
+
+### DLQ routing (dlq.rs)
+- `DlqRouter` routes schema-rejected batches to `events.dlq.v1`. The DLQ record preserves the original payload and headers, plus 3 metadata headers: `dlq_reason`, `dlq_original_topic`, `dlq_original_partition`.
+- No schema-rejected batch is silently dropped. Every DLQ routing increments the `batches_dlq` metric.
+
+### Zero hidden loss invariant (metrics.rs)
+- `verify_no_hidden_loss()`: `submitted == accepted + timed_out + queue_full + dlq + declared_duplicates + unrecoverable + broker_unavailable + in_flight`. Every submitted batch is accounted for.
+- All duplicates are DECLARED (idempotent producer deduplication). No cross-session exactly-once claim.
+- Metrics: batches_submitted, batches_accepted, batches_timed_out, batches_rejected_queue_full, batches_dlq, declared_duplicates, retries_total, unrecoverable_errors, broker_unavailable_events, in_flight (gauge), peak_in_flight.
+
+### Deterministic event/batch IDs
+- Batch ID = `batch-{idempotency_key}` (from protocol crate's `IdempotencyKey`). Deterministic: the same idempotency key always produces the same batch ID, enabling replay and reconciliation.
+- Event IDs come from the protocol crate's `Event.event_id` (UUIDv7 or platform-equivalent).
+
+### Integration with protocol and transport crates
+- Depends on `protocol` for `Batch`, `Event`, `EventKind`, `IdempotencyKey`, `SCHEMA_MAJOR`, `SCHEMA_MINOR`.
+- Mirrors `transport::ack::KafkaAcceptance` with `DurableAcceptance` (topic, partition, offset, is_duplicate). The transport crate's `AckTracker` gates the gRPC ACK on Kafka acceptance; this publisher provides the acceptance signal.
+- Does NOT depend on transport directly at the type level (avoids circular dependency); the control plane wires the publisher's `DurableAcceptance` into the transport's `AckTracker.record_kafka_acceptance()`.
+
+### Bench harness (bench/kafka-resilience.sh)
+- Phase 0: schema preconditions (acks=all, enable.idempotence=true, default_broker_count>=1, topics correct, delivery=at-least-once).
+- Phase 1: `cargo test -p event-bus-kafka` (67 tests).
+- Phase 2: fixture validation (9 JSON fixtures, all valid).
+- Phase 3: required fixture coverage (partition-ordering, idempotent-retry, ack-ordering, dlq-schema-rejection, queue-full, broker-failover, producer-restart, malformed-headers, zero-hidden-loss).
+- Phase 4: 12 safety invariants checklist.
+- Phase 5: live Kafka integration reported as BLOCKED.
+- Usage: `bench/kafka-resilience.sh --schema bench/schemas/kafka.v1.json --brokers 3 --workload publish-burst`.
+
+### Compile bug hit: FailureMode::Transient is a struct variant
+- `FailureMode::Transient { fail_count: u32 }` is a struct variant, not a unit variant. Cannot compare with `==` directly. FIX: use `matches!(self.failure_mode, FailureMode::Transient { .. })` instead of `self.failure_mode == FailureMode::Transient`.
+
+### Compile bug hit: HEADER_DLQ_REASON defined in dlq.rs, not headers.rs
+- The DLQ metadata header constants (`HEADER_DLQ_REASON`, `HEADER_DLQ_ORIGINAL_TOPIC`, `HEADER_DLQ_ORIGINAL_PARTITION`) are defined in `dlq.rs`, not `headers.rs`. The test module in dlq.rs imports them via `use super::*` (parent module), not from `crate::headers`.
+
+### Files created
+- `crates/event-bus-kafka/` — new crate (Cargo.toml, src/{lib,error,config,partition,headers,producer,dlq,metrics,publisher}.rs)
+- `bench/schemas/kafka.v1.json` — Kafka publisher constants schema
+- `bench/kafka-resilience.sh` — resilience bench harness
+- `tests/fixtures/kafka/` — 9 JSON fixtures (partition-ordering, idempotent-retry, ack-ordering, dlq-schema-rejection, queue-full, broker-failover, producer-restart, malformed-headers, zero-hidden-loss)
+- Workspace `Cargo.toml` updated to include `crates/event-bus-kafka`
+- 67 tests pass (`cargo test -p event-bus-kafka`): covering config validation, partition ordering/determinism/distribution, schema header round-trip/validation, idempotent deduplication, transient retry, leader failover/recovery, queue full backpressure, broker down, DLQ routing, durable callback firing/ordering, zero hidden loss across mixed outcomes
+
+## Task 41: ClickHouse event ingestion with explicit deduplication and DLQ (deploy/clickhouse/, crates/analytics-clickhouse)
+
+### Architecture: Kafka → ClickHouse pipeline with ReplacingMergeTree
+- BLOCKER: this host has no running ClickHouse or Kafka instance. All SQL/config is defined for deployment; all Rust query logic is validated via in-memory mocks and fixtures. Live integration re-opens on the declared self-hosted runner.
+- Pipeline: `events.v1` (Kafka) → `events_v1_kafka` (Kafka engine table, consumer group) → `events_v1_mv` (materialized view) → `events_v1` (ReplacingMergeTree). Schema-rejected messages route to `events_dlq_v1` via a separate MV.
+- ClickHouse is control-plane only: agents never connect directly. No agent credentials stored.
+
+### ReplacingMergeTree deduplication: FINAL/argMax, NOT background merges
+- `events_v1` uses `ReplacingMergeTree(_version)` with `ORDER BY (event_id)`. The `_version` column is set to `kafka_offset` (monotonically increasing proxy: re-delivered messages get higher offsets, so latest delivery wins).
+- CRITICAL: background merges do NOT guarantee immediate uniqueness. Exact queries MUST use `FINAL` (merge-on-read) or `argMax(col, _version) ... GROUP BY event_id` (aggregate dedup). The `events_v1_exact_final` and `events_v1_exact_argmax` views encode these patterns.
+- The `events_v1_duplicates` view exposes physical duplicates before merge (count > 1 per event_id). Fixture test proves: replay same event_id 100 times → 100 physical rows visible → exact query returns 1 logical row with version 99.
+
+### Schema design (0001_events_v1.sql)
+- Columns mirror protocol crate's `Event`/`Batch`: event_id, batch_id, seq, schema_major/minor, event_kind (LowCardinality), sensor, agent_generation, node_name, cluster (all LowCardinality), ts_monotonic_ns, boot_id_hex (FixedString(32)), pid_tgid, cgroup_id, uid, gid.
+- Kafka transport metadata preserved: kafka_topic, kafka_partition, kafka_offset, kafka_timestamp — for forensics and lag tracking.
+- Bounded payload: `substring(payload, 1, 65536)` in the MV caps at 64 KiB. The Rust crate's `EventRow::truncate_payload()` mirrors this.
+- TTL: `_ttl_expires_at = now() + INTERVAL {events_ttl_days:UInt16} DAY` (default 30d, configurable via macro, 0 = disabled). Partitioned by `toYYYYMMDD(ingested_at)`.
+- Secondary bloom_filter indexes on (node_name, event_kind) and (batch_id).
+
+### Kafka consumer + materialized view (0002_kafka_consumer.sql)
+- `events_v1_kafka` uses `ENGINE = Kafka()` with `kafka_format = 'JSONEachRow'`, `kafka_group_name = '{kafka_consumer_group:String}'`, `kafka_skip_broken_messages = 0` (strict: parse failures stop consumer).
+- The MV transforms raw Kafka messages: `toLowCardinality()` for dimensions, `toFixedString(boot_id_hex, 32)`, `substring(payload, 1, 65536)`, `_offset AS _version`.
+- Consumer group configurable per-environment via macro. Default: `clickhouse-events-v1`.
+
+### DLQ routing (0003_dlq_metadata.sql)
+- `events_dlq_v1` captures: original_topic/partition/offset (for forensic replay), dlq_reason (LowCardinality), best-effort parsed fields, raw_payload (bounded 64 KiB), raw_key.
+- `events_dlq_schema_rejected_mv` fires on `schema_major != 1` (the supported version from protocol::SCHEMA_MAJOR). Mirrors the event-bus-kafka DlqRouter metadata headers (dlq_reason, dlq_original_topic, dlq_original_partition).
+- DLQ TTL: 90 days (longer than events for forensic analysis). Configurable via `{dlq_ttl_days}` macro.
+- Malformed messages are NEVER silently dropped. Consumer continues after DLQ routing (fixture-validated).
+
+### Consumer lag metrics (0004_consumer_lag_metrics.sql)
+- `events_v1_consumed_offsets`: per-partition high-water mark from events_v1.
+- `events_v1_consumer_lag`: joins consumed offsets against latest available. Bounded lag threshold: 10,000 messages/partition (anchored in Rust crate's `ConsumerLagMetrics::is_within_bounds()`).
+- `events_dlq_v1_rate`: DLQ routing rate per reason category (for alerting on schema drift).
+- BLOCKER: live lag metrics require a running Kafka broker. View returns `estimated_lag = 0` on this host.
+
+### Exact-query helpers (0005_exact_query_helpers.sql)
+- `events_v1_exact_final`: `SELECT * FROM events_v1 FINAL` — merge-on-read, correct but slower for large scans.
+- `events_v1_exact_argmax`: `SELECT argMax(col, _version) ... GROUP BY event_id` — aggregate dedup, faster for analytics.
+- `events_v1_duplicates`: `HAVING count() > 1` — shows physical duplicates before merge.
+
+### Cluster-compatible replication (config.xml)
+- Single-node: plain `ReplacingMergeTree` (no ZooKeeper needed).
+- Cluster: switch to `ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/events_v1', '{replica}', _version)` with macros from config.xml.
+- config.xml defines macros (cluster/shard/replica), Kafka defaults, MergeTree settings (replicated_deduplication_window=1000), and commented-out remote_servers/zookeeper sections.
+- NO live cluster operated — configuration only.
+
+### Migration repeatability (migration.rs)
+- All 5 migrations use `CREATE TABLE/VIEW IF NOT EXISTS` and `ADD INDEX IF NOT EXISTS`. No DROP/TRUNCATE/INSERT/DELETE/UPDATE.
+- The Rust `migration::validate_repeatable()` strips SQL comments before checking for destructive patterns (prevents false positives from comments mentioning "INSERT INTO" etc.).
+- `migration::embedded_migrations()` uses `include_str!` to embed all 5 SQL files at compile time. Tests validate repeatability and ordering.
+
+### Rust crate structure (crates/analytics-clickhouse)
+- `schema.rs`: `EventRow` (mirrors events_v1 DDL), `EventKind` (mirrors protocol crate), `EventRowBuilder` (Kafka metadata injection + validation + payload truncation).
+- `query.rs`: `ExactQueryBuilder` with `Final`/`ArgMax` strategies, SQL injection escaping, `build_duplicate_detector_query()`, `build_exact_count_query()`.
+- `dedup.rs`: `DeduplicationEngine` — in-memory mirror of ReplacingMergeTree semantics. Stores all physical rows, provides `exact_rows()` (max version per event_id) and `duplicated_event_ids()`.
+- `dlq.rs`: `DlqRouter` with `route_schema_rejected()`, `route_malformed()`, `route_unknown_event_kind()`. `DlqReason` enum with `as_reason_string()` matching ClickHouse DLQ reason format.
+- `consumer.rs`: `PartitionLag`, `ConsumerLagMetrics` (bounded threshold 10,000/partition), `ConsumerConfig` (mirrors Kafka engine SETTINGS).
+- `migration.rs`: `validate_repeatable()`, `validate_ordering()`, `embedded_migrations()`.
+
+### Compile bug hit: SQL comments trigger destructive pattern false positives
+- The migration validator initially flagged `0002_kafka_consumer.sql` because a comment contained "INSERT into events_v1_kafka". FIX: strip SQL `--` comments before pattern matching in `validate_repeatable()`.
+
+### Compile bug hit: fixture paths relative to crate dir, not workspace root
+- Integration tests use `CARGO_MANIFEST_DIR` to resolve fixture paths: `{manifest}/../../tests/fixtures/clickhouse/{name}`. Without this, `std::fs::read_to_string("tests/fixtures/...")` fails because the test binary's CWD is the crate directory.
+
+### Files created
+- `deploy/clickhouse/` — 5 SQL migrations (0001-0005), config.xml, README.md
+- `crates/analytics-clickhouse/` — new crate (Cargo.toml, src/{lib,error,schema,query,dedup,dlq,migration,consumer}.rs, tests/integration.rs)
+- `tests/fixtures/clickhouse/` — 5 JSON fixtures (valid-batch, duplicate-replay, malformed-dlq, ttl-config, consumer-lag)
+- Workspace `Cargo.toml` updated to include `crates/analytics-clickhouse`
+- 75 tests pass (`cargo test -p analytics-clickhouse`): 66 unit + 9 integration
+
+## Task 42: Authenticated stateless control-plane query and live-stream API (crates/control-plane)
+
+### Architecture: stateless JWT auth, cluster-scoped queries, bounded everything
+- BLOCKER: this host has no live PostgreSQL, ClickHouse, or Kafka. All API logic is validated via in-memory mocks from `control-db::test_support` and fixture-driven tests. Live integration re-opens on the declared self-hosted runner.
+- The control-plane is a query/fanout API layer, NOT an HTTP server. It provides typed handler functions, a route table with RBAC enforcement, and a live event hub. An HTTP framework (axum/actix) wires these into a running server in a later task.
+- Data source hierarchy: PostgreSQL = control truth (fleet, policies, rollouts, audit), ClickHouse = event history (historical queries with dedup), Kafka/gRPC = live hints ONLY (not authoritative).
+
+### Stateless JWT auth (no server-side sessions)
+- The `RequestContext` carries sub, groups, resolved role, and cluster scope. No `SessionStore` is used at the API layer — the auth crate's session management is for the OIDC login flow, not per-request validation.
+- `authorize_request()` resolves the role via `RbacPolicy::resolve_role()`, checks the route's required action, and guards viewer roles from mutations (defense in depth: even if the action check passes, viewers are blocked from mutation routes).
+- Denied mutations emit audit intents with `denied:` prefix for security monitoring.
+
+### RBAC negative matrix (all 4 roles × denied actions)
+- Viewer denied: policies/stage, policies/commit, policies/rollback, agents/register, config (all mutations).
+- Analyst denied: policies/stage, policies/commit, policies/rollback, config (Admin+ routes).
+- Policy-admin denied: config (SuperAdmin route).
+- Unbound subject (no group binding): denied everything with `NoRoleBinding`.
+- The route table mirrors task 6 OpenAPI action annotations exactly.
+
+### Cluster scoping invariant (every query is cluster-scoped)
+- `resolve_cluster_scope()` requires either an explicit cluster UUID or a configured default. Missing scope → `MissingClusterScope` (HTTP 400).
+- `get_agent()` and `get_node()` verify the returned entity's `cluster_id` matches the expected scope. Mismatch → `CrossClusterDenied` (HTTP 400).
+- The mock repositories enforce RLS cluster isolation at the data layer (defense in depth).
+
+### Bounded query limits (pagination, max window)
+- `PageRequest` with opaque base64 cursors (URL-safe, no pad). Cursor encodes `{offset, v}` as JSON → base64. Forward-compatible via version tag.
+- Page size clamped to `max_page_size` (default 200, hard cap 10,000). Zero clamped to 1.
+- Time window validated: `end - start <= max_window_s` (default 86,400s = 24h, hard cap 30 days). Oversized → `WindowExceeded` (HTTP 400).
+- ClickHouse queries use `ExactQueryBuilder` from analytics-clickhouse with mandatory cluster filter.
+
+### Redacted live event fanout (LiveHub)
+- Per-cluster ring buffers with bounded capacity (default 256 per subscriber, stream retention = 4× buffer cap).
+- Cursor-based reconnect: subscriber provides last-seen seq, receives all events after that seq still retained. Cursor older than oldest retained → `LiveCursorExpired` (HTTP 410, must fall back to ClickHouse historical query).
+- Slow-client shedding: if a subscriber's buffer is full for `slow_client_threshold` consecutive publishes (default 8), the subscriber is shed (disconnected, buffer cleared). Drain returns `SlowClientShed` (HTTP 429).
+- Drain resets the missed counter — a subscriber that consumes events recovers.
+- Live events are HINTS: they carry redacted payloads and event IDs for cross-referencing with ClickHouse. NOT authoritative.
+
+### API-boundary redaction (redact.rs)
+- Every `EventRow` from ClickHouse is redacted before crossing the API boundary. The raw payload is NEVER returned.
+- Secret patterns match the privacy crate's defaults: AWS keys (AKIA...), Stripe keys (sk_live/test_...), api_key assignments, Bearer tokens, password/token assignments.
+- Payload truncated to 4 KiB (MAX_RESPONSE_PAYLOAD_BYTES). Oversized → truncated + `payload_redacted: true`.
+- Fail-closed: if a regex pattern fails to compile, the entire payload is withheld (`[PAYLOAD_WITHHELD]`).
+- The `RedactedEventRow` struct has NO raw payload field — structurally impossible to leak.
+
+### Audit hooks (every mutation emits actor-bound intent)
+- `AuditHook` wraps `auth::AuditSink`. Mutations call `record_mutation(actor, action, resource)`. Denied mutations call `record_denied(actor, action, resource, reason)`.
+- Read-only operations do NOT emit intents.
+- Sequence numbers are monotonic (assigned by the sink).
+
+### Static UI serving (ui.rs)
+- Path traversal protection: `..` components and absolute paths are blocked. Leading `/` is stripped (URL root, not filesystem).
+- Content-type detection by extension (html, js, css, json, svg, png, woff2, wasm, etc.).
+- Cache-Control: HTML gets `no-cache, must-revalidate`; hashed assets (js/css/woff2/wasm) get `public, max-age=31536000, immutable`.
+
+### Compile bug hit: LiveHub publish fanned out seq=0 events
+- `publish()` stored the seq-assigned event in the cluster stream but fanned out the ORIGINAL event (seq=0) to subscribers. FIX: assign `event.seq = seq` BEFORE fanning out, so subscribers receive the seq-assigned version.
+
+### Dependencies
+- `auth` (path) — RBAC policy, roles, actions, audit sink.
+- `control-db` (path) — FleetRepository, PolicyRepository, AuditRepository traits + mock implementations.
+- `analytics-clickhouse` (path) — ExactQueryBuilder, EventRow, EventKind.
+- `regex = "1"` — API-boundary secret pattern matching.
+- `base64 = "0.22"` — opaque cursor encoding.
+- All other deps (serde, serde_json, thiserror, tracing, uuid, chrono, parking_lot) already in workspace.
+
+### Files created
+- `crates/control-plane/` — new crate (Cargo.toml, src/{lib,error,config,pagination,health,redact,inventory,history,control,live,audit,router,ui}.rs)
+- `tests/fixtures/control-plane/` — 3 JSON fixtures (rbac-negative-matrix, cluster-isolation, redaction)
+- Workspace `Cargo.toml` updated to include `crates/control-plane`
+- 114 tests pass (`cargo test -p control-plane`): covering RBAC negative matrix (all roles × denied actions), cluster isolation (cross-cluster denied), redaction (AWS/Stripe/Bearer/password masking, truncation, fail-closed), pagination (cursor round-trip, limit clamping, window bounds), live hub (fanout, cluster isolation, slow-client shedding, cursor reconnect, cursor expiry, sequence monotonicity), health/compatibility, audit emission, static UI (path traversal, content-type, cache-control), config validation
