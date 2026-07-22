@@ -1,0 +1,26 @@
+{
+  "name": "unshare-from-container",
+  "description": "unshare(2) invoked by a non-runtime process inside a container. unshare(CLONE_NEWNS|CLONE_NEWPID) disassociates from the container's namespaces — a precursor to mounting the host filesystem or forking into a new PID namespace. Identity fields confirm container-scoped context. Expect alert from container-escape-namespace-switch.",
+  "event": {
+    "fields": {
+      "syscall.nr": 272,
+      "process.exec_path": "/bin/bash",
+      "process.pid": 9911,
+      "process.uid": 0,
+      "identity.cgroup_id": 5102,
+      "identity.ns_mnt": 4026532601,
+      "identity.ns_pid": 4026532602,
+      "identity.ns_net": 4026532603,
+      "identity.ns_user": 4026531837,
+      "enrichment.container_id": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b200",
+      "enrichment.pod_name": "api-server-5c8f7d9b4-j7n2p",
+      "enrichment.namespace": "default"
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": true,
+    "rule_id": "container-escape-namespace-switch",
+    "action": "alert"
+  }
+}
