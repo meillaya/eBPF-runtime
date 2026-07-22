@@ -87,3 +87,43 @@
 - Uncertain sequences (gap/late/out-of-order) never alert.
 - SSH/debug/admin/interactive exceptions honored (evaluated against every event in the correlated stream).
 - syscall.nr dup values (33=dup2, 292=dup3) are x86_64 ABI; documented that a portable deployment normalizes per-arch in the sensor.
+
+## Task 32: Container-escape indicator rule pack
+
+### Container context via enrichment.container_id (the key design decision)
+- Every container-escape rule requires BOTH a suspicious action AND resolved container context: `enrichment.container_id ne ""`. This is the CRI enrichment layer's (task 22) resolution of cgroup/namespace IDs to a container identity.
+- The `ne ""` operator works because: (1) if enrichment.container_id is present and non-empty → `values_eq(field, "")` is false → `ne` is true (match); (2) if the field is null (in null_fields) or unknown (absent) → `Event::lookup()` returns None → evaluator returns false (non-match) BEFORE reaching evaluate_predicate. So unresolved attribution NEVER alerts.
+- This is why a single setns/unshare is NOT called an escape: the condition requires container context. A host process (runc creating a container) has null/empty enrichment.container_id → non-match → no alert.
+- enrichment.* fields are NOT kernel-observable, so deny is never permitted on them — consistent with the alert-only design. All 6 rules use `action: alert`.
+
+### Rule pack structure (6 alert-only rules)
+1. **container-escape-namespace-switch**: syscall.nr in [258 (setns), 272 (unshare)] + container context. Exceptions: runc, containerd, crio, dockerd, CNI plugins (/opt/cni/bin/, /usr/libexec/cni/).
+2. **container-escape-runtime-socket**: file.path in [docker.sock, containerd.sock, crio.sock paths] + container context. Exceptions: runtime daemons, debug pods (pod_name contains "debug").
+3. **container-escape-proc-root**: file.path starts_with "/proc/1/root" + container context. Exceptions: debug pods.
+4. **container-escape-host-device**: file.path in [/dev/sda, /dev/sdb, /dev/vda, /dev/nvme0n1, /dev/mem, /dev/kmem, /dev/port] + container context. Exceptions: runtime daemons. NEVER uses broad /dev prefix.
+5. **container-escape-cloud-metadata**: network.dst_ip eq "169.254.169.254" + container context. Exceptions: metadata-proxy pods.
+6. **container-escape-credential-change**: syscall.nr in [105 (setuid), 106 (setgid), 107 (setreuid), 108 (setregid)] + container context. Exceptions: runtime daemons.
+
+### CRI/Kubernetes identity and exceptions
+- Runtime exceptions use `process.exec_path in [...]` for runc, containerd, crio, dockerd (both /usr/bin/ and /usr/sbin/ paths).
+- CNI exceptions use `process.exec_path starts_with "/opt/cni/bin/"` and `"/usr/libexec/cni/"` (standard CNI plugin locations).
+- Debug workload exceptions use `enrichment.pod_name contains "debug"` (Kubernetes convention for debug pods: "debugger-*", "*-debug-*").
+- Cloud metadata proxy exception uses `enrichment.pod_name contains "metadata-proxy"`.
+
+### Fixture design (18 fixtures: 9 TP + 9 TN, precision=recall=1.0)
+- Positive fixtures: each has enrichment.container_id set to a non-empty hex string (resolved container), identity fields (cgroup_id, ns_mnt, ns_pid, ns_net, ns_user) for attribution validity, and the relevant syscall/file/network field matching a rule condition. process.exec_path is a non-excepted binary (python3, bash, curl, cat, dd, exploit).
+- Negative fixtures cover: (1) host context (enrichment.container_id in null_fields), (2) runtime exception (runc exec_path), (3) CNI exception (/opt/cni/bin/bridge), (4) runtime daemon accessing own socket (containerd), (5) debug pod exception (pod_name contains "debug"), (6) host device from host (null container_id), (7) cloud metadata from host (null container_id), (8) unresolved attribution (null container_id with suspicious syscall), (9) normal file access in container (non-suspicious path).
+- The "unresolved attribution" fixture is critical: it has a suspicious syscall (setns) with identity fields present but enrichment.container_id null → no alert. This validates the "unresolved => no alert" invariant.
+
+### Bench script (bench/rules-container-escape.sh)
+- Modeled on bench/rules-sensitive-files.sh (single-event evaluation, no sequences). Each fixture has one "event" (not an "events" array).
+- Threshold read from schema: `jq -r '.properties.fixture_min_precision_and_recall.default // 1.0'`. The property was ADDED to bench/schemas/rule-budget.v1.json in this task (default 1.0).
+- The `fixture_min_precision_and_recall` property is NOT in the schema's `required` array, so existing rule-budget objects remain valid.
+
+### Schema update (bench/schemas/rule-budget.v1.json)
+- Added `fixture_min_precision_and_recall` property (type: number, min: 0, max: 1, default: 1.0). This is the single source of truth for the precision/recall threshold that bench harnesses read. Previously the property was absent and harnesses fell back to 1.0 via jq's `// 1.0`.
+
+### Scope boundaries (per plan)
+- gVisor/Kata guest-internal activity is OUT OF SCOPE: these rules operate on the host kernel's observable surface only.
+- Host/sandbox/Pod namespace confusion is prevented by requiring enrichment.container_id resolution (the enrichment layer distinguishes these).
+- No deny action anywhere in the pack: container-escape detection is behavioral and contextual; blocking would risk denying legitimate runtime/CNI/debug operations.
