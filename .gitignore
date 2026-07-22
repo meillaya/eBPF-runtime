@@ -2,6 +2,12 @@
 /target/
 **/target/
 
+# cargo-fuzz harness artifacts (per-crate fuzz/ crates; corpora are local-only).
+# fuzz/target/ is already covered by **/target/ above.
+**/fuzz/corpus/
+**/fuzz/artifacts/
+**/fuzz/Cargo.lock
+
 # devenv / direnv / preflight caches
 .devenv/
 .direnv/
