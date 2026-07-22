@@ -71,10 +71,12 @@ impl PolicyVersionStore {
 
     /// Get a policy version by version number.
     pub fn get(&self, version: u64) -> RolloutResult<&PolicyVersion> {
-        self.versions.get(&version).ok_or_else(|| RolloutError::NotFound {
-            entity: "policy_version".into(),
-            key: version.to_string(),
-        })
+        self.versions
+            .get(&version)
+            .ok_or_else(|| RolloutError::NotFound {
+                entity: "policy_version".into(),
+                key: version.to_string(),
+            })
     }
 
     /// Get the latest (highest) version.
@@ -131,10 +133,12 @@ impl RolloutStore {
 
     /// Get a rollout by ID.
     pub fn get(&self, id: u64) -> RolloutResult<&FleetRollout> {
-        self.rollouts.get(&id).ok_or_else(|| RolloutError::NotFound {
-            entity: "rollout".into(),
-            key: id.to_string(),
-        })
+        self.rollouts
+            .get(&id)
+            .ok_or_else(|| RolloutError::NotFound {
+                entity: "rollout".into(),
+                key: id.to_string(),
+            })
     }
 
     /// Get a mutable rollout by ID.
@@ -209,9 +213,7 @@ impl LastKnownGoodStore {
 
     /// Get the last-known-good for an agent.
     pub fn get(&self, agent_id: &str) -> Option<(u64, &str)> {
-        self.lkg
-            .get(agent_id)
-            .map(|(v, d)| (*v, d.as_str()))
+        self.lkg.get(agent_id).map(|(v, d)| (*v, d.as_str()))
     }
 
     /// Rollback: revert to the previous last-known-good.
@@ -255,12 +257,7 @@ impl AgentStateStore {
     }
 
     /// Record the agent's active and staged versions.
-    pub fn set_state(
-        &mut self,
-        agent_id: &str,
-        active_version: u64,
-        staged_version: Option<u64>,
-    ) {
+    pub fn set_state(&mut self, agent_id: &str, active_version: u64, staged_version: Option<u64>) {
         self.states
             .insert(agent_id.to_string(), (active_version, staged_version));
     }
@@ -273,8 +270,7 @@ impl AgentStateStore {
     /// Mark an agent as having applied a version (active = version,
     /// staged = None).
     pub fn mark_applied(&mut self, agent_id: &str, version: u64) {
-        self.states
-            .insert(agent_id.to_string(), (version, None));
+        self.states.insert(agent_id.to_string(), (version, None));
     }
 
     /// Mark an agent as having staged a version.
@@ -410,9 +406,7 @@ mod tests {
         assert_eq!(store.get(id).unwrap().version, 2);
 
         // Update with stale version → conflict.
-        let err = store
-            .update(id, 1, |_| {})
-            .unwrap_err();
+        let err = store.update(id, 1, |_| {}).unwrap_err();
         assert!(matches!(err, RolloutError::VersionConflict { .. }));
     }
 

@@ -311,11 +311,7 @@ impl LiveHub {
     /// retained in the cluster stream. If the cursor is older
     /// than the oldest retained event, returns
     /// `LiveCursorExpired`.
-    pub fn reconnect(
-        &self,
-        cluster: &str,
-        cursor_seq: u64,
-    ) -> Result<Vec<LiveEvent>> {
+    pub fn reconnect(&self, cluster: &str, cursor_seq: u64) -> Result<Vec<LiveEvent>> {
         let streams = self.streams.lock();
         let stream = streams
             .get(cluster)
@@ -357,7 +353,10 @@ impl LiveHub {
 
     /// The oldest retained sequence for a cluster.
     pub fn oldest_seq(&self, cluster: &str) -> Option<u64> {
-        self.streams.lock().get(cluster).and_then(|s| s.oldest_seq())
+        self.streams
+            .lock()
+            .get(cluster)
+            .and_then(|s| s.oldest_seq())
     }
 }
 

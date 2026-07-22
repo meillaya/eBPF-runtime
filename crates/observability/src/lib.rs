@@ -18,8 +18,8 @@ use std::fmt;
 
 use parking_lot::Mutex;
 use prometheus::{
-    Encoder, Gauge, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
-    IntGaugeVec, Opts, Registry, TextEncoder,
+    Encoder, Gauge, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec,
+    Opts, Registry, TextEncoder,
 };
 use serde::{Deserialize, Serialize};
 
@@ -605,9 +605,11 @@ impl MetricsRegistry {
         )
         .expect("metric registration");
 
-        let sqlite_size_bytes =
-            IntGauge::new("ebpf_agent_sqlite_size_bytes", "Current size of the SQLite database in bytes")
-                .expect("metric registration");
+        let sqlite_size_bytes = IntGauge::new(
+            "ebpf_agent_sqlite_size_bytes",
+            "Current size of the SQLite database in bytes",
+        )
+        .expect("metric registration");
 
         let sqlite_wal_size_bytes = IntGauge::new(
             "ebpf_agent_sqlite_wal_size_bytes",
@@ -636,9 +638,8 @@ impl MetricsRegistry {
         )
         .expect("metric registration");
 
-        let policy_version =
-            IntGauge::new("ebpf_agent_policy_version", "Current policy version")
-                .expect("metric registration");
+        let policy_version = IntGauge::new("ebpf_agent_policy_version", "Current policy version")
+            .expect("metric registration");
 
         let policy_mode = IntGauge::new(
             "ebpf_agent_policy_mode",
@@ -646,13 +647,17 @@ impl MetricsRegistry {
         )
         .expect("metric registration");
 
-        let grpc_lag_seconds =
-            Gauge::new("ebpf_agent_grpc_lag_seconds", "Lag of the gRPC stream in seconds")
-                .expect("metric registration");
+        let grpc_lag_seconds = Gauge::new(
+            "ebpf_agent_grpc_lag_seconds",
+            "Lag of the gRPC stream in seconds",
+        )
+        .expect("metric registration");
 
-        let kafka_lag_seconds =
-            Gauge::new("ebpf_agent_kafka_lag_seconds", "Lag of the Kafka stream in seconds")
-                .expect("metric registration");
+        let kafka_lag_seconds = Gauge::new(
+            "ebpf_agent_kafka_lag_seconds",
+            "Lag of the Kafka stream in seconds",
+        )
+        .expect("metric registration");
 
         let clickhouse_lag_seconds = Gauge::new(
             "ebpf_agent_clickhouse_lag_seconds",
@@ -992,9 +997,11 @@ impl MetricsRegistry {
     /// Count the number of unique metric series currently registered.
     /// Used for the cardinality audit.
     pub fn series_count(&self) -> usize {
-        self.registry.gather().iter().map(|mf| {
-            mf.get_metric().len()
-        }).sum::<usize>()
+        self.registry
+            .gather()
+            .iter()
+            .map(|mf| mf.get_metric().len())
+            .sum::<usize>()
         // Histogram metrics expand to multiple series (buckets + sum + count)
         // but prometheus::gather() already counts them as individual metrics
         // in the MetricFamily. We count the raw metric entries.

@@ -26,7 +26,7 @@ pub enum Role {
 
 impl Role {
     /// Parse from a string.
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "viewer" => Some(Self::Viewer),
             "analyst" => Some(Self::Analyst),
@@ -256,9 +256,9 @@ mod tests {
     #[test]
     fn role_parse_round_trip() {
         for role in [Role::Viewer, Role::Analyst, Role::PolicyAdmin, Role::Admin] {
-            assert_eq!(Role::from_str(role.as_str()), Some(role));
+            assert_eq!(Role::parse(role.as_str()), Some(role));
         }
-        assert_eq!(Role::from_str("superuser"), None);
+        assert_eq!(Role::parse("superuser"), None);
     }
 
     // -- Action permission matrix --

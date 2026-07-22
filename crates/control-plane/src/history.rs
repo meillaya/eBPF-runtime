@@ -64,7 +64,9 @@ pub fn build_event_query(
 
     let limit = page.limit.min(max_page_size).max(1);
 
-    let mut builder = ExactQueryBuilder::new(strategy).cluster(cluster).limit(limit);
+    let mut builder = ExactQueryBuilder::new(strategy)
+        .cluster(cluster)
+        .limit(limit);
 
     if let Some(ref node) = filters.node_name {
         builder = builder.node_name(node);
@@ -108,10 +110,7 @@ pub fn paginate_rows(
 
     let total = rows.len() as u64;
     let page_rows: Vec<&EventRow> = rows.iter().skip(offset).take(limit).collect();
-    let redacted: Vec<RedactedEventRow> = page_rows
-        .iter()
-        .map(|r| redact_event_row(r))
-        .collect();
+    let redacted: Vec<RedactedEventRow> = page_rows.iter().map(|r| redact_event_row(r)).collect();
 
     let next_offset = offset + redacted.len();
     let next_cursor = if next_offset < total as usize {
@@ -164,13 +163,7 @@ mod tests {
     fn query_requires_cluster_scope() {
         let filters = EventQueryFilters::default();
         let page = PageRequest::first(10);
-        let result = build_event_query(
-            &filters,
-            &page,
-            200,
-            86_400,
-            ExactQueryStrategy::Final,
-        );
+        let result = build_event_query(&filters, &page, 200, 86_400, ExactQueryStrategy::Final);
         assert!(matches!(
             result.unwrap_err(),
             ControlPlaneError::MissingClusterScope
@@ -181,14 +174,8 @@ mod tests {
     fn query_includes_cluster_filter() {
         let filters = test_filters("prod");
         let page = PageRequest::first(10);
-        let sql = build_event_query(
-            &filters,
-            &page,
-            200,
-            86_400,
-            ExactQueryStrategy::Final,
-        )
-        .unwrap();
+        let sql =
+            build_event_query(&filters, &page, 200, 86_400, ExactQueryStrategy::Final).unwrap();
         assert!(sql.contains("cluster = 'prod'"));
         assert!(sql.contains("FINAL"));
     }
@@ -205,14 +192,8 @@ mod tests {
             end_epoch_s: Some(2000),
         };
         let page = PageRequest::first(10);
-        let sql = build_event_query(
-            &filters,
-            &page,
-            200,
-            86_400,
-            ExactQueryStrategy::Final,
-        )
-        .unwrap();
+        let sql =
+            build_event_query(&filters, &page, 200, 86_400, ExactQueryStrategy::Final).unwrap();
         assert!(sql.contains("cluster = 'prod'"));
         assert!(sql.contains("node_name = 'node-1'"));
         assert!(sql.contains("event_kind = 'EVENT_KIND_FILE_OPEN'"));
@@ -229,13 +210,7 @@ mod tests {
             ..Default::default()
         };
         let page = PageRequest::first(10);
-        let result = build_event_query(
-            &filters,
-            &page,
-            200,
-            86_400,
-            ExactQueryStrategy::Final,
-        );
+        let result = build_event_query(&filters, &page, 200, 86_400, ExactQueryStrategy::Final);
         assert!(matches!(
             result.unwrap_err(),
             ControlPlaneError::WindowExceeded { .. }
@@ -250,13 +225,7 @@ mod tests {
             ..Default::default()
         };
         let page = PageRequest::first(10);
-        let result = build_event_query(
-            &filters,
-            &page,
-            200,
-            86_400,
-            ExactQueryStrategy::Final,
-        );
+        let result = build_event_query(&filters, &page, 200, 86_400, ExactQueryStrategy::Final);
         assert!(matches!(
             result.unwrap_err(),
             ControlPlaneError::HistoryQuery(_)
@@ -267,14 +236,8 @@ mod tests {
     fn query_clamps_limit() {
         let filters = test_filters("prod");
         let page = PageRequest::first(1000);
-        let sql = build_event_query(
-            &filters,
-            &page,
-            200,
-            86_400,
-            ExactQueryStrategy::Final,
-        )
-        .unwrap();
+        let sql =
+            build_event_query(&filters, &page, 200, 86_400, ExactQueryStrategy::Final).unwrap();
         assert!(sql.contains("LIMIT 200"));
     }
 
@@ -282,14 +245,8 @@ mod tests {
     fn argmax_strategy_generates_group_by() {
         let filters = test_filters("prod");
         let page = PageRequest::first(10);
-        let sql = build_event_query(
-            &filters,
-            &page,
-            200,
-            86_400,
-            ExactQueryStrategy::ArgMax,
-        )
-        .unwrap();
+        let sql =
+            build_event_query(&filters, &page, 200, 86_400, ExactQueryStrategy::ArgMax).unwrap();
         assert!(sql.contains("GROUP BY event_id"));
         assert!(sql.contains("argMax"));
     }

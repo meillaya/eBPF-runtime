@@ -168,9 +168,7 @@ impl Reconciler {
         // Case 4: No staged version expected. Agent is up to date.
         // Verify the agent's digest matches the LKG.
         if let Some((lkg_version, lkg_digest)) = self.last_known_good.get(agent_id) {
-            if report.active_version == lkg_version
-                && report.active_digest != lkg_digest
-            {
+            if report.active_version == lkg_version && report.active_digest != lkg_digest {
                 // Digest mismatch: agent's active policy doesn't
                 // match LKG. Re-stage.
                 audit.append_failure(
@@ -228,10 +226,7 @@ mod tests {
         }
     }
 
-    fn reconciler(
-        active_version: u64,
-        staged_version: Option<u64>,
-    ) -> (Reconciler, AuditLog) {
+    fn reconciler(active_version: u64, staged_version: Option<u64>) -> (Reconciler, AuditLog) {
         let mut lkg = LastKnownGoodStore::new();
         lkg.record_applied(
             "spiffe://kernel-v1.test/agent/prod/node-1",
@@ -247,11 +242,7 @@ mod tests {
     #[test]
     fn up_to_date_agent() {
         let (rec, mut audit) = reconciler(5, None);
-        let report = make_report(
-            "spiffe://kernel-v1.test/agent/prod/node-1",
-            5,
-            None,
-        );
+        let report = make_report("spiffe://kernel-v1.test/agent/prod/node-1", 5, None);
         let action = rec.reconcile(&report, &mut audit, 0).unwrap();
         assert_eq!(action, ReconcileAction::UpToDate);
     }
@@ -259,11 +250,7 @@ mod tests {
     #[test]
     fn agent_behind_needs_restage() {
         let (rec, mut audit) = reconciler(5, None);
-        let report = make_report(
-            "spiffe://kernel-v1.test/agent/prod/node-1",
-            3,
-            None,
-        );
+        let report = make_report("spiffe://kernel-v1.test/agent/prod/node-1", 3, None);
         let action = rec.reconcile(&report, &mut audit, 0).unwrap();
         assert_eq!(
             action,
@@ -277,28 +264,15 @@ mod tests {
     #[test]
     fn agent_ahead_server_stale() {
         let (rec, mut audit) = reconciler(5, None);
-        let report = make_report(
-            "spiffe://kernel-v1.test/agent/prod/node-1",
-            7,
-            None,
-        );
+        let report = make_report("spiffe://kernel-v1.test/agent/prod/node-1", 7, None);
         let action = rec.reconcile(&report, &mut audit, 0).unwrap();
-        assert_eq!(
-            action,
-            ReconcileAction::AgentAhead {
-                agent_version: 7,
-            }
-        );
+        assert_eq!(action, ReconcileAction::AgentAhead { agent_version: 7 });
     }
 
     #[test]
     fn agent_needs_commit() {
         let (rec, mut audit) = reconciler(5, Some(6));
-        let report = make_report(
-            "spiffe://kernel-v1.test/agent/prod/node-1",
-            5,
-            Some(6),
-        );
+        let report = make_report("spiffe://kernel-v1.test/agent/prod/node-1", 5, Some(6));
         let action = rec.reconcile(&report, &mut audit, 0).unwrap();
         assert_eq!(action, ReconcileAction::Commit { version: 6 });
     }
@@ -306,11 +280,7 @@ mod tests {
     #[test]
     fn agent_stale_staged_needs_restage() {
         let (rec, mut audit) = reconciler(5, Some(7));
-        let report = make_report(
-            "spiffe://kernel-v1.test/agent/prod/node-1",
-            5,
-            Some(6),
-        );
+        let report = make_report("spiffe://kernel-v1.test/agent/prod/node-1", 5, Some(6));
         let action = rec.reconcile(&report, &mut audit, 0).unwrap();
         assert_eq!(action, ReconcileAction::ReStage { version: 7 });
     }
@@ -318,11 +288,7 @@ mod tests {
     #[test]
     fn agent_missing_staged_needs_restage() {
         let (rec, mut audit) = reconciler(5, Some(6));
-        let report = make_report(
-            "spiffe://kernel-v1.test/agent/prod/node-1",
-            5,
-            None,
-        );
+        let report = make_report("spiffe://kernel-v1.test/agent/prod/node-1", 5, None);
         let action = rec.reconcile(&report, &mut audit, 0).unwrap();
         assert_eq!(action, ReconcileAction::ReStage { version: 6 });
     }
@@ -353,11 +319,7 @@ mod tests {
     #[test]
     fn reconciliation_is_audited() {
         let (rec, mut audit) = reconciler(5, None);
-        let report = make_report(
-            "spiffe://kernel-v1.test/agent/prod/node-1",
-            5,
-            None,
-        );
+        let report = make_report("spiffe://kernel-v1.test/agent/prod/node-1", 5, None);
         rec.reconcile(&report, &mut audit, 0).unwrap();
         assert!(!audit.is_empty());
         assert!(audit.query_by_action("reconcile.", 10).len() >= 1);

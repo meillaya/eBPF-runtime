@@ -195,16 +195,18 @@ impl SequenceEvaluator {
             self.access_counter += 1;
             let access = self.access_counter;
 
-            let instance = self.state.sequences.entry(key.clone()).or_insert_with(|| {
-                SequenceInstance {
-                    steps: init_steps(sequence.steps.len()),
-                    started_at: ts,
-                    window_seconds: u64::from(sequence.window_seconds),
-                    completed: false,
-                    uncertain: false,
-                    last_accessed: access,
-                }
-            });
+            let instance =
+                self.state
+                    .sequences
+                    .entry(key.clone())
+                    .or_insert_with(|| SequenceInstance {
+                        steps: init_steps(sequence.steps.len()),
+                        started_at: ts,
+                        window_seconds: u64::from(sequence.window_seconds),
+                        completed: false,
+                        uncertain: false,
+                        last_accessed: access,
+                    });
 
             instance.last_accessed = access;
 
@@ -309,7 +311,8 @@ impl SequenceEvaluator {
             .collect();
         entries.sort_by_key(|(_, accessed)| *accessed);
 
-        let evict_keys: Vec<SequenceKey> = entries.into_iter().take(to_evict).map(|(k, _)| k).collect();
+        let evict_keys: Vec<SequenceKey> =
+            entries.into_iter().take(to_evict).map(|(k, _)| k).collect();
         for key in &evict_keys {
             self.state.sequences.remove(key);
         }
@@ -411,7 +414,11 @@ fn step_matches(step: &Step, event: &Event) -> Result<bool> {
 }
 
 /// Evaluate a single step predicate (subset of operators valid for steps).
-fn evaluate_step_predicate(operator: &Operator, field_value: &Value, condition_value: &Value) -> Result<bool> {
+fn evaluate_step_predicate(
+    operator: &Operator,
+    field_value: &Value,
+    condition_value: &Value,
+) -> Result<bool> {
     match operator {
         Operator::Eq => values_eq(field_value, condition_value),
         Operator::Ne => Ok(!values_eq(field_value, condition_value)?),
@@ -421,8 +428,12 @@ fn evaluate_step_predicate(operator: &Operator, field_value: &Value, condition_v
         Operator::EndsWith => str_binop(field_value, condition_value, |h, n| h.ends_with(n)),
         Operator::In => in_set(field_value, condition_value),
         Operator::NotIn => Ok(!in_set(field_value, condition_value)?),
-        Operator::Gt => Ok(compare_values(field_value, condition_value)? == std::cmp::Ordering::Greater),
-        Operator::Lt => Ok(compare_values(field_value, condition_value)? == std::cmp::Ordering::Less),
+        Operator::Gt => {
+            Ok(compare_values(field_value, condition_value)? == std::cmp::Ordering::Greater)
+        }
+        Operator::Lt => {
+            Ok(compare_values(field_value, condition_value)? == std::cmp::Ordering::Less)
+        }
         Operator::Gte => Ok(matches!(
             compare_values(field_value, condition_value)?,
             std::cmp::Ordering::Greater | std::cmp::Ordering::Equal
@@ -499,7 +510,11 @@ fn contains_value(field_value: &Value, condition_value: &Value) -> Result<bool> 
 }
 
 /// Binary string operation.
-fn str_binop(field_value: &Value, condition_value: &Value, op: fn(&str, &str) -> bool) -> Result<bool> {
+fn str_binop(
+    field_value: &Value,
+    condition_value: &Value,
+    op: fn(&str, &str) -> bool,
+) -> Result<bool> {
     match (field_value, condition_value) {
         (Value::String(haystack), Value::String(needle)) => Ok(op(haystack, needle)),
         _ => Err(RuleError::IncompatibleTypes(
@@ -577,14 +592,20 @@ mod tests {
                 step("syscall", Operator::Eq, Value::String("connect".into())),
             ],
         );
-        let e1 = make_event(100, &[
-            ("syscall", Value::String("exec".into())),
-            ("process.generation", Value::Integer(1)),
-        ]);
-        let e2 = make_event(101, &[
-            ("syscall", Value::String("connect".into())),
-            ("process.generation", Value::Integer(1)),
-        ]);
+        let e1 = make_event(
+            100,
+            &[
+                ("syscall", Value::String("exec".into())),
+                ("process.generation", Value::Integer(1)),
+            ],
+        );
+        let e2 = make_event(
+            101,
+            &[
+                ("syscall", Value::String("connect".into())),
+                ("process.generation", Value::Integer(1)),
+            ],
+        );
 
         let m1 = eval.process_event(&e1, &[seq.clone()]).unwrap();
         assert!(!m1[0].completed);

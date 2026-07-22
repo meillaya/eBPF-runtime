@@ -53,49 +53,141 @@ pub struct RouteDef {
 /// Mirrors the task 6 OpenAPI action annotations.
 pub const ROUTE_TABLE: &[RouteDef] = &[
     // Health (unauthenticated).
-    RouteDef { method: "GET", path: "/api/v1/health", action: Action::Read, is_mutation: false },
-    RouteDef { method: "GET", path: "/api/v1/compatibility", action: Action::Read, is_mutation: false },
-
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/health",
+        action: Action::Read,
+        is_mutation: false,
+    },
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/compatibility",
+        action: Action::Read,
+        is_mutation: false,
+    },
     // Agent inventory (read-only through API).
-    RouteDef { method: "GET", path: "/api/v1/agents", action: Action::Read, is_mutation: false },
-    RouteDef { method: "GET", path: "/api/v1/agents/{id}", action: Action::Read, is_mutation: false },
-
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/agents",
+        action: Action::Read,
+        is_mutation: false,
+    },
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/agents/{id}",
+        action: Action::Read,
+        is_mutation: false,
+    },
     // Historical event queries.
-    RouteDef { method: "GET", path: "/api/v1/events", action: Action::Read, is_mutation: false },
-    RouteDef { method: "GET", path: "/api/v1/events/{id}", action: Action::Read, is_mutation: false },
-
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/events",
+        action: Action::Read,
+        is_mutation: false,
+    },
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/events/{id}",
+        action: Action::Read,
+        is_mutation: false,
+    },
     // Control queries.
-    RouteDef { method: "GET", path: "/api/v1/clusters/{id}", action: Action::Read, is_mutation: false },
-    RouteDef { method: "GET", path: "/api/v1/nodes/{id}", action: Action::Read, is_mutation: false },
-    RouteDef { method: "GET", path: "/api/v1/policies", action: Action::Read, is_mutation: false },
-    RouteDef { method: "GET", path: "/api/v1/policies/{id}", action: Action::Read, is_mutation: false },
-    RouteDef { method: "GET", path: "/api/v1/rollouts/{id}", action: Action::Read, is_mutation: false },
-
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/clusters/{id}",
+        action: Action::Read,
+        is_mutation: false,
+    },
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/nodes/{id}",
+        action: Action::Read,
+        is_mutation: false,
+    },
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/policies",
+        action: Action::Read,
+        is_mutation: false,
+    },
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/policies/{id}",
+        action: Action::Read,
+        is_mutation: false,
+    },
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/rollouts/{id}",
+        action: Action::Read,
+        is_mutation: false,
+    },
     // Policy mutations (Admin only).
-    RouteDef { method: "POST", path: "/api/v1/policies/stage", action: Action::Admin, is_mutation: true },
-    RouteDef { method: "POST", path: "/api/v1/policies/commit", action: Action::Admin, is_mutation: true },
-    RouteDef { method: "POST", path: "/api/v1/policies/rollback", action: Action::Admin, is_mutation: true },
-
+    RouteDef {
+        method: "POST",
+        path: "/api/v1/policies/stage",
+        action: Action::Admin,
+        is_mutation: true,
+    },
+    RouteDef {
+        method: "POST",
+        path: "/api/v1/policies/commit",
+        action: Action::Admin,
+        is_mutation: true,
+    },
+    RouteDef {
+        method: "POST",
+        path: "/api/v1/policies/rollback",
+        action: Action::Admin,
+        is_mutation: true,
+    },
     // Agent registration (Write).
-    RouteDef { method: "POST", path: "/api/v1/agents/register", action: Action::Write, is_mutation: true },
-
+    RouteDef {
+        method: "POST",
+        path: "/api/v1/agents/register",
+        action: Action::Write,
+        is_mutation: true,
+    },
     // Config (SuperAdmin).
-    RouteDef { method: "GET", path: "/api/v1/config", action: Action::SuperAdmin, is_mutation: false },
-    RouteDef { method: "PUT", path: "/api/v1/config", action: Action::SuperAdmin, is_mutation: true },
-
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/config",
+        action: Action::SuperAdmin,
+        is_mutation: false,
+    },
+    RouteDef {
+        method: "PUT",
+        path: "/api/v1/config",
+        action: Action::SuperAdmin,
+        is_mutation: true,
+    },
     // Live stream (WebSocket upgrade).
-    RouteDef { method: "GET", path: "/api/v1/live", action: Action::Read, is_mutation: false },
-
+    RouteDef {
+        method: "GET",
+        path: "/api/v1/live",
+        action: Action::Read,
+        is_mutation: false,
+    },
     // Static UI.
-    RouteDef { method: "GET", path: "/", action: Action::Read, is_mutation: false },
-    RouteDef { method: "GET", path: "/static/{path}", action: Action::Read, is_mutation: false },
+    RouteDef {
+        method: "GET",
+        path: "/",
+        action: Action::Read,
+        is_mutation: false,
+    },
+    RouteDef {
+        method: "GET",
+        path: "/static/{path}",
+        action: Action::Read,
+        is_mutation: false,
+    },
 ];
 
 /// Look up a route definition by method and path.
 pub fn lookup_route(method: &str, path: &str) -> Option<&'static RouteDef> {
-    ROUTE_TABLE.iter().find(|r| {
-        r.method == method && (r.path == path || path_matches_pattern(r.path, path))
-    })
+    ROUTE_TABLE
+        .iter()
+        .find(|r| r.method == method && (r.path == path || path_matches_pattern(r.path, path)))
 }
 
 /// Simple path pattern matching (supports `{param}` segments).
@@ -107,9 +199,10 @@ fn path_matches_pattern(pattern: &str, path: &str) -> bool {
         return false;
     }
 
-    pattern_parts.iter().zip(path_parts.iter()).all(|(p, s)| {
-        p.starts_with('{') && p.ends_with('}') || p == s
-    })
+    pattern_parts
+        .iter()
+        .zip(path_parts.iter())
+        .all(|(p, s)| p.starts_with('{') && p.ends_with('}') || p == s)
 }
 
 /// Authenticate and authorize a request.
@@ -246,8 +339,13 @@ mod tests {
         let rbac = test_rbac();
         let audit = test_audit();
         let ctx = authorize_request(
-            &rbac, &audit, "u1", &["viewers".into()],
-            "GET", "/api/v1/events", cluster_id(),
+            &rbac,
+            &audit,
+            "u1",
+            &["viewers".into()],
+            "GET",
+            "/api/v1/events",
+            cluster_id(),
         );
         assert!(ctx.is_ok());
         assert_eq!(ctx.unwrap().role, Role::Viewer);
@@ -258,8 +356,13 @@ mod tests {
         let rbac = test_rbac();
         let audit = test_audit();
         let result = authorize_request(
-            &rbac, &audit, "u1", &["viewers".into()],
-            "POST", "/api/v1/policies/stage", cluster_id(),
+            &rbac,
+            &audit,
+            "u1",
+            &["viewers".into()],
+            "POST",
+            "/api/v1/policies/stage",
+            cluster_id(),
         );
         assert!(matches!(
             result.unwrap_err(),
@@ -274,15 +377,25 @@ mod tests {
 
         // Analyst can register agents (Write).
         let ctx = authorize_request(
-            &rbac, &audit, "u1", &["analysts".into()],
-            "POST", "/api/v1/agents/register", cluster_id(),
+            &rbac,
+            &audit,
+            "u1",
+            &["analysts".into()],
+            "POST",
+            "/api/v1/agents/register",
+            cluster_id(),
         );
         assert!(ctx.is_ok());
 
         // Analyst cannot stage policies (Admin).
         let result = authorize_request(
-            &rbac, &audit, "u1", &["analysts".into()],
-            "POST", "/api/v1/policies/stage", cluster_id(),
+            &rbac,
+            &audit,
+            "u1",
+            &["analysts".into()],
+            "POST",
+            "/api/v1/policies/stage",
+            cluster_id(),
         );
         assert!(result.is_err());
     }
@@ -294,15 +407,25 @@ mod tests {
 
         // Policy admin can stage policies.
         let ctx = authorize_request(
-            &rbac, &audit, "u1", &["policy-admins".into()],
-            "POST", "/api/v1/policies/stage", cluster_id(),
+            &rbac,
+            &audit,
+            "u1",
+            &["policy-admins".into()],
+            "POST",
+            "/api/v1/policies/stage",
+            cluster_id(),
         );
         assert!(ctx.is_ok());
 
         // Policy admin cannot access config (SuperAdmin).
         let result = authorize_request(
-            &rbac, &audit, "u1", &["policy-admins".into()],
-            "PUT", "/api/v1/config", cluster_id(),
+            &rbac,
+            &audit,
+            "u1",
+            &["policy-admins".into()],
+            "PUT",
+            "/api/v1/config",
+            cluster_id(),
         );
         assert!(result.is_err());
     }
@@ -313,8 +436,13 @@ mod tests {
         let audit = test_audit();
 
         let ctx = authorize_request(
-            &rbac, &audit, "u1", &["admins".into()],
-            "PUT", "/api/v1/config", cluster_id(),
+            &rbac,
+            &audit,
+            "u1",
+            &["admins".into()],
+            "PUT",
+            "/api/v1/config",
+            cluster_id(),
         );
         assert!(ctx.is_ok());
         assert_eq!(ctx.unwrap().role, Role::Admin);
@@ -325,8 +453,13 @@ mod tests {
         let rbac = test_rbac();
         let audit = test_audit();
         let result = authorize_request(
-            &rbac, &audit, "u1", &["unknown-group".into()],
-            "GET", "/api/v1/events", cluster_id(),
+            &rbac,
+            &audit,
+            "u1",
+            &["unknown-group".into()],
+            "GET",
+            "/api/v1/events",
+            cluster_id(),
         );
         assert!(matches!(
             result.unwrap_err(),
@@ -352,13 +485,15 @@ mod tests {
 
         for (method, path) in &mutations {
             let result = authorize_request(
-                &rbac, &audit, "viewer-1", &["viewers".into()],
-                method, path, cid,
+                &rbac,
+                &audit,
+                "viewer-1",
+                &["viewers".into()],
+                method,
+                path,
+                cid,
             );
-            assert!(
-                result.is_err(),
-                "viewer should be denied {method} {path}"
-            );
+            assert!(result.is_err(), "viewer should be denied {method} {path}");
         }
     }
 
@@ -377,13 +512,15 @@ mod tests {
 
         for (method, path) in &admin_routes {
             let result = authorize_request(
-                &rbac, &audit, "analyst-1", &["analysts".into()],
-                method, path, cid,
+                &rbac,
+                &audit,
+                "analyst-1",
+                &["analysts".into()],
+                method,
+                path,
+                cid,
             );
-            assert!(
-                result.is_err(),
-                "analyst should be denied {method} {path}"
-            );
+            assert!(result.is_err(), "analyst should be denied {method} {path}");
         }
     }
 
@@ -394,8 +531,13 @@ mod tests {
         let cid = cluster_id();
 
         let result = authorize_request(
-            &rbac, &audit, "pa-1", &["policy-admins".into()],
-            "PUT", "/api/v1/config", cid,
+            &rbac,
+            &audit,
+            "pa-1",
+            &["policy-admins".into()],
+            "PUT",
+            "/api/v1/config",
+            cid,
         );
         assert!(result.is_err());
     }
@@ -408,8 +550,13 @@ mod tests {
         let audit = test_audit();
 
         authorize_request(
-            &rbac, &audit, "admin-1", &["admins".into()],
-            "POST", "/api/v1/policies/stage", cluster_id(),
+            &rbac,
+            &audit,
+            "admin-1",
+            &["admins".into()],
+            "POST",
+            "/api/v1/policies/stage",
+            cluster_id(),
         )
         .unwrap();
 
@@ -423,8 +570,13 @@ mod tests {
         let audit = test_audit();
 
         let _ = authorize_request(
-            &rbac, &audit, "viewer-1", &["viewers".into()],
-            "POST", "/api/v1/policies/stage", cluster_id(),
+            &rbac,
+            &audit,
+            "viewer-1",
+            &["viewers".into()],
+            "POST",
+            "/api/v1/policies/stage",
+            cluster_id(),
         );
 
         assert_eq!(audit.count(), 1);
@@ -438,8 +590,13 @@ mod tests {
         let audit = test_audit();
 
         authorize_request(
-            &rbac, &audit, "viewer-1", &["viewers".into()],
-            "GET", "/api/v1/events", cluster_id(),
+            &rbac,
+            &audit,
+            "viewer-1",
+            &["viewers".into()],
+            "GET",
+            "/api/v1/events",
+            cluster_id(),
         )
         .unwrap();
 
@@ -483,8 +640,17 @@ mod tests {
 
     #[test]
     fn path_pattern_matches() {
-        assert!(path_matches_pattern("/api/v1/agents/{id}", "/api/v1/agents/abc-123"));
-        assert!(!path_matches_pattern("/api/v1/agents/{id}", "/api/v1/agents"));
-        assert!(!path_matches_pattern("/api/v1/agents/{id}", "/api/v1/agents/abc/extra"));
+        assert!(path_matches_pattern(
+            "/api/v1/agents/{id}",
+            "/api/v1/agents/abc-123"
+        ));
+        assert!(!path_matches_pattern(
+            "/api/v1/agents/{id}",
+            "/api/v1/agents"
+        ));
+        assert!(!path_matches_pattern(
+            "/api/v1/agents/{id}",
+            "/api/v1/agents/abc/extra"
+        ));
     }
 }

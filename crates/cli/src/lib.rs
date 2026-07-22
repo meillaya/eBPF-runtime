@@ -47,7 +47,10 @@ pub enum CliCommand {
 
 /// CLI arguments.
 #[derive(Debug, Clone, Parser)]
-#[command(name = "cli", about = "CLI for the standalone eBPF runtime security agent")]
+#[command(
+    name = "cli",
+    about = "CLI for the standalone eBPF runtime security agent"
+)]
 pub struct CliArgs {
     #[command(subcommand)]
     pub command: CliCommand,
@@ -134,8 +137,12 @@ pub async fn run_cli(args: CliArgs) -> Result<(), CliError> {
         CliCommand::Status => status(&base).await,
         CliCommand::Health => health(&base).await,
         CliCommand::LiveEvents => live_events(&base, &args).await,
-        CliCommand::QueryHistory => passthrough(&base, "/api/v1/events", &events_query(&args)).await,
-        CliCommand::ProcessTree => passthrough(&base, "/api/v1/process-tree", &process_tree_query(&args)).await,
+        CliCommand::QueryHistory => {
+            passthrough(&base, "/api/v1/events", &events_query(&args)).await
+        }
+        CliCommand::ProcessTree => {
+            passthrough(&base, "/api/v1/process-tree", &process_tree_query(&args)).await
+        }
         CliCommand::Sockets => passthrough(&base, "/api/v1/sockets", &sockets_query(&args)).await,
         CliCommand::DnsPackets => passthrough(&base, "/api/v1/dns", &dns_query(&args)).await,
         CliCommand::Files => passthrough(&base, "/api/v1/files", &files_query(&args)).await,
@@ -178,7 +185,10 @@ fn init_logging(level: Option<&str>) {
 
 async fn preflight(base: &str) -> Result<(), CliError> {
     println!("PREFLIGHT COVERAGE MATRIX");
-    println!("{:<10} | {:<15} | {:<10} | {}", "program", "sensor coverage", "attach", "kind");
+    println!(
+        "{:<10} | {:<15} | {:<10} | {}",
+        "program", "sensor coverage", "attach", "kind"
+    );
     for program in observability::Program::ALL {
         println!(
             "{:<10} | {:<15} | {:<10} | {}",
