@@ -6,10 +6,10 @@ use crate::predicates::{Event, RuleBudget};
 
 use crate::predicates::{Result, RuleError};
 
-use super::predicates::{build_match, extract_event_id, extract_group_key, extract_timestamp, init_steps, step_matches};
-use super::{
-    SequenceInstance, SequenceKey, SequenceMatch, SequenceState, DEFAULT_CAPACITY,
+use super::predicates::{
+    build_match, extract_event_id, extract_group_key, extract_timestamp, init_steps, step_matches,
 };
+use super::{SequenceInstance, SequenceKey, SequenceMatch, SequenceState, DEFAULT_CAPACITY};
 
 /// A bounded, deterministic temporal sequence evaluator.
 ///

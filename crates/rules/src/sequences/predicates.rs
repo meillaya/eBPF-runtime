@@ -7,8 +7,8 @@ use crate::predicates::Event;
 use crate::predicates::{Result, RuleError};
 
 use super::{
-    GroupKey, SequenceInstance, SequenceKey, SequenceMatch, StepState,
-    CONTAINER_ID_FIELD, EVENT_ID_FIELD, PROCESS_GENERATION_FIELD, SOCKET_INODE_FIELD, TS_FIELD,
+    GroupKey, SequenceInstance, SequenceKey, SequenceMatch, StepState, CONTAINER_ID_FIELD,
+    EVENT_ID_FIELD, PROCESS_GENERATION_FIELD, SOCKET_INODE_FIELD, TS_FIELD,
 };
 
 /// Extract the group key from an event. Priority order:
