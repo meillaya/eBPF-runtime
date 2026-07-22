@@ -457,6 +457,88 @@
   };
 
   # ---------------------------------------------------------------------
+  # Local development infrastructure (compose stack + privileged VM).
+  #
+  # `infra:up` / `infra:down` / `infra:status` / `infra:logs` /
+  # `infra:reset` manage the Docker Compose stack defined in
+  # `deploy/compose/dev-infra.yml` (PostgreSQL 16, Kafka KRaft,
+  # ClickHouse 24.8, SPIRE server + agent, Dex OIDC).
+  #
+  # `infra:privileged` launches a QEMU VM with BPF capabilities
+  # (CAP_BPF, CAP_PERFMON, CAP_SYS_ADMIN, CAP_NET_ADMIN) via
+  # `scripts/dev-vm.sh --ssh`. The VM mounts the workspace via
+  # virtio-fs and sets kernel.unprivileged_bpf_disabled=0.
+  #
+  # SECURITY: ALL credentials in the compose stack are DEV-ONLY.
+  # Never use them in production.
+  # ---------------------------------------------------------------------
+  tasks."infra:up" = {
+    description = "Start the dev infrastructure stack (PostgreSQL, Kafka, ClickHouse, SPIRE, Dex)";
+    exec = ''
+      set -euo pipefail
+      docker compose -f "$DEVENV_ROOT/deploy/compose/dev-infra.yml" up -d --build
+      echo ""
+      echo "[infra:up] stack starting. Check health with: devenv tasks run infra:status"
+    '';
+  };
+
+  tasks."infra:down" = {
+    description = "Stop the dev infrastructure stack";
+    exec = ''
+      set -euo pipefail
+      docker compose -f "$DEVENV_ROOT/deploy/compose/dev-infra.yml" down
+    '';
+  };
+
+  tasks."infra:status" = {
+    description = "Show dev infrastructure stack status and health summary";
+    exec = ''
+      set -euo pipefail
+      compose_file="$DEVENV_ROOT/deploy/compose/dev-infra.yml"
+      echo "=== Container Status ==="
+      docker compose -f "$compose_file" ps
+      echo ""
+      echo "=== Health Summary ==="
+      docker compose -f "$compose_file" ps --format \
+        "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null \
+        || docker compose -f "$compose_file" ps
+      echo ""
+      echo "=== Endpoints ==="
+      echo "  PostgreSQL : 127.0.0.1:5432  (db=kernel_v1 user=control_app)"
+      echo "  Kafka      : 127.0.0.1:9092  (KRaft, no ZooKeeper)"
+      echo "  ClickHouse : 127.0.0.1:8123  (HTTP) / 127.0.0.1:9000 (native)"
+      echo "  SPIRE      : 127.0.0.1:8081  (trust_domain=example.org)"
+      echo "  Dex OIDC   : 127.0.0.1:5556  (issuer=http://127.0.0.1:5556/dex)"
+    '';
+  };
+
+  tasks."infra:privileged" = {
+    description = "Launch QEMU VM with BPF capabilities for privileged testing";
+    exec = ''
+      set -euo pipefail
+      bash "$DEVENV_ROOT/scripts/dev-vm.sh" --ssh
+    '';
+  };
+
+  tasks."infra:logs" = {
+    description = "Tail dev infrastructure stack logs";
+    exec = ''
+      set -euo pipefail
+      docker compose -f "$DEVENV_ROOT/deploy/compose/dev-infra.yml" logs -f
+    '';
+  };
+
+  tasks."infra:reset" = {
+    description = "Destroy dev infrastructure stack and all volumes (DESTRUCTIVE)";
+    exec = ''
+      set -euo pipefail
+      echo "[infra:reset] destroying all volumes — this is DESTRUCTIVE"
+      docker compose -f "$DEVENV_ROOT/deploy/compose/dev-infra.yml" down -v
+      echo "[infra:reset] done"
+    '';
+  };
+
+  # ---------------------------------------------------------------------
   # Git hooks (task 4).
   #
   # Two complementary surfaces are provided:
