@@ -7,6 +7,7 @@ mod channel;
 mod model;
 mod normalize;
 mod pipeline;
+mod process_graph;
 mod synthetic;
 
 pub use channel::{BoundedChannel, EventPriority, PriorityBoundedChannel, SendError};
@@ -17,4 +18,7 @@ pub use model::{
 };
 pub use normalize::{from_raw, normalize_bytes};
 pub use pipeline::{AgentCore, AgentCoreError, AgentCoreOpts};
+pub use process_graph::{
+    AncestryStatus, NodeState, ProcessGraph, ProcessGraphOpts, ProcessIdentity, ProcessNode,
+};
 pub use synthetic::synthetic_record;
