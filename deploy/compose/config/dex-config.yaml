@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Dex OIDC provider configuration for kernel-v1 local development.
+#
+# SECURITY: ALL credentials here are DEV-ONLY. Never use in production.
+# Production deployment uses SPIRE-issued SVIDs, not static tokens.
+#
+# Consumed by: deploy/compose/dev-infra.yml (dex service)
+# Mounted at:  /etc/dex/config.yaml
+
+issuer: http://127.0.0.1:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+# Static client for the kernel-v1 dev dashboard / CLI.
+staticClients:
+  - id: kernel-v1-dev
+    secret: dev-secret
+    name: kernel-v1 Development
+    redirectURIs:
+      - http://localhost:8080/callback
+
+# Static test users with bcrypt-hashed passwords.
+# Password for both users: "password"
+# Hash generated with: htpasswd -bnBC 10 "" password | tr -d ':\n'
+staticPasswords:
+  - email: admin@example.com
+    # bcrypt hash of "password"
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: admin
+    userID: "10000000-0000-0000-0000-000000000001"
+  - email: viewer@example.com
+    # bcrypt hash of "password"
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: viewer
+    userID: "10000000-0000-0000-0000-000000000002"
+
+# Group mapping for RBAC testing.
+# admin@example.com  -> groups: [admin]
+# viewer@example.com -> groups: [viewer]
+# Dex assigns groups via the connector; the static password connector
+# does not natively support groups, so we use the staticGroups feature
+# (Dex >= 2.36) to map users to groups.
+staticGroups:
+  - name: admin
+    users:
+      - admin@example.com
+  - name: viewer
+    users:
+      - viewer@example.com
+
+# Enable the password connector for the login form.
+connectors: []
+
+# OAuth2 settings for dev.
+oauth2:
+  # Allow the implicit flow for local testing.
+  responseTypes:
+    - code
+    - token
+    - id_token
+  # Skip approval screen for faster dev iteration.
+  skipApprovalScreen: true
+
+# Expiry settings for dev (shorter than production).
+expiry:
+  idTokens: 1h
+  authRequests: 24h
+
+# Logging.
+logger:
+  level: debug
+  format: text
