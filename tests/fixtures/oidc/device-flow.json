@@ -1,0 +1,47 @@
+{
+  "description": "RFC 8628 device flow fixture data for CLI authentication",
+  "device_authorization_endpoint": "https://dex.kernel-v1.test/device/code",
+  "token_endpoint": "https://dex.kernel-v1.test/token",
+  "client_id": "kernel-v1-cli",
+  "scope": "openid profile groups offline_access",
+  "responses": {
+    "device_authorization": {
+      "device_code": "GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS",
+      "user_code": "WDJB-MJHT",
+      "verification_uri": "https://dex.kernel-v1.test/device",
+      "verification_uri_complete": "https://dex.kernel-v1.test/device?user_code=WDJB-MJHT",
+      "expires_in": 1800,
+      "interval": 5
+    },
+    "token_pending": {
+      "error": "authorization_pending",
+      "error_description": "The authorization request is still pending"
+    },
+    "token_slow_down": {
+      "error": "slow_down",
+      "error_description": "Polling too fast, slow down"
+    },
+    "token_expired": {
+      "error": "expired_token",
+      "error_description": "The device code has expired"
+    },
+    "token_access_denied": {
+      "error": "access_denied",
+      "error_description": "The user denied the authorization request"
+    },
+    "token_success": {
+      "access_token": "fixture-access-token-placeholder",
+      "token_type": "Bearer",
+      "expires_in": 3600,
+      "refresh_token": "fixture-refresh-token-placeholder",
+      "id_token": "placeholder-signed-in-test"
+    }
+  },
+  "polling_sequence": [
+    {"attempt": 1, "response": "authorization_pending", "interval_ms": 5000},
+    {"attempt": 2, "response": "authorization_pending", "interval_ms": 5000},
+    {"attempt": 3, "response": "slow_down", "interval_ms": 10000},
+    {"attempt": 4, "response": "authorization_pending", "interval_ms": 10000},
+    {"attempt": 5, "response": "success", "interval_ms": 10000}
+  ]
+}
