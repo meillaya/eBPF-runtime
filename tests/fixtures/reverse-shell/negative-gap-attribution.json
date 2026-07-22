@@ -1,0 +1,51 @@
+{
+  "name": "negative-gap-attribution",
+  "description": "Missing/gap attribution: the shell exec and socket connect occur, but the stdio-redirection (dup2) event arrives far later than the bounded 60s correlation window (ts 260 vs started_at 100 + window 60 = 160). The sequence engine treats the late step as a gap/loss in attribution and marks the sequence uncertain; an uncertain sequence never completes and never alerts (uncertain => no deny/alert invariant). This guards against stitching causally-unrelated events into a false reverse shell when telemetry is late or partially lost. Expect no match.",
+  "events": [
+    {
+      "fields": {
+        "process.exec_path": "/bin/bash",
+        "process.argv": ["bash", "-i"],
+        "process.pid": 1010,
+        "process.uid": 33,
+        "syscall.nr": 59,
+        "ts": 100,
+        "process.generation": 10,
+        "event.id": "ev-exec-7"
+      },
+      "null_fields": []
+    },
+    {
+      "fields": {
+        "process.exec_path": "/bin/bash",
+        "process.argv": ["bash", "-i"],
+        "process.pid": 1010,
+        "network.dst_ip": "203.0.113.66",
+        "network.dst_port": 4444,
+        "network.family": "AF_INET",
+        "syscall.nr": 42,
+        "ts": 101,
+        "process.generation": 10,
+        "event.id": "ev-connect-7"
+      },
+      "null_fields": []
+    },
+    {
+      "fields": {
+        "process.exec_path": "/bin/bash",
+        "process.argv": ["bash", "-i"],
+        "process.pid": 1010,
+        "syscall.nr": 33,
+        "ts": 260,
+        "process.generation": 10,
+        "event.id": "ev-dup2-7"
+      },
+      "null_fields": []
+    }
+  ],
+  "expect": {
+    "match": false,
+    "rule_id": null,
+    "action": null
+  }
+}

@@ -45,3 +45,45 @@
 - FileRename/FileUnlink get `deny` because they are unambiguously destructive.
 - Deny conditions reference ONLY kernel-observable fields (file.path, file.kind) — never enrichment data.
 - Null/unknown file.path → non-match, so syscall-fallback events with unresolved paths never trigger deny.
+
+## Task 31: Reverse-shell behavior rule pack
+
+### Sequence engine (crates/rules/src/sequences.rs) is the detection core
+- A reverse shell is detected as a bounded ORDERED sequence (shell exec → socket connect → stdio dup2/dup3), NOT as any single shell+network coincidence. The rule declares `sequences:` (schema `$defs/sequence`: name, steps[], window_seconds); each `step` is a SINGLE field predicate {field, operator, value} (scoped operator subset).
+- `SequenceEvaluator` matches steps as an ordered SUBSEQUENCE: non-matching interleaved events are skipped, but steps must be satisfied in order. `sequences-cli replay <events.json> --sequences <seq.json>` resets state and processes a `Vec<Event>`, emitting a `SequenceMatch` per event: {sequence_name, group_key, steps[], completed, uncertain}.
+- A rule FIRES only when a SequenceMatch has `completed==true AND uncertain==false`. Uncertain (missing/late/out-of-order step, or a step beyond `started_at + window_seconds`) NEVER fires — this is the gap/loss-attribution safety invariant. Once completed, a sequence stays completed (late events after completion re-emit completed, never flip to uncertain).
+- Group key is extracted from the EVENT (priority: `process.generation` u64 → `container.id` String → `socket.inode` u64 → Custom("default")). NEVER a bare PID. All steps must share one group key, which ties exec/connect/dup to one process lineage.
+- Ordering/windowing uses the monotonic `ts` field (Integer seconds) read from the event; `event.id` (String) is captured per matched step as the evidence explanation. `ts`, `process.generation`, `event.id`, `container.id`, `socket.inode` are read directly from events and are NOT rule predicates.
+
+### CRITICAL: sequence steps ARE validated against the field catalog
+- `validate_rule` (crates/rules/src/validate.rs:71-82) validates EVERY sequence step field against `default_field_catalog()`, exactly like conditions and exceptions. So steps may only reference catalog fields: process.exec_path/argv/pid/tgid/uid/gid, file.path/kind, network.dst_ip/dst_port/family, dns.qname/qtype, syscall.nr/latency_ns, identity.*, enrichment.*.
+- Therefore `process.generation`, `socket.inode`, `container.id`, `ts`, `event.id` CANNOT appear as step fields (not in catalog) — but they CAN be carried on events for the engine's group-key/ordering/evidence extraction. Design steps around catalog fields (exec_path, dst_port, syscall.nr) and let the engine read generation/ts from the events.
+- There is NO parent-identity or TTY field in the catalog. "server-parent identity" and "no-TTY/interactive context" are expressed today via `process.argv` (a login shell's argv[0] is conventionally "-bash"/"-sh"/... ; a reverse shell runs non-login like ["bash","-i"]). Documented as a refinement for when the sensor captures parent/TTY directly.
+
+### Predicate evaluator array semantics (crates/rules/src/predicates/predicate.rs)
+- `contains` on an Array field = ELEMENT membership (exact `values_eq` per element), not substring. So `process.argv contains "-bash"` matches only if "-bash" is an exact argv element; argv ["bash","-i"] does NOT match. `contains` on a String field = substring.
+- `in`/`not_in` require an array value; element types must match the field type without coercion (Integer field ↔ Integer array elements).
+- Exceptions are evaluated by the harness, not by `evaluate_condition`: each exception is a leaf {field,operator,value} passed to `predicates-cli evaluate`. An exception over an unknown/null field never applies (non-match).
+
+### Bench harness model (bench/rules-reverse-shell.sh)
+- Mirrors bench/rules-sensitive-files.sh but drives the SEQUENCE engine. A rule fires on a fixture when ALL of: (1) the rule's named sequence completes cleanly (completed && !uncertain) via `sequences-cli replay`; (2) the deterministic condition matches ≥1 event via `predicates-cli evaluate`; (3) NO exception matches ANY event in the stream. First firing rule wins.
+- Threshold read from schema, NOT hardcoded: `jq -r '.properties.fixture_min_precision_and_recall.default // 1.0'`. The property is absent from bench/schemas/rule-budget.v1.json today, so it falls back to 1.0 (same as task 30).
+- Rule's sequences are extracted with `jq '[.rules[].sequences[]]'` from `rules-cli parse` output and round-trip cleanly into `sequences-cli` (same AST serde). Per-rule sequence names via `jq -c '[.rules[ri].sequences[].name]'`.
+- Fixture format differs from sensitive-files: `events: [Event, ...]` (a stream) instead of a single `event`. Each Event is `{"fields": {...}, "null_fields": [...]}` and carries `ts`, `process.generation`, `event.id` plus the step fields.
+
+### Fixture mechanisms (precision=recall=1.0, 1 TP / 6 TN)
+- positive-reverse-shell (TP): bash(argv=["bash","-i"]) exec → connect dst_port 4444 → dup2 (syscall.nr 33), all gen=42 within 60s. Sequence completes cleanly; condition matches; no exception. Evidence: ev-exec -> ev-connect -> ev-dup2.
+- negative-ssh-session (TN): login shell (argv=["-bash"]) connects to port 22 (not a monitored callback port) → sequence step 2 never matches → incomplete. Also SSH-port + login-shell exceptions would suppress.
+- negative-socat-sidecar (TN): socat is not a shell → step 1 (exec_path in shells) never matches → sequence never starts. socat also in admin/session exception list.
+- negative-interactive-shell (TN): login shell (argv=["-bash"]) → connect 4444 → dup2; sequence WOULD complete, but the login-shell exception (argv contains "-bash") suppresses. Isolates the exception mechanism.
+- negative-network-without-shell (TN): curl (not a shell) connects → step 1 fails and condition matches no event.
+- negative-shell-without-socket (TN): bash exec + dup2 but NO connect event → step 2 never matches → incomplete.
+- negative-gap-attribution (TN): exec + connect, but dup2 arrives at ts 260 > started_at 100 + window 60 → sequence uncertain → never fires.
+
+### Safety invariants enforced by reverse-shell rule design
+- Action is `alert` ONLY — never deny from this behavioral heuristic (alert/audit-only constraint).
+- No payload inspection: matches only kernel-observable metadata (exec_path, argv, dst_port, syscall.nr); nothing to redact (task 23 privacy).
+- No bare-PID correlation: group key is process.generation (unique across PID reuse).
+- Uncertain sequences (gap/late/out-of-order) never alert.
+- SSH/debug/admin/interactive exceptions honored (evaluated against every event in the correlated stream).
+- syscall.nr dup values (33=dup2, 292=dup3) are x86_64 ABI; documented that a portable deployment normalizes per-arch in the sensor.

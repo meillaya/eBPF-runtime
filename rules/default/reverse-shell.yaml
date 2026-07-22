@@ -1,0 +1,357 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# rules/default/reverse-shell.yaml — reverse-shell behavior detection pack (task 31)
+#
+# Detects reverse-shell BEHAVIOR via bounded temporal sequence correlation,
+# not by flagging any single shell+network coincidence. A reverse shell is a
+# shell whose stdin/stdout/stderr is redirected onto an outbound network
+# socket so a remote party can drive an interactive command session. The
+# observable kernel-level signature is a short, ordered causal chain:
+#
+#     (1) authoritative shell exec   — a known interpreter is executed;
+#     (2) socket connect/established  — that same process generation opens an
+#                                       outbound connection to a remote server;
+#     (3) stdio redirection (dup2/3)  — file descriptors are duplicated onto
+#                                       the socket (the shell's stdio is wired
+#                                       to the network).
+#
+# Design principles (privacy- and safety-preserving, per tasks 23/27/28/29):
+#   - NEVER call any shell+network event a reverse shell: an alert requires the
+#     full ordered sequence to complete inside a bounded window, correlated by
+#     process GENERATION (never a bare PID), with no gap/loss uncertainty.
+#   - NEVER inspect payloads: this rule matches only kernel-observable event
+#     metadata (exec path, destination port, syscall number, argv). No packet
+#     or command payload is read, so there is nothing to redact (task 23).
+#   - NEVER deny from this heuristic: action is `alert` only. Reverse-shell
+#     detection is behavioral and probabilistic; blocking on it would risk
+#     denying legitimate admin/SSH/debug activity. Audit/alert only.
+#   - NEVER correlate by PID alone: the sequence group key is the process
+#     generation counter (unique across PID reuse), so a recycled PID cannot
+#     stitch two unrelated processes into a false sequence (task 29).
+#   - NEVER alert on uncertain sequences: if a step is missing, late, or out of
+#     order (a gap in attribution), the sequence is marked `uncertain` and the
+#     sequence engine refuses to complete it. Uncertain => no alert.
+#   - HONOR SSH/debug/admin/interactive exceptions: legitimate interactive
+#     shells (SSH login shells), debuggers/tracers, and session managers are
+#     excepted so they do not alert even if their events happen to satisfy the
+#     sequence shape.
+#
+# Field-catalog note (crates/rules/src/fields.rs): every field referenced by
+# the condition, the exceptions, and the sequence steps is a kernel-observable
+# member of the event field catalog (process.exec_path, process.argv,
+# network.dst_port, syscall.nr). The sequence group-key fields the correlation
+# engine reads directly from events (process.generation, ts, event.id) are
+# carried on the event but are NOT referenced as rule predicates, so they are
+# not subject to catalog membership. `process.generation` (not PID) partitions
+# correlation; `ts` (monotonic seconds) orders steps and bounds the window.
+#
+# Signals the sensor does not yet capture are documented inline as refinements
+# (server-parent identity, TTY/interactive context). Where those facts become
+# available they tighten the condition/exceptions; until then the bounded
+# sequence + exception set is the conservative, alert-only heuristic.
+#
+# Schema: schemas/rule-v1.schema.json (schema_version 1)
+# Engine: 1.0.0 (crates/rules/src/version.rs CURRENT_ENGINE_VERSION)
+
+schema_version: 1  # must be exactly 1 (semantic validator enforces)
+engine_version: "1.0.0"  # same major as engine, not newer
+
+rules:
+  # -----------------------------------------------------------------------
+  # Rule: reverse-shell behavior (alert only, never deny)
+  # -----------------------------------------------------------------------
+  # Fires only when the bounded temporal sequence `reverse_shell_exec_connect_stdio`
+  # completes cleanly (all three steps matched in order, within the window,
+  # same process generation, not uncertain) AND the deterministic shell-exec
+  # condition matches an event in the correlated stream AND no safe exception
+  # applies. Action is `alert` — this is a behavioral heuristic and must never
+  # deny.
+  - id: reverse-shell-behavior
+    version: 1
+    severity: high  # behavioral reverse-shell indicator; high but alert-only
+    tags:
+      - network        # involves an outbound socket connection
+      - process        # anchored on a shell exec
+      - syscall        # stdio redirection observed via dup syscalls
+      - reverse-shell  # the behavior class
+      - sequence       # detected via temporal sequence correlation (task 29)
+    source: network  # the security-relevant outcome is a networked shell
+    description: >-
+      Detects reverse-shell behavior by correlating an ordered, bounded
+      temporal sequence: (1) an authoritative shell exec, (2) an outbound
+      socket connect/established to a configured server port, and (3) stdio
+      redirection via dup2/dup3, all from the same process generation within
+      a bounded window. Alerts but never denies (behavioral heuristic).
+      Matches only kernel-observable metadata (exec path, destination port,
+      syscall number, argv); never inspects payloads. SSH login shells,
+      debug/tracing tools, and session managers are excepted. Uncertain
+      sequences (missing/late/out-of-order steps) never alert.
+    # -------------------------------------------------------------------
+    # Deterministic per-event gate (predicate engine, task 28).
+    # -------------------------------------------------------------------
+    # The condition is the authoritative shell-exec predicate: it confirms a
+    # known shell interpreter is present in the correlated event stream. It is
+    # evaluated against each event; the rule is eligible only if some event
+    # satisfies it. This is the deterministic anchor that the temporal sequence
+    # (below) must also satisfy in order — together they prevent treating an
+    # arbitrary shell+network coincidence as a reverse shell.
+    #
+    # Refinement (where captured): when the process sensor exposes TTY state
+    # and server-parent identity, this condition would additionally require a
+    # non-interactive/no-TTY context and an unexpected parent (e.g. a web
+    # server or exploit dropper rather than sshd/login/cron). Those fields are
+    # not yet in the catalog, so the conservative gate is the authoritative
+    # shell identity; interactive/login shells are carved out by the
+    # interactive-shell exceptions below instead.
+    condition:
+      field: process.exec_path
+      operator: in
+      value:
+        - "/bin/sh"
+        - "/bin/bash"
+        - "/usr/bin/bash"
+        - "/bin/dash"
+        - "/usr/bin/dash"
+        - "/bin/ash"
+        - "/usr/bin/ash"
+        - "/bin/zsh"
+        - "/usr/bin/zsh"
+        - "/bin/ksh"
+        - "/usr/bin/ksh"
+        - "/usr/bin/fish"
+        - "/bin/tcsh"
+        - "/bin/csh"
+    action: alert  # ALERT/AUDIT ONLY — never deny from this heuristic
+    # -------------------------------------------------------------------
+    # Bounded temporal sequence (sequence engine, task 29).
+    # -------------------------------------------------------------------
+    # The ordered causal chain that defines reverse-shell behavior. Each step
+    # is a single deterministic field predicate (scoped operator subset). The
+    # sequence engine matches the steps as an ordered SUBSEQUENCE of the event
+    # stream: non-matching interleaved events are skipped, but the steps must
+    # be satisfied in order, by events sharing one group key (process
+    # generation), inside `window_seconds`.
+    #
+    # Group key: the engine partitions correlation by `process.generation`
+    # (read from the events; unique across PID reuse) — NEVER a bare PID. All
+    # three steps must come from the same generation, which is what ties the
+    # shell exec, the connect, and the dup to one process lineage.
+    #
+    # Window: bounded (60s here, far under the budget max of 3600s). A step
+    # arriving later than started_at + window marks the sequence uncertain and
+    # it will never complete => no alert. This is the "bounded sequence window"
+    # guarantee: stale state cannot correlate and memory is TTL/LRU bounded.
+    #
+    # Evidence: on completion the sequence engine emits a SequenceMatch carrying
+    # each step's matched event id (`event.id`) and monotonic timestamp
+    # (`matched_at`). Those are the alert's evidence explanation — the exact
+    # exec, connect, and dup events and when they occurred — without any
+    # payload content.
+    sequences:
+      - name: reverse_shell_exec_connect_stdio
+        window_seconds: 60  # bounded correlation window (<= budget 3600s)
+        steps:
+          # Step 1 — authoritative shell exec.
+          # The process generation executes a known shell interpreter. This is
+          # the causal root of the sequence. `process.exec_path` is populated
+          # by the process sensor (task 20) from the exec event.
+          - field: process.exec_path
+            operator: in
+            value:
+              - "/bin/sh"
+              - "/bin/bash"
+              - "/usr/bin/bash"
+              - "/bin/dash"
+              - "/usr/bin/dash"
+              - "/bin/ash"
+              - "/usr/bin/ash"
+              - "/bin/zsh"
+              - "/usr/bin/zsh"
+              - "/bin/ksh"
+              - "/usr/bin/ksh"
+              - "/usr/bin/fish"
+              - "/bin/tcsh"
+              - "/bin/csh"
+          # Step 2 — outbound socket connect/established to a configured server.
+          # The same process generation opens an outbound connection. The
+          # network sensor (task 13) emits the connect/established event with
+          # the destination port; the socket/DNS correlation layer (task 21)
+          # attributes it to the process generation via the socket cookie.
+          # `network.dst_port` is present only on network events, so the shell
+          # exec event (step 1) and the dup event (step 3) cannot satisfy this
+          # step — enforcing that a real connect occurred between exec and dup.
+          # The server port list is configurable: classic reverse-shell callback
+          # ports. Standard admin/web ports (22/80/443) are intentionally NOT
+          # here; SSH is additionally carved out by the exceptions below.
+          - field: network.dst_port
+            operator: in
+            value:
+              - 1234
+              - 1337
+              - 4321
+              - 4444
+              - 5555
+              - 6666
+              - 9001
+              - 9999
+              - 31337
+              - 31338
+          # Step 3 — stdio redirection onto the socket (dup semantics).
+          # The shell duplicates its stdin/stdout/stderr file descriptors onto
+          # the connected socket. Captured "where captured": when the syscall
+          # sensor observes dup2/dup3 by this process generation shortly after
+          # the connect, it confirms the shell's stdio was wired to the network
+          # — the defining act of a reverse shell. Syscall numbers are the
+          # x86_64 ABI (dup2=33, dup3=292); a portable deployment normalizes
+          # these per-architecture in the sensor before they reach the rule.
+          - field: syscall.nr
+            operator: in
+            value:
+              - 33   # dup2 (x86_64)
+              - 292  # dup3 (x86_64)
+    # -------------------------------------------------------------------
+    # Safe exceptions (suppress an otherwise-firing rule).
+    # -------------------------------------------------------------------
+    # Each exception is a single scoped field predicate evaluated against the
+    # correlated event stream; if any exception matches any event in the
+    # stream, the alert is suppressed. These keep legitimate SSH sessions,
+    # debug/tracing tools, session managers, and interactive login shells from
+    # alerting even when their events happen to satisfy the sequence shape.
+    exceptions:
+      # SSH / admin-port connections: a connection whose destination is the SSH
+      # port is a legitimate SSH session/tunnel, not a reverse-shell callback.
+      # Defense-in-depth — the server port list above already excludes 22/2222,
+      # so this also protects if an operator later adds those ports to monitoring.
+      - field: network.dst_port
+        operator: in
+        value:
+          - 22     # SSH
+          - 2222   # common alternate SSH
+      # Debug / tracing tools: debuggers, tracers, and packet tools legitimately
+      # exec interpreters, open connections, and redirect fds while profiling or
+      # capturing. Their presence in the correlated stream suppresses the alert.
+      - field: process.exec_path
+        operator: in
+        value:
+          - "/usr/bin/gdb"
+          - "/usr/bin/lldb"
+          - "/usr/bin/strace"
+          - "/usr/bin/ltrace"
+          - "/usr/bin/tcpdump"
+          - "/usr/bin/tshark"
+          - "/usr/bin/wireshark"
+          - "/usr/bin/valgrind"
+          - "/usr/bin/perf"
+      # Admin / session managers: SSH daemon, sudo/su, login, and terminal
+      # multiplexers/proxies legitimately spawn shells and manage sockets. Their
+      # presence (server-parent / admin identity) suppresses the alert.
+      # Refinement (where captured): with a server-parent identity field this
+      # would match the shell's PARENT exec path (sshd, cron, login) directly;
+      # until then it matches these actors appearing in the correlated stream.
+      - field: process.exec_path
+        operator: in
+        value:
+          - "/usr/sbin/sshd"
+          - "/usr/bin/sudo"
+          - "/usr/bin/su"
+          - "/usr/bin/login"
+          - "/usr/bin/socat"
+          - "/usr/bin/nc"
+          - "/usr/bin/ncat"
+          - "/usr/bin/screen"
+          - "/usr/bin/tmux"
+          - "/usr/sbin/cron"
+          - "/usr/sbin/crond"
+      # Interactive / login shells: a login shell's argv[0] is conventionally
+      # prefixed with '-' (e.g. "-bash" for an SSH or console login). A reverse
+      # shell runs the interpreter non-login (e.g. "bash -i" or "sh -c ..."),
+      # so a login-shell argv marker indicates an interactive session, not a
+      # reverse shell. This is the no-TTY/interactive-context signal expressed
+      # with the argv field that the catalog provides today.
+      - field: process.argv
+        operator: contains
+        value: "-bash"
+      - field: process.argv
+        operator: contains
+        value: "-sh"
+      - field: process.argv
+        operator: contains
+        value: "-zsh"
+      - field: process.argv
+        operator: contains
+        value: "-dash"
+    # -------------------------------------------------------------------
+    # Configurable lists (documentation / operator configuration).
+    # -------------------------------------------------------------------
+    # The semantic validator requires array literals in condition/exception/step
+    # values (list-name references resolve only at evaluation time), so the
+    # values above are inlined. These lists mirror them as the single documented
+    # place an operator edits when tuning shells, server ports, dup syscalls,
+    # and exception actors. Keep them in sync with the inlined values.
+    # List names are globally unique across the rule set (semantic validator).
+    lists:
+      - name: reverse_shell_shells
+        items:
+          - "/bin/sh"
+          - "/bin/bash"
+          - "/usr/bin/bash"
+          - "/bin/dash"
+          - "/usr/bin/dash"
+          - "/bin/ash"
+          - "/usr/bin/ash"
+          - "/bin/zsh"
+          - "/usr/bin/zsh"
+          - "/bin/ksh"
+          - "/usr/bin/ksh"
+          - "/usr/bin/fish"
+          - "/bin/tcsh"
+          - "/bin/csh"
+      - name: reverse_shell_server_ports
+        items:
+          - "1234"
+          - "1337"
+          - "4321"
+          - "4444"
+          - "5555"
+          - "6666"
+          - "9001"
+          - "9999"
+          - "31337"
+          - "31338"
+      - name: reverse_shell_dup_syscalls_x86_64
+        items:
+          - "33"   # dup2
+          - "292"  # dup3
+      - name: reverse_shell_ssh_admin_ports
+        items:
+          - "22"
+          - "2222"
+      - name: reverse_shell_debug_tools
+        items:
+          - "/usr/bin/gdb"
+          - "/usr/bin/lldb"
+          - "/usr/bin/strace"
+          - "/usr/bin/ltrace"
+          - "/usr/bin/tcpdump"
+          - "/usr/bin/tshark"
+          - "/usr/bin/wireshark"
+          - "/usr/bin/valgrind"
+          - "/usr/bin/perf"
+      - name: reverse_shell_admin_session_tools
+        items:
+          - "/usr/sbin/sshd"
+          - "/usr/bin/sudo"
+          - "/usr/bin/su"
+          - "/usr/bin/login"
+          - "/usr/bin/socat"
+          - "/usr/bin/nc"
+          - "/usr/bin/ncat"
+          - "/usr/bin/screen"
+          - "/usr/bin/tmux"
+          - "/usr/sbin/cron"
+          - "/usr/sbin/crond"
+      - name: reverse_shell_login_shell_argv_markers
+        items:
+          - "-bash"
+          - "-sh"
+          - "-zsh"
+          - "-dash"
