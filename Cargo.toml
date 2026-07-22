@@ -1,3 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = [
+    "crates/agent-core",
+    "crates/bpf-build",
+    "crates/bpf-loader",
+    "crates/event-abi",
+    "crates/preflight-schema",
+    "crates/sensor-tests",
+]
