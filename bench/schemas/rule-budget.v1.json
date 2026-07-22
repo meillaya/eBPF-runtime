@@ -60,6 +60,13 @@
       "maximum": 604800,
       "default": 3600,
       "description": "Maximum correlation window in seconds for a temporal sequence (task 28 budget; sequence engine wired in task 29). A larger window is rejected."
+    },
+    "fixture_min_precision_and_recall": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1.0,
+      "description": "Minimum precision and recall a rule pack must achieve on its declared fixture corpus (tasks 30-32). Bench harnesses read this default; the value is NOT hardcoded in the harness scripts."
     }
   },
   "required": [

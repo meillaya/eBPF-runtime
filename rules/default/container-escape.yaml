@@ -1,0 +1,520 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# rules/default/container-escape.yaml — container-escape indicator rule pack (task 32)
+#
+# Detects container-escape INDICATORS using identity sensor facts (task 16)
+# and CRI/Kubernetes enrichment (task 22). Each rule requires BOTH:
+#   (1) container context — enrichment.container_id is resolved (non-empty),
+#       confirming the process runs inside a container as determined by the
+#       CRI/containerd/CRI-O/Docker enrichment layer;
+#   (2) a suspicious action — namespace switch, runtime-socket access,
+#       /proc/1/root traversal, host-device access, cloud-metadata reach,
+#       or credential mutation.
+#
+# Design principles (privacy- and safety-preserving, per tasks 16/22/23/27/28):
+#   - NEVER call a single setns/unshare an escape: every namespace-switch
+#     alert requires container context (enrichment.container_id resolved)
+#     AND the syscall itself. A host-process setns (e.g. runc creating a
+#     container) never triggers because enrichment.container_id is null
+#     or empty for host processes.
+#   - NEVER confuse host/sandbox/Pod namespace: the identity sensor (task 16)
+#     distinguishes host, sandbox, and Pod namespaces via per-field validity
+#     flags. The enrichment layer (task 22) resolves cgroup/namespace IDs to
+#     a container_id; only resolved container context triggers these rules.
+#   - NEVER claim visibility into gVisor/Kata guests: these rules operate on
+#     the host kernel's observable surface only. gVisor/Kata guest-internal
+#     activity is out of scope per the plan.
+#   - NEVER deny: action is `alert` on every rule. Container-escape detection
+#     is behavioral and contextual; blocking would risk denying legitimate
+#     runtime, CNI, and debug operations. Audit/alert only.
+#   - NEVER alert on unresolved attribution: if enrichment.container_id is
+#     null or unknown (enrichment layer has not resolved the container), the
+#     predicate evaluator treats the field as non-match (false), so the rule
+#     never fires. Unresolved => no alert.
+#   - HONOR runtime/CNI/debug exceptions: container runtimes (runc,
+#     containerd, CRI-O), CNI plugins, and debug workloads legitimately
+#     perform namespace operations and socket access. Their presence in the
+#     event suppresses the alert via scoped exceptions.
+#
+# Identity/attribution validity: every fixture event carries raw identity
+# fields (identity.cgroup_id, identity.ns_mnt, identity.ns_pid,
+# identity.ns_net, identity.ns_user) from the identity sensor (task 16).
+# These provide per-field validity for attribution; the alert includes them
+# as evidence. The enrichment.container_id field is the CRI-resolved
+# container identity from task 22.
+#
+# Field-catalog note (crates/rules/src/fields.rs): condition fields include
+# both kernel-observable fields (syscall.nr, file.path, network.dst_ip,
+# process.exec_path, identity.*) and enrichment fields (enrichment.*).
+# Enrichment fields are NOT kernel-observable, so deny is never permitted
+# on them — consistent with the alert-only design of this pack.
+#
+# Schema: schemas/rule-v1.schema.json (schema_version 1)
+# Engine: 1.0.0 (crates/rules/src/version.rs CURRENT_ENGINE_VERSION)
+
+schema_version: 1  # must be exactly 1 (semantic validator enforces)
+engine_version: "1.0.0"  # same major as engine, not newer
+
+rules:
+  # -----------------------------------------------------------------------
+  # Rule 1: Container-scoped namespace switch (alert only, never deny)
+  # -----------------------------------------------------------------------
+  # Fires when a process INSIDE a container (enrichment.container_id resolved)
+  # invokes setns(2) or unshare(2). These syscalls change namespace
+  # membership; from within a container they are the primary mechanism for
+  # escaping namespace isolation (e.g. setns into the host PID or mount
+  # namespace via /proc/1/ns/*).
+  #
+  # This is NOT "a single setns is an escape": the condition requires BOTH
+  # the syscall AND resolved container context. A host process (runc,
+  # containerd) calling setns to CREATE a container has no resolved
+  # enrichment.container_id, so it never triggers.
+  #
+  # Syscall constraint: syscall.nr in [258 (setns), 272 (unshare)] on
+  #   x86_64. A portable deployment normalizes per-architecture in the
+  #   sensor before events reach the rule.
+  #
+  # Container context: enrichment.container_id ne "" confirms the CRI
+  #   enrichment layer (task 22) resolved this process to a container.
+  #   Null/unknown => non-match => no alert (unresolved attribution).
+  #
+  # Exceptions: container runtimes (runc, containerd, cri-o) and CNI
+  #   plugins legitimately call setns/unshare during container lifecycle
+  #   and network setup. Their exec_path suppresses the alert.
+  - id: container-escape-namespace-switch
+    version: 1
+    severity: high  # namespace manipulation from a container is high severity
+    tags:
+      - syscall          # event source category
+      - container-escape # behavior class
+      - namespace        # namespace manipulation (setns/unshare)
+    source: syscall  # syscall sensor events (setns/unshare)
+    description: >-
+      Detects setns(2) or unshare(2) invoked from within a container
+      (enrichment.container_id resolved). These syscalls change namespace
+      membership and are the primary container-escape mechanism. Alerts
+      but never denies. Container runtimes (runc, containerd, CRI-O) and
+      CNI plugins are excepted. Unresolved attribution never alerts.
+    condition:
+      and:
+        # Syscall constraint: setns (258) or unshare (272) on x86_64.
+        # setns reassociates the calling thread with a namespace (e.g.
+        # open("/proc/1/ns/mnt") + setns(fd) escapes the mount namespace).
+        # unshare disassociates from the current namespace (e.g.
+        # unshare(CLONE_NEWNS) creates a new mount namespace).
+        - field: syscall.nr
+          operator: in
+          value:
+            - 258  # setns (x86_64)
+            - 272  # unshare (x86_64)
+        # Container context: the CRI enrichment layer (task 22) resolved
+        # this process to a container. enrichment.container_id is NOT
+        # kernel-observable (async CRI metadata), so this rule is
+        # alert-only (never deny). Null/unknown => non-match => no alert.
+        - field: enrichment.container_id
+          operator: ne
+          value: ""
+    action: alert  # ALERT ONLY — never deny from container-escape heuristics
+    # Safe exceptions: container runtimes and CNI plugins legitimately
+    # call setns/unshare during container creation, network setup, and
+    # teardown. Their presence suppresses the alert.
+    exceptions:
+      # Container runtimes: runc (OCI runtime), containerd (daemon),
+      # cri-o (Kubernetes CRI). These call setns/unshare as part of
+      # normal container lifecycle management.
+      - field: process.exec_path
+        operator: in
+        value:
+          - "/usr/bin/runc"
+          - "/usr/sbin/runc"
+          - "/usr/bin/containerd"
+          - "/usr/sbin/containerd"
+          - "/usr/bin/crio"
+          - "/usr/sbin/crio"
+          - "/usr/bin/dockerd"
+          - "/usr/sbin/dockerd"
+      # CNI plugins: bridge, host-local, portmap, etc. These call
+      # setns to configure container network namespaces during pod
+      # creation. Path prefix match covers /opt/cni/bin/ and
+      # /usr/libexec/cni/ (standard CNI plugin locations).
+      - field: process.exec_path
+        operator: starts_with
+        value: "/opt/cni/bin/"
+      - field: process.exec_path
+        operator: starts_with
+        value: "/usr/libexec/cni/"
+    # Configurable lists (documentation / operator configuration).
+    # Keep in sync with the inlined condition/exception values above.
+    lists:
+      - name: ce_namespace_syscalls_x86_64
+        items:
+          - "258"  # setns
+          - "272"  # unshare
+      - name: ce_container_runtimes
+        items:
+          - "/usr/bin/runc"
+          - "/usr/sbin/runc"
+          - "/usr/bin/containerd"
+          - "/usr/sbin/containerd"
+          - "/usr/bin/crio"
+          - "/usr/sbin/crio"
+          - "/usr/bin/dockerd"
+          - "/usr/sbin/dockerd"
+      - name: ce_cni_plugin_prefixes
+        items:
+          - "/opt/cni/bin/"
+          - "/usr/libexec/cni/"
+
+  # -----------------------------------------------------------------------
+  # Rule 2: Runtime socket access from container (alert only, never deny)
+  # -----------------------------------------------------------------------
+  # Fires when a process INSIDE a container accesses a container runtime
+  # socket (Docker, containerd, CRI-O). Access to the runtime socket from
+  # within a container grants control over the runtime daemon — effectively
+  # root on the host (create privileged containers, mount host filesystems).
+  #
+  # Path constraint: file.path matches known runtime socket paths via
+  #   exact-match. These are the standard socket locations for Docker,
+  #   containerd, and CRI-O.
+  #
+  # Container context: enrichment.container_id ne "" (same as Rule 1).
+  #
+  # Exceptions: the runtime daemons themselves (containerd, crio, dockerd)
+  #   legitimately access their own sockets. Debug workloads (kubectl debug,
+  #   ephemeral containers) may also access sockets for diagnostics.
+  - id: container-escape-runtime-socket
+    version: 1
+    severity: high  # runtime socket access from container is high severity
+    tags:
+      - file             # event source category
+      - container-escape # behavior class
+      - runtime-socket   # runtime socket access
+    source: file  # file sensor events (socket access)
+    description: >-
+      Detects access to container runtime sockets (Docker, containerd,
+      CRI-O) from within a container. Runtime socket access grants
+      control over the daemon and is a well-known container-escape
+      vector. Alerts but never denies. Runtime daemons and debug
+      workloads are excepted. Unresolved attribution never alerts.
+    condition:
+      and:
+        # Path constraint: exact-match on known runtime socket paths.
+        # These are the standard Unix socket locations:
+        #   - /var/run/docker.sock: Docker daemon socket
+        #   - /run/containerd/containerd.sock: containerd gRPC socket
+        #   - /var/run/crio/crio.sock: CRI-O socket
+        #   - /run/crio/crio.sock: CRI-O alternate path
+        - field: file.path
+          operator: in
+          value:
+            - "/var/run/docker.sock"
+            - "/run/docker.sock"
+            - "/run/containerd/containerd.sock"
+            - "/var/run/containerd/containerd.sock"
+            - "/var/run/crio/crio.sock"
+            - "/run/crio/crio.sock"
+        # Container context: resolved container identity required.
+        - field: enrichment.container_id
+          operator: ne
+          value: ""
+    action: alert  # ALERT ONLY — never deny
+    exceptions:
+      # Runtime daemons: containerd, crio, dockerd access their own
+      # sockets as part of normal operation.
+      - field: process.exec_path
+        operator: in
+        value:
+          - "/usr/bin/containerd"
+          - "/usr/sbin/containerd"
+          - "/usr/bin/crio"
+          - "/usr/sbin/crio"
+          - "/usr/bin/dockerd"
+          - "/usr/sbin/dockerd"
+      # Debug workloads: kubectl debug and ephemeral debug containers
+      # may access runtime sockets for diagnostics. Identified by
+      # enrichment.pod_name containing "debug" (Kubernetes convention
+      # for debug pods: "debugger-*", "*-debug-*").
+      - field: enrichment.pod_name
+        operator: contains
+        value: "debug"
+    lists:
+      - name: ce_runtime_socket_paths
+        items:
+          - "/var/run/docker.sock"
+          - "/run/docker.sock"
+          - "/run/containerd/containerd.sock"
+          - "/var/run/containerd/containerd.sock"
+          - "/var/run/crio/crio.sock"
+          - "/run/crio/crio.sock"
+      - name: ce_runtime_daemons
+        items:
+          - "/usr/bin/containerd"
+          - "/usr/sbin/containerd"
+          - "/usr/bin/crio"
+          - "/usr/sbin/crio"
+          - "/usr/bin/dockerd"
+          - "/usr/sbin/dockerd"
+
+  # -----------------------------------------------------------------------
+  # Rule 3: /proc/1/root access from container (alert only, never deny)
+  # -----------------------------------------------------------------------
+  # Fires when a process INSIDE a container accesses /proc/1/root (the
+  # host root filesystem via PID 1's proc entry). In a container with
+  # host PID namespace sharing or after a namespace escape, /proc/1/root
+  # provides direct access to the host filesystem — a classic escape path.
+  #
+  # Path constraint: file.path starts_with "/proc/1/root" catches any
+  #   access under the host root via proc (read, write, exec, traverse).
+  #
+  # Container context: enrichment.container_id ne "" (same as Rule 1).
+  #
+  # Exceptions: debug workloads (kubectl debug) may legitimately access
+  #   /proc/1/root for host diagnostics.
+  - id: container-escape-proc-root
+    version: 1
+    severity: high  # host root access from container is high severity
+    tags:
+      - file             # event source category
+      - container-escape # behavior class
+      - proc-root        # /proc/1/root host filesystem access
+    source: file  # file sensor events
+    description: >-
+      Detects access to /proc/1/root (host root filesystem via PID 1)
+      from within a container. This is a classic container-escape path
+      when host PID namespace is shared or after namespace escape.
+      Alerts but never denies. Debug workloads are excepted.
+      Unresolved attribution never alerts.
+    condition:
+      and:
+        # Path constraint: any access under /proc/1/root. This includes
+        # reading host files, executing host binaries, or traversing
+        # the host directory tree via the proc filesystem.
+        - field: file.path
+          operator: starts_with
+          value: "/proc/1/root"
+        # Container context: resolved container identity required.
+        - field: enrichment.container_id
+          operator: ne
+          value: ""
+    action: alert  # ALERT ONLY — never deny
+    exceptions:
+      # Debug workloads: kubectl debug / ephemeral containers may
+      # access /proc/1/root for host diagnostics.
+      - field: enrichment.pod_name
+        operator: contains
+        value: "debug"
+    lists:
+      - name: ce_proc_root_prefix
+        items:
+          - "/proc/1/root"
+
+  # -----------------------------------------------------------------------
+  # Rule 4: Host device access from container (alert only, never deny)
+  # -----------------------------------------------------------------------
+  # Fires when a process INSIDE a container accesses dangerous host
+  # devices (raw disks, physical memory, kernel memory, I/O ports).
+  # Access to these devices from a container grants direct hardware
+  # access — effectively full host compromise.
+  #
+  # Path constraint: file.path in specific dangerous device paths.
+  #   NEVER uses a broad /dev prefix (many containers legitimately
+  #   access /dev/null, /dev/urandom, /dev/tty, etc.).
+  #
+  # Container context: enrichment.container_id ne "" (same as Rule 1).
+  #
+  # Exceptions: container runtimes may access devices during container
+  #   setup (device cgroup configuration).
+  - id: container-escape-host-device
+    version: 1
+    severity: high  # host device access from container is high severity
+    tags:
+      - file             # event source category
+      - container-escape # behavior class
+      - host-device      # dangerous host device access
+    source: file  # file sensor events
+    description: >-
+      Detects access to dangerous host devices (raw disks, physical
+      memory, kernel memory, I/O ports) from within a container.
+      These devices grant direct hardware access and are a
+      container-escape vector. Alerts but never denies. Container
+      runtimes are excepted. Unresolved attribution never alerts.
+    condition:
+      and:
+        # Path constraint: specific dangerous device paths only.
+        # NEVER uses a broad /dev prefix. These are the devices that
+        # grant direct host hardware access:
+        #   - /dev/sda, /dev/sdb, /dev/vda: raw block devices (disks)
+        #   - /dev/mem: physical memory (read/write arbitrary RAM)
+        #   - /dev/kmem: kernel virtual memory
+        #   - /dev/port: x86 I/O ports
+        #   - /dev/nvme0n1: NVMe raw block device
+        - field: file.path
+          operator: in
+          value:
+            - "/dev/sda"
+            - "/dev/sdb"
+            - "/dev/vda"
+            - "/dev/nvme0n1"
+            - "/dev/mem"
+            - "/dev/kmem"
+            - "/dev/port"
+        # Container context: resolved container identity required.
+        - field: enrichment.container_id
+          operator: ne
+          value: ""
+    action: alert  # ALERT ONLY — never deny
+    exceptions:
+      # Container runtimes: runc, containerd, crio may access devices
+      # during container setup (device cgroup, /dev mounting).
+      - field: process.exec_path
+        operator: in
+        value:
+          - "/usr/bin/runc"
+          - "/usr/sbin/runc"
+          - "/usr/bin/containerd"
+          - "/usr/sbin/containerd"
+          - "/usr/bin/crio"
+          - "/usr/sbin/crio"
+          - "/usr/bin/dockerd"
+          - "/usr/sbin/dockerd"
+    lists:
+      - name: ce_dangerous_host_devices
+        items:
+          - "/dev/sda"
+          - "/dev/sdb"
+          - "/dev/vda"
+          - "/dev/nvme0n1"
+          - "/dev/mem"
+          - "/dev/kmem"
+          - "/dev/port"
+
+  # -----------------------------------------------------------------------
+  # Rule 5: Cloud metadata access from container (alert only, never deny)
+  # -----------------------------------------------------------------------
+  # Fires when a process INSIDE a container connects to the cloud
+  # instance metadata endpoint (169.254.169.254). Cloud metadata
+  # services (AWS IMDS, GCP metadata, Azure IMDS) expose instance
+  # credentials, tokens, and configuration — a high-value target for
+  # SSRF-based container escape and credential theft.
+  #
+  # Network constraint: network.dst_ip eq "169.254.169.254" (the
+  #   link-local metadata address used by all major cloud providers).
+  #
+  # Container context: enrichment.container_id ne "" (same as Rule 1).
+  #
+  # Exceptions: none by default. Cloud metadata access from a container
+  #   is always suspicious unless explicitly authorized. Operators may
+  #   add workload-specific exceptions via enrichment.pod_name if
+  #   legitimate metadata access is required (e.g. cloud SDK sidecars).
+  - id: container-escape-cloud-metadata
+    version: 1
+    severity: high  # cloud metadata access from container is high severity
+    tags:
+      - network          # event source category
+      - container-escape # behavior class
+      - cloud-metadata   # cloud instance metadata access (SSRF vector)
+    source: network  # network sensor events
+    description: >-
+      Detects outbound connections to the cloud instance metadata
+      endpoint (169.254.169.254) from within a container. Cloud
+      metadata services expose instance credentials and are a
+      high-value SSRF/escape target. Alerts but never denies.
+      Unresolved attribution never alerts.
+    condition:
+      and:
+        # Network constraint: the link-local metadata address.
+        # 169.254.169.254 is the standard IMDS address for AWS, GCP,
+        # Azure, and Oracle Cloud. All major providers use this address.
+        - field: network.dst_ip
+          operator: eq
+          value: "169.254.169.254"
+        # Container context: resolved container identity required.
+        - field: enrichment.container_id
+          operator: ne
+          value: ""
+    action: alert  # ALERT ONLY — never deny
+    # No exceptions by default: cloud metadata access from a container
+    # is always suspicious. Operators may add workload-specific
+    # exceptions (e.g. cloud SDK sidecars) via enrichment.pod_name.
+    exceptions:
+      # Cloud SDK / metadata proxy sidecars: some workloads deploy a
+      # sidecar that proxies metadata access. Identified by pod name
+      # convention (e.g. "metadata-proxy-*", "imds-*").
+      - field: enrichment.pod_name
+        operator: contains
+        value: "metadata-proxy"
+    lists:
+      - name: ce_cloud_metadata_ips
+        items:
+          - "169.254.169.254"
+
+  # -----------------------------------------------------------------------
+  # Rule 6: Credential change from container (alert only, never deny)
+  # -----------------------------------------------------------------------
+  # Fires when a process INSIDE a container invokes credential-changing
+  # syscalls (setuid, setgid, setreuid, setregid). Credential changes
+  # from within a container may indicate a privilege escalation attempt
+  # (e.g. exploiting a setuid binary or kernel vulnerability to gain
+  # root, then changing credentials to maintain access).
+  #
+  # Syscall constraint: syscall.nr in [105 (setuid), 106 (setgid),
+  #   107 (setreuid), 108 (setregid)] on x86_64.
+  #
+  # Container context: enrichment.container_id ne "" (same as Rule 1).
+  #
+  # Exceptions: container runtimes may change credentials during
+  #   container setup (user namespace mapping, security context).
+  - id: container-escape-credential-change
+    version: 1
+    severity: high  # credential change from container is high severity
+    tags:
+      - syscall          # event source category
+      - container-escape # behavior class
+      - credential       # credential mutation (setuid/setgid)
+    source: syscall  # syscall sensor events
+    description: >-
+      Detects credential-changing syscalls (setuid, setgid, setreuid,
+      setregid) from within a container. These may indicate privilege
+      escalation or credential manipulation as part of a container
+      escape. Alerts but never denies. Container runtimes are excepted.
+      Unresolved attribution never alerts.
+    condition:
+      and:
+        # Syscall constraint: credential-changing syscalls on x86_64.
+        # setuid (105): set real/effective/saved UID
+        # setgid (106): set real/effective/saved GID
+        # setreuid (107): set real and effective UID
+        # setregid (108): set real and effective GID
+        - field: syscall.nr
+          operator: in
+          value:
+            - 105  # setuid (x86_64)
+            - 106  # setgid (x86_64)
+            - 107  # setreuid (x86_64)
+            - 108  # setregid (x86_64)
+        # Container context: resolved container identity required.
+        - field: enrichment.container_id
+          operator: ne
+          value: ""
+    action: alert  # ALERT ONLY — never deny
+    exceptions:
+      # Container runtimes: runc, containerd, crio change credentials
+      # during container setup (user namespace mapping, security
+      # context enforcement, dropping privileges).
+      - field: process.exec_path
+        operator: in
+        value:
+          - "/usr/bin/runc"
+          - "/usr/sbin/runc"
+          - "/usr/bin/containerd"
+          - "/usr/sbin/containerd"
+          - "/usr/bin/crio"
+          - "/usr/sbin/crio"
+          - "/usr/bin/dockerd"
+          - "/usr/sbin/dockerd"
+    lists:
+      - name: ce_credential_syscalls_x86_64
+        items:
+          - "105"  # setuid
+          - "106"  # setgid
+          - "107"  # setreuid
+          - "108"  # setregid
