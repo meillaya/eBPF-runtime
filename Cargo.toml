@@ -6,6 +6,7 @@ members = [
     "crates/bpf-loader",
     "crates/enrichment",
     "crates/event-abi",
+    "crates/observability",
     "crates/preflight-schema",
     "crates/privacy",
     "crates/sensor-tests",

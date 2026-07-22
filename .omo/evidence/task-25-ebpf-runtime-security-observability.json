@@ -1,0 +1,113 @@
+{
+  "task": "task-25",
+  "title": "Expose structured health, compatibility, loss, and low-cardinality Prometheus metrics",
+  "branch": "feature/ebpf-runtime-security-observability",
+  "before_commit": "e42a5a141caaae53cebef067ab8dd17162e99faf",
+  "after_commit": "32f5646ab111fcb9097315fd1559ad8df42272c2",
+  "commands": [
+    {
+      "command": "cargo test -p observability --test observability",
+      "exit_code": 0,
+      "stdout_summary": "40 passed; 0 failed; 0 ignored",
+      "validation": "all 40 named observability unit tests pass"
+    },
+    {
+      "command": "cargo test -p observability --test observability_edge_cases",
+      "exit_code": 0,
+      "stdout_summary": "20 passed; 0 failed; 0 ignored",
+      "validation": "all 20 named edge-case tests pass"
+    },
+    {
+      "command": "cargo build -p observability",
+      "exit_code": 0,
+      "stdout_summary": "Finished `dev` profile [unoptimized + debuginfo] target(s)",
+      "validation": "crate compiles cleanly with dependency chain"
+    },
+    {
+      "command": "cargo run -p observability --bin observability-cli -- serve --addr 127.0.0.1:9464 &",
+      "exit_code": 0,
+      "stdout_summary": "observability server listening on 127.0.0.1:9464",
+      "validation": "server started in background"
+    },
+    {
+      "command": "curl -s http://127.0.0.1:9464/healthz",
+      "exit_code": 0,
+      "stdout": "{\"reasons\":[],\"status\":\"healthy\"}",
+      "validation": "health status JSON returned with status healthy"
+    },
+    {
+      "command": "curl -s http://127.0.0.1:9464/readyz",
+      "exit_code": 0,
+      "stdout": "{\"reasons\":[],\"status\":\"ready\"}",
+      "validation": "readiness status JSON returned with status ready"
+    },
+    {
+      "command": "curl -s http://127.0.0.1:9464/metrics",
+      "exit_code": 0,
+      "stdout_summary": "19 metric families, 351 total series, Prometheus text exposition format",
+      "validation": "Prometheus metrics text returned with all expected metric names"
+    },
+    {
+      "command": "curl -s http://127.0.0.1:9464/metrics | prom2json",
+      "exit_code": null,
+      "stdout": "SKIPPED: prom2json not available on this host",
+      "validation": "documented as skipped per task instructions"
+    }
+  ],
+  "happy_qa": {
+    "health": "Healthy (all sensors attached, storage available)",
+    "readiness": "Ready (all sensors attached, storage available)",
+    "metrics_format": "Prometheus text exposition format with HELP/TYPE lines",
+    "metric_names": [
+      "ebpf_agent_program_attach_state",
+      "ebpf_agent_source_attempts_total",
+      "ebpf_agent_source_drops_total",
+      "ebpf_agent_source_gaps_total",
+      "ebpf_agent_channel_occupancy",
+      "ebpf_agent_channel_shedding_total",
+      "ebpf_agent_cache_size",
+      "ebpf_agent_cache_evictions_total",
+      "ebpf_agent_sqlite_size_bytes",
+      "ebpf_agent_sqlite_wal_size_bytes",
+      "ebpf_agent_sqlite_checkpoint_total",
+      "ebpf_agent_outbox_age_seconds",
+      "ebpf_agent_enrichment_status",
+      "ebpf_agent_policy_version",
+      "ebpf_agent_policy_mode",
+      "ebpf_agent_grpc_lag_seconds",
+      "ebpf_agent_kafka_lag_seconds",
+      "ebpf_agent_clickhouse_lag_seconds",
+      "ebpf_agent_syscall_latency_seconds"
+    ],
+    "cardinality_audit": "351 unique series with 10000 events (limit: 1024) — PASS",
+    "cardinality_audit_100k": "351 unique series with 100000 events (limit: 1024) — PASS"
+  },
+  "failure_qa": {
+    "scenario": "detach a required sensor and fill outbox",
+    "health": "Degraded with exact reason 'sensor process detached'",
+    "readiness": "NotReady with exact reason 'sensor process not attached'",
+    "metrics_labels": "bounded enums only; no secret/event labels (no pid=, container_id=, pod_uid=, path=)",
+    "evidence_tests": [
+      "health_status_degraded_when_sensor_detached",
+      "readiness_status_not_ready_when_sensor_detached",
+      "healthz_endpoint_returns_503_when_degraded",
+      "readyz_endpoint_returns_503_when_not_ready",
+      "saturation_increments_exact_loss_counters",
+      "process_container_pod_path_ids_not_in_metric_labels",
+      "metrics_never_log_secrets_or_raw_records"
+    ]
+  },
+  "changed_files": [
+    "Cargo.toml (workspace members extended)",
+    "Cargo.lock (regenerated)",
+    "crates/observability/Cargo.toml (new)",
+    "crates/observability/src/lib.rs (new)",
+    "crates/observability/src/server.rs (new)",
+    "crates/observability/src/logging.rs (new)",
+    "crates/observability/tests/observability.rs (new)",
+    "crates/observability/tests/observability_edge_cases.rs (new)",
+    "crates/observability/src/bin/observability-cli.rs (new)"
+  ],
+  "result": "TASK-25-PASS",
+  "summary": "Implemented the observability crate with MetricsRegistry (19 bounded-cardinality Prometheus metrics), ObservabilityServer (/healthz, /readyz, /metrics on hyper 1.x), structured JSON logging, and CLI. All 60 tests pass (40 unit + 20 edge-case). Cardinality audit: 351 series with 100k events, well under 1024 limit. Readiness never declares ready before sensors/storage attach. No secrets or raw records in metrics or logs."
+}
