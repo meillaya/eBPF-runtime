@@ -35,6 +35,12 @@ result-*
 /web/node_modules/
 /web/dist/
 
+# Playwright run artifacts (screenshot baselines under
+# web/e2e/**/*-snapshots/ ARE committed; only run output is ignored)
+/web/test-results/
+/web/playwright-report/
+/web/blob-report/
+
 # codegraph cache symlink (per-host, not part of the workspace)
 /.codegraph
 

@@ -160,6 +160,7 @@ export function RolloutDetail({
           rows={summary.agents}
           rowKey={(a) => a.agentId}
           ariaLabel="Per-agent rollout status"
+          focusable
           empty={
             <div className="tbl-empty">
               <p className="well-hint">No agents tracked for this version.</p>
