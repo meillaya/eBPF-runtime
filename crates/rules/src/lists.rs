@@ -106,7 +106,10 @@ fn dfs_cycle(
         for nb in neighbors {
             match color.get(nb).copied() {
                 Some(1) => {
-                    let pos = stack.iter().position(|n| n == nb).unwrap();
+                    let pos = stack
+                        .iter()
+                        .position(|n| n == nb)
+                        .expect("gray node is on the DFS stack by invariant");
                     return Some(stack[pos..].to_vec());
                 }
                 Some(0) => {

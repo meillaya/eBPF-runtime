@@ -98,7 +98,9 @@ impl DlqRouter {
         };
 
         self.routed.push(record);
-        self.routed.last().unwrap()
+        self.routed
+            .last()
+            .expect("record was just pushed; Vec is non-empty")
     }
 
     /// The number of records routed to the DLQ.

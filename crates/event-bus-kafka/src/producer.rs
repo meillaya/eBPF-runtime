@@ -253,7 +253,10 @@ impl MockKafkaProducer {
         let current_seq = *seq;
 
         // Check for idempotent deduplication.
-        let partition_state = self.partitions.get_mut(&record.partition).unwrap();
+        let partition_state = self
+            .partitions
+            .get_mut(&record.partition)
+            .expect("partition existence validated above");
         let dedup_key = (self.producer_id, current_seq);
 
         let result = if let Some(&existing_offset) = partition_state.committed.get(&dedup_key) {
@@ -272,7 +275,10 @@ impl MockKafkaProducer {
             partition_state.committed.insert(dedup_key, offset);
 
             // Advance sequence.
-            *self.sequences.get_mut(&record.partition).unwrap() += 1;
+            *self
+                .sequences
+                .get_mut(&record.partition)
+                .expect("sequence entry created via or_insert above") += 1;
 
             Ok(DurableAcceptance {
                 batch_id: batch_id.to_string(),

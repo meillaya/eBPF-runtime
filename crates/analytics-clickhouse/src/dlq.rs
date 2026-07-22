@@ -133,7 +133,9 @@ impl DlqRouter {
             raw_key: raw_key.to_string(),
         };
         self.records.push(record);
-        self.records.last().unwrap()
+        self.records
+            .last()
+            .expect("record was just pushed; Vec is non-empty")
     }
 
     /// Route a malformed message to the DLQ.
@@ -161,7 +163,9 @@ impl DlqRouter {
             raw_key: raw_key.to_string(),
         };
         self.records.push(record);
-        self.records.last().unwrap()
+        self.records
+            .last()
+            .expect("record was just pushed; Vec is non-empty")
     }
 
     /// Route a message with an unknown event kind to the DLQ.
@@ -189,7 +193,9 @@ impl DlqRouter {
             raw_key: String::new(),
         };
         self.records.push(record);
-        self.records.last().unwrap()
+        self.records
+            .last()
+            .expect("record was just pushed; Vec is non-empty")
     }
 
     /// Number of records routed to the DLQ.
