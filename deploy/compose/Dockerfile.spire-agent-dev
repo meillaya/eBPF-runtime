@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Dev-only SPIRE agent image with a shell entrypoint that auto-generates
+# a join token from the SPIRE server before starting the agent.
+#
+# SECURITY: DEV-ONLY. This image bundles the spire-server CLI solely
+# to call `token generate` against the dev server's admin socket.
+#
+# Build context: deploy/compose/
+# Build:         docker compose -f dev-infra.yml build spire-agent
+
+FROM ghcr.io/spiffe/spire-server:1.10 AS server
+FROM ghcr.io/spiffe/spire-agent:1.10 AS agent
+
+FROM alpine:3.20
+
+# Copy the agent binary and the server CLI (for token generation).
+COPY --from=agent  /opt/spire/bin/spire-agent  /opt/spire/bin/spire-agent
+COPY --from=server /opt/spire/bin/spire-server /opt/spire/bin/spire-server
+
+# The entrypoint script waits for the server, generates a join token,
+# and starts the agent.
+COPY config/spire-agent-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Create runtime directories.
+RUN mkdir -p /run/spire/agent /tmp/spire-agent/public
+
+ENTRYPOINT ["/entrypoint.sh"]
