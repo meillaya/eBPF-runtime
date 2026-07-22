@@ -1,0 +1,7 @@
+# kernel-v1 web — Bun configuration.
+#
+# The plan pins the binary lockfile (web/bun.lockb) as the committed
+# lockfile artifact; Bun >= 1.2 defaults to the text bun.lock, so pin
+# the binary format here to keep `bun install` reproducible against it.
+[install]
+saveTextLockfile = false
