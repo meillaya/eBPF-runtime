@@ -127,3 +127,61 @@
 - gVisor/Kata guest-internal activity is OUT OF SCOPE: these rules operate on the host kernel's observable surface only.
 - Host/sandbox/Pod namespace confusion is prevented by requiring enrichment.container_id resolution (the enrichment layer distinguishes these).
 - No deny action anywhere in the pack: container-escape detection is behavioral and contextual; blocking would risk denying legitimate runtime/CNI/debug operations.
+
+## Task 33: Audit-first BPF LSM deny engine (bpf/sensors/lsm.bpf.c)
+
+### The central truthfulness invariant: own-denial attribution
+- `deny_source` in an LSM decision event is `OWN_LSM` ONLY when THIS BPF program returns an errno (decision == DENY). A nonzero incoming `ret` means a prior LSM (SELinux/AppArmor/another BPF program) already decided → record `PRIOR_LSM`, preserve that `ret` byte-for-byte, NEVER relabel OWN_LSM. An audit-mode match records `NONE`. This mirrors file.bpf.c's producer-side deny_source truth (a record that says SYSCALL/NONE may not be relabeled OWN_LSM downstream).
+- The own-denial semantic lives in the decision PAYLOAD's `deny_source`/`result_flags` fields, NOT in the section name. The `KERNEL_V1_LSM_RESULT_OWN_LSM` bit (0x02) is set only on the deny path.
+
+### CRITICAL: section names must NOT contain "OWN_LSM_DENY"
+- The task-18 loader (crates/bpf-loader/src/lib.rs::probe_and_load) REFUSES to attach any hook whose section name (or ladder rung section) contains the substring "OWN_LSM_DENY" — it returns `LoaderError::DenyLinkAttachDisallowed`. Therefore the LSM hooks use the canonical libbpf section names `lsm/file_open`, `lsm/bprm_check_security`, `lsm/socket_connect`. The loader's deny-link guard stays satisfied and deny links are never pinned (the loader pins nothing for this sensor; loader_state.rs guarantees `pinned_deny_links_count() == 0`).
+- The loader's `default_sensor_names()` / `ladder_for()` do NOT include an "lsm" sensor, so the loader never tries to attach this object — consistent with audit-first + "deny links must not be pinned". Wiring the LSM object into the attach path is a later wave; this task ships the BPF object + decision logic + bench only.
+
+### LSM hook signatures (BPF_PROG trailing `ret` = prior LSM return)
+- `lsm/file_open`: `int BPF_PROG(name, struct file *file, int ret)`. Selector = `file->f_path.dentry->d_name.name` (the kernel-observable dentry name component; full-path prefix walking is a documented refinement — file.bpf.c reads the same field).
+- `lsm/bprm_check_security`: `int BPF_PROG(name, struct linux_binprm *bprm, int ret)`. Selector = `bprm->filename` (the FULL path passed to execve — authoritative).
+- `lsm/socket_connect`: `int BPF_PROG(name, struct socket *sock, struct sockaddr *address, int addrlen, int ret)`. Selector = the sockaddr bytes read from `address` (bounded to addrlen, capped at 256).
+- BPF LSM hooks compose: the trampoline passes the running return value as the trailing `ret`. If `ret != 0` on entry, a prior hook already denied → return `ret` UNCHANGED (never override another LSM).
+
+### Decision engine branch order (lsm_decide — the bench mirrors this EXACTLY)
+1. `prior_ret != 0` → PRESERVE_PRIOR, deny_source=PRIOR_LSM, return prior_ret unchanged.
+2. selector invalid (read fault / unknown family) → FAIL_OPEN_UNKNOWN, return 0.
+3. policy map lookup misses → ALLOW, return 0 (missing map never denies).
+4. policy `hook_family` mismatch OR empty selector → ALLOW, return 0.
+5. observed selector does NOT prefix-match policy selector (or obs shorter than policy) → ALLOW, return 0 (wrong selector never denies).
+6. mode == AUDIT (0) → AUDIT_MATCH, return 0 (audit-first: NEVER changes the syscall result).
+7. mode == DENY (1): if kill_switch.deny_disabled → DENY_SUPPRESSED_KILLSWITCH, return 0; else return policy `deny_errno` (forced negative; default -13 EACCES) and record OWN_LSM. This is the ONLY path that changes the result.
+8. unknown mode value → FAIL_OPEN_UNKNOWN, return 0 (never deny on an unrecognised encoding).
+
+### Maps (the "agent maps" — the agent populates these via bpf_map_update_elem)
+- `lsm_policy` (ARRAY, max_entries=4): one authoritative selector per hook family (slot 0 reserved; 1=file_open, 2=bprm_exec, 3=socket_connect). Value `struct lsm_policy_entry` (288 bytes, packed) carries the EXPLICIT mode/version/generation triple + deny_errno + selector[256]. The version/generation let the staged validated-map path (task 34) atomically promote a policy and let the consumer correlate a decision to the exact policy generation.
+- `lsm_kill_switch` (ARRAY, 1 slot): `struct lsm_kill_switch` (16 bytes) { deny_disabled u8, last_toggle_ns u64 }. deny_disabled=1 degrades every deny to audit-only. Single map lookup → deny-disabled takes effect within kill_switch_max_ms (default 5000) of the gRPC command reaching the agent.
+- `lsm_events` (RINGBUF 256 KiB) + `lsm_seq` (PERCPU_ARRAY). A failed ringbuf reserve (ring full) drops the RECORD but NOT the decision — the hook still returns the correct errno and the own-denial is still attributed (fixture ring-full-still-decides proves this).
+- The Rust-side typed mirror of these map structs is task-34's staging work; this task ships the C map ABI (documented here + _Static_assert'd in lsm.bpf.c).
+
+### Event ABI: event_kind 15 (LSM_DENY_OWN) is the LSM-decision carrier
+- The ABI (event_abi.h) has exactly one LSM semantic kind: `KERNEL_V1_EVENT_LSM_DENY_OWN = 15`. lsm.bpf.c uses it as the carrier for ALL LSM decision records (allow/audit/deny/preserve/killswitch/fail-open); the own-denial semantic is FIELD-gated (deny_source==OWN_LSM AND result_flags & OWN_LSM), set only when the program returns an errno. The fixed 320-byte payload `struct kernel_v1_lsm_decision_payload` (_Static_assert'd) carries hook_family, decision, deny_source, mode, version, generation, result_errno, prior_ret, selector_len, result_flags, selector[256]. Mirrors the file/network/dns fixed-payload precedent.
+- No new validity bits were added: the decision reuses KERNEL_V1_VALID_FILE_DENY_SOURCE for the deny_source field. Header identity bits match file.bpf.c (CGROUP/PID/TASK_START/PROCESSOR; boot_id NOT set — the task-16 identity event owns it).
+
+### BPF stack limit (512 bytes) — the one real compile bug hit
+- The first version put a 256-byte `sel_buf` in the hook AND a 256-byte `tmp` temp inside the inlined `emit_decision` → "BPF stack limit exceeded". FIX: write the selector DIRECTLY into the ring-buffer-reserved memory (`ev->payload.selector[i] = sel_buf[i]` in a constant-bound loop), never a stack temp. The ringbuf reservation is heap-like (not stack). file.bpf.c uses the same pattern. Each hook frame is then ~280 bytes (sel_buf + locals) < 512.
+- The 256-iteration prefix-match and selector-copy loops are written with a COMPILE-TIME constant bound (`for (i=0; i<KERNEL_V1_LSM_SELECTOR_MAX; i++) if (i<cmp_len) ...`) so the verifier's bounds analysis stays trivial. Section sizes are ~30 KB/program (loops not fully unrolled by -O2); the verifier instruction count is a refine-on-privileged-runner concern (cannot load here).
+- The benign `-Waddress-of-packed-member` warning on `&ev->header` is identical to file.bpf.c's pattern (header is the first, naturally-aligned member of the packed event struct) — left as-is for consistency.
+
+### Bench harness model (bench/enforcement-audit.sh) — logic validated WITHOUT BPF load
+- BLOCKER: this host cannot load BPF (unprivileged_bpf_disabled=2, CapEff=0). The harness reimplements `lsm_decide` deterministically in jq (branch-for-branch) and evaluates the synthetic corpus in tests/fixtures/enforcement/ (19 fixtures: 6 own-denial TP + 13 TN). It asserts BOTH per-fixture exact-match AND five global safety invariants: (a) audit mode never changes the result; (b) nonzero prior ret preserved verbatim AND labeled prior_lsm; (c) invalid selector / missing map never deny; (d) own-denial recorded only when returned < 0 AND decision == deny; (e) deny_source own_lsm only with decision deny.
+- Precision/recall over the own-denial class (positive = own_denial_recorded) must meet `fixture_min_precision_and_recall` (read from schema, NOT hardcoded; default 1.0). Result: precision=recall=1.0, all invariants 0, exit 0.
+- Negative QA verified: tampering a fail-open fixture to expect an own-denial drops recall to 0.8571 and exact_ok=0 → exit 1. The harness is not vacuously passing.
+- The privileged half (real syscall-result change, errno delivery, prior-LSM composition, kill-switch p99 <= kill_switch_max_ms over kill_switch_benchmark_pairs via bench/kill-switch.sh) is printed as BLOCKED and deferred to the declared self-hosted runner. kill-switch.sh does not exist yet (a later task); the schema anchors its constants (kill_switch_max_ms=5000, kill_switch_benchmark_pairs=10).
+
+### Schema (bench/schemas/enforcement.v1.json) — single source of truth
+- Anchors every enforcement constant: audit_first_default_mode=0 (the audit-first invariant; the bench asserts the schema default is 0), mode_audit=0/mode_deny=1, supported_hook_families=[file_open,bprm_check_security,socket_connect], hook_family_* wire encodings (1/2/3), max_policy_entries=4, selector_max_bytes=256, lsm_payload_len=320, deny_errno_default=-13, kill_switch_max_ms=5000, kill_switch_benchmark_pairs=10, fixture_min_precision_and_recall=1.0. Modeled on rule-budget.v1.json (no $schema key; properties/defaults; additionalProperties:false).
+
+### Scope boundaries honored
+- No SELinux/AppArmor attribution (only own BPF LSM program → OWN_LSM; everything prior → PRIOR_LSM).
+- No deny from user-space enrichment/heuristics — selectors are kernel-observable only (file path component, bprm->filename, sockaddr).
+- No SIGKILL — LSM errno return is the enforcement mechanism.
+- No mode change without staged validated maps — every policy ships mode=0; promotion is task 34.
+- Deny links never pinned (loader pins nothing for this sensor).
+- Files touched only under bpf/sensors/, bench/, tests/fixtures/enforcement/, .omo/notepads/ (crates/bpf-loader/ was in-scope but deliberately untouched to avoid the deny-link policy test and build; the Rust map mirror is task 34).
