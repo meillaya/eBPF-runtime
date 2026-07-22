@@ -12,11 +12,13 @@ import { AgentsView } from "./views/AgentsView";
 import { AlertsView } from "./views/AlertsView";
 import { CallbackPage } from "./views/CallbackPage";
 import { DnsView } from "./views/DnsView";
+import { DropsView } from "./views/DropsView";
 import { EventsView } from "./views/EventsView";
 import { FilesView } from "./views/FilesView";
 import { OverviewView } from "./views/OverviewView";
 import { PoliciesView } from "./views/PoliciesView";
 import { ProcessTreeView } from "./views/ProcessTreeView";
+import { RolloutView } from "./views/RolloutView";
 import { RulesView } from "./views/RulesView";
 import { Shell } from "./views/Shell";
 import { SocketsView } from "./views/SocketsView";
@@ -96,6 +98,14 @@ export function App() {
                 }
               />
               <Route
+                path="/drops"
+                element={
+                  <RequireRole min="viewer">
+                    <DropsView />
+                  </RequireRole>
+                }
+              />
+              <Route
                 path="/rules"
                 element={
                   <RequireRole min="viewer">
@@ -108,6 +118,14 @@ export function App() {
                 element={
                   <RequireRole min="viewer">
                     <PoliciesView />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/rollout"
+                element={
+                  <RequireRole min="viewer">
+                    <RolloutView />
                   </RequireRole>
                 }
               />

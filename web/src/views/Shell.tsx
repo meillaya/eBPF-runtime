@@ -72,6 +72,12 @@ const NAV: NavSection[] = [
         min: "viewer",
         icon: "M12 2 1 21h22L12 2zm-1 8h2v5h-2v-5zm0 6h2v2h-2v-2z",
       },
+      {
+        to: "/drops",
+        label: "Drops",
+        min: "viewer",
+        icon: "M4 4h16v3l-6 5v5.5L10 20v-8L4 7V4zm8 15a1.5 1.5 0 0 0 1.5-1.5c0-.8-1.5-2.5-1.5-2.5s-1.5 1.7-1.5 2.5A1.5 1.5 0 0 0 12 19z",
+      },
     ],
   },
   {
@@ -95,6 +101,12 @@ const NAV: NavSection[] = [
         icon: "M12 2 3 6v6c0 5 3.8 8.6 9 10 5.2-1.4 9-5 9-10V6l-9-4zm0 2.2 7 3.1V12c0 3.9-2.9 6.9-7 8-4.1-1.1-7-4.1-7-8V7.3l7-3.1z",
       },
       {
+        to: "/rollout",
+        label: "Rollout",
+        min: "viewer",
+        icon: "M12 2 2 7l10 5 10-5-10-5zM2 12l10 5 10-5v2.5l-10 5-10-5V12zm0 5 10 5 10-5v2.5l-10 5-10-5V17z",
+      },
+      {
         to: "/agents",
         label: "Agents",
         min: "viewer",
@@ -113,8 +125,10 @@ const VIEW_NAMES: Record<string, string> = {
   "/files": "File operations",
   "/syscalls": "Syscall latency",
   "/alerts": "Alert feed",
+  "/drops": "Drop & loss",
   "/rules": "Detection rules",
   "/policies": "Policy lifecycle",
+  "/rollout": "Policy rollout",
   "/agents": "Agent inventory",
 };
 

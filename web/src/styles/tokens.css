@@ -110,4 +110,7 @@
   --rail-w: 216px;
   --topbar-h: 52px;
   --row-h: 34px;
+
+  /* ---- modal scrim (void at 74%) ---- */
+  --overlay: rgba(6, 9, 15, 0.74);
 }

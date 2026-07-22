@@ -4,6 +4,7 @@
 // (Admin action in rbac.rs). Mutations report the 202 commit-response
 // counters; per-agent acks surface over the gRPC stream, not here.
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useQuery } from "../api/query";
 import type { Policy, PolicyCommitResponse, PolicyPage } from "../api/types";
@@ -116,6 +117,11 @@ export function PoliciesView() {
         <h1 className="view-title">Policies</h1>
         <p className="view-sub">{canStage ? "stage · commit · rollback" : "browse only"}</p>
       </div>
+
+      <p className="well-hint">
+        Two-phase rollout administration — per-agent acks, digest verification, threshold gating,
+        rollback — lives in the <Link to="/rollout">rollout console</Link>.
+      </p>
 
       {query.status === "degraded" && (
         <DegradedBanner error={query.error} staleRows={rows.length} />

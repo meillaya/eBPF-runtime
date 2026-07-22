@@ -45,6 +45,7 @@ interactive/live meaning.
 | `--sev-info` | `#8fa0b8` | info/neutral |
 | `--state-degraded` | `#ffc94d` | degraded/stale (amber) |
 | `--state-offline` | `#ff5468` | offline/error (red) |
+| `--overlay` | `rgba(6,9,15,0.74)` | modal scrim (void at 74%) |
 
 Each severity also emits `--sev-<n>-bg` (12–14% alpha wash) and
 `--sev-<n>-line` (35% alpha) for badges and row tinting. No other hex value
@@ -166,6 +167,50 @@ position). Transform/opacity only. No decorative motion.
   capability badges), sensor-coverage list (reuse `.sensor-list`), and
   health LEDs whose word is always rendered (healthy/degraded/blocked/
   offline — never color alone).
+- **SeverityBadge** (`components/SeverityBadge.tsx`) — the severity
+  ladder extended with an INFO level for neutral telemetry and action
+  chips (ALERT = info, DENY = critical). Same dot + word contract as
+  Badge; an optional `label` override keeps the tone while renaming the
+  word.
+- **ConfirmDialog** (`components/ConfirmDialog.tsx`) — mutation gate.
+  `--overlay` scrim (void at 74%, new token), `role=dialog` +
+  `aria-modal`, focus trap with Cancel as the safe default focus,
+  Escape/overlay dismiss, focus restore on close. Always renders the
+  audit intent grid (actor / action / resource / recorded-at, mirroring
+  control-plane `AuditRecord`) before the confirm button; danger tone
+  gets the `--glow-error` shadow. Entry animation is transform/opacity
+  over `--dur-slow`.
+- **Toggle switch** (`.switch`, `role=switch`) — 34×18 track, knob
+  slides 16px in `--dur-base`; checked = `--accent-live-dim` track +
+  live knob, unchecked = inset track + muted knob; state word always
+  rendered beside it (ACTIVE/DRAFT).
+- **DropCounter** (`components/DropCounter.tsx`) — per-source loss
+  card: mono counters (reserve fail / discard / commit / attempt), a
+  pure-SVG loss-per-poll sparkline (`--accent-info`, escalating to
+  `--sev-high`/`--sev-critical` when loss/saturation heats up, dashed
+  `--line-strong` baseline), a ring-saturation meter (fill escalates
+  live → medium → high → critical at 35/60/85%), and a sequence-gap
+  strip (one 5×12 cell per poll, red where gaps arrived).
+- **RolloutProgress + LifecycleStepper** — segmented progress bar
+  (applied live-green / ready info / rejected critical / disconnected
+  high, remainder = staged) with a per-agent dot grid: staged = raised
+  outline, ready = `--accent-info`, applied = `--accent-live`, rejected
+  = `--sev-critical`, disconnected = hollow `--sev-medium` ring.
+  Rejected and disconnected dots are always rendered, never folded into
+  the healthy mass; the legend gives every tone a word. The stepper is
+  a four-step rail (STAGE → READY → COMMIT → APPLIED) — done steps fill
+  live-green, the current step pulses (`led-pulse`), REJECTED marks the
+  final step critical.
+- **Explanation tree** (`.explain-tree`) — the rule engine's
+  `Explanation{field, operator, value, matched, children}` rendered as
+  an indented tree (`--line-faint` left guides): HIT marks in
+  `--accent-live`, MISS muted, composite AND/OR/NOT nodes strong.
+  Unparseable explanations fall back to pre-wrapped plain text — the
+  tree is never invented.
+- **YAML preview** (`.yaml-block`) — read-only rule body rendering
+  (inset well, mono, scroll-capped at 340px). The console never offers
+  an editable rule surface; openapi v1 has no rule-write endpoint.
+
 ## 8. First-class view states
 
 Every data view renders exactly one of, in precedence order:
