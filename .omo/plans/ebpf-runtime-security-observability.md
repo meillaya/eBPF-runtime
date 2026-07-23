@@ -561,7 +561,7 @@
   Commit: Y | `test(sensor): prove behavior and visible loss bounds`
   BLOCKER: All Wave 1 sensors (tasks 11-19) are `- [~]` in this session; cannot run the suite.
 
-- [~] 54. Fault-inject enforcement, policy rollout, rollback, and LSM composition safety
+- [x] 54. Fault-inject enforcement, policy rollout, rollback, and LSM composition safety
   What to do / Must NOT do: Execute privileged matrix for audit default, global/rule opt-in, stage/commit/apply, kill switch latency, partial/replayed/stale/digest mismatch, disconnect/reconnect, ring full during deny, another BPF program prior ret, SELinux/AppArmor ordering where available, loader crash, service restart, host reboot, rollback, and ordinary host operations. Must not leave persistent deny, equate other-LSM errno with own denial, or require manual recovery.
   Parallelization: Wave 6 | Blocked by: 7,33,34,43,49 | Blocks: 60,F3
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:35-37,62,79,86,105,115-120`; tasks 33,34,43,49; https://docs.kernel.org/bpf/prog_lsm.html; Tetragon TOCTOU warning
