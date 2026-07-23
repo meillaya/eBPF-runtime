@@ -13,12 +13,9 @@
 .direnv/
 .preflight/
 
-# start-work / boulder artifacts (task 1+ workflow scratch)
-/.omo/start-work/
-/.omo/boulder.json
-
-# Prometheus orchestration session bookkeeping (ephemeral, not part of the workspace)
-/.omo/run-continuation/
+# Orchestration / planning / evidence artifacts (ephemeral, not part of the workspace)
+.omo/
+.omx/
 
 # Nix `nix build` / `nix run` symlink outputs
 result
