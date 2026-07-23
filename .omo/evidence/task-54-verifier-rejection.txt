@@ -1,0 +1,865 @@
+scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-72=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=197 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=197 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=198,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=197 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=197) R9=197 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-67 R9=197 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-72=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=198 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=198 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=199,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=198 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=198) R9=198 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-66 R9=198 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-72=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=199 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=199 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=200,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=199 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=199) R9=199 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-65 R9=199 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-72=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=200 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=200 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=201,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=200 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=200) R9=200 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-64 R9=200 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-64=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=201 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=201 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=202,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=201 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=201) R9=201 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-63 R9=201 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-64=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=202 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=202 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=203,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=202 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=202) R9=202 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-62 R9=202 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-64=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=203 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=203 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=204,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=203 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=203) R9=203 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-61 R9=203 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-64=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=204 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=204 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=205,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=204 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=204) R9=204 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-60 R9=204 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-64=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=205 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=205 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=206,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=205 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=205) R9=205 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-59 R9=205 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-64=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=206 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=206 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=207,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=206 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=206) R9=206 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-58 R9=206 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-64=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=207 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=207 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=208,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=207 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=207) R9=207 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-57 R9=207 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-64=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=208 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=208 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=209,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=208 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=208) R9=208 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-56 R9=208 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-56=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=209 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=209 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=210,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=209 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=209) R9=209 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-55 R9=209 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-56=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=210 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=210 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=211,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=210 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=210) R9=210 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-54 R9=210 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-56=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=211 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=211 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=212,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=211 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=211) R9=211 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-53 R9=211 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-56=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=212 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=212 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=213,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=212 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=212) R9=212 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-52 R9=212 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-56=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=213 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=213 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=214,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=213 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=213) R9=213 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-51 R9=213 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-56=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=214 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=214 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=215,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=214 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=214) R9=214 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-50 R9=214 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-56=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=215 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=215 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=216,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=215 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=215) R9=215 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-49 R9=215 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-56=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=216 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=216 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=217,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=216 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=216) R9=216 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-48 R9=216 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-48=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=217 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=217 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=218,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=217 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=217) R9=217 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-47 R9=217 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-48=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=218 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=218 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=219,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=218 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=218) R9=218 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-46 R9=218 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-48=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=219 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=219 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=220,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=219 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=219) R9=219 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-45 R9=219 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-48=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=220 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=220 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=221,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=220 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=220) R9=220 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-44 R9=220 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-48=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=221 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=221 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=222,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=221 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=221) R9=221 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-43 R9=221 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-48=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=222 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=222 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=223,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=222 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=222) R9=222 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-42 R9=222 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-48=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=223 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=223 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=224,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=223 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=223) R9=223 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-41 R9=223 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-48=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=224 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=224 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=225,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=224 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=224) R9=224 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-40 R9=224 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-40=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=225 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=225 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=226,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=225 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=225) R9=225 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-39 R9=225 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-40=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=226 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=226 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=227,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=226 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=226) R9=226 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-38 R9=226 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-40=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=227 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=227 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=228,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=227 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=227) R9=227 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-37 R9=227 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-40=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=228 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=228 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=229,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=228 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=228) R9=228 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-36 R9=228 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-40=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=229 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=229 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=230,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=229 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=229) R9=229 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-35 R9=229 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-40=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=230 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=230 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=231,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=230 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=230) R9=230 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-34 R9=230 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-40=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=231 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=231 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=232,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=231 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=231) R9=231 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-33 R9=231 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-40=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=232 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=232 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=233,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=232 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=232) R9=232 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-32 R9=232 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-32=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=233 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=233 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=234,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=233 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=233) R9=233 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-31 R9=233 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-32=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=234 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=234 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=235,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=234 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=234) R9=234 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-30 R9=234 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-32=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=235 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=235 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=236,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=235 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=235) R9=235 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-29 R9=235 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-32=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=236 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=236 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=237,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=236 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=236) R9=236 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-28 R9=236 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-32=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=237 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=237 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=238,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=237 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=237) R9=237 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-27 R9=237 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-32=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=238 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=238 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=239,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=238 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=238) R9=238 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-26 R9=238 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-32=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=239 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=239 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=240,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=239 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=239) R9=239 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-25 R9=239 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-32=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=240 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=240 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=241,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=240 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=240) R9=240 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-24 R9=240 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-24=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=241 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=241 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=242,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=241 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=241) R9=241 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-23 R9=241 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-24=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=242 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=242 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=243,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=242 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=242) R9=242 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-22 R9=242 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-24=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=243 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=243 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=244,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=243 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=243) R9=243 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-21 R9=243 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-24=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=244 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=244 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=245,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=244 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=244) R9=244 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-20 R9=244 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-24=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=245 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=245 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=246,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=245 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=245) R9=245 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-19 R9=245 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-24=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=246 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=246 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=247,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=246 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=246) R9=246 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-18 R9=246 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-24=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=247 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=247 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=248,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=247 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=247) R9=247 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-17 R9=247 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-24=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=248 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=248 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=249,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=248 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=248) R9=248 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-16 R9=248 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-16=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=249 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=249 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=250,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=249 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=249) R9=249 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-15 R9=249 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-16=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=250 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=250 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=251,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=250 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=250) R9=250 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-14 R9=250 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-16=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=251 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=251 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=252,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=251 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=251) R9=251 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-13 R9=251 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-16=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=252 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=252 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=253,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=252 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=252) R9=252 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-12 R9=252 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-16=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=253 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=253 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=254,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=253 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=253) R9=253 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-11 R9=253 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-16=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=254 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=254 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=scalar(smin=umin=smin32=umin32=255,smax=umax=smax32=umax32=256,var_off=(0x0; 0x1ff)) R9=254 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=254) R9=254 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-10 R9=254 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-16=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=255 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=255 refs=152
+3185: (05) goto pc-11
+; if (i < bounded_len) { @ lsm.bpf.c:406
+3175: (3d) if r9 >= r3 goto pc+7      ; R3=256 R9=255 refs=152
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+3176: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+3177: (0f) r1 += r9                   ; R1=ringbuf_mem(ref_obj_id=152,sz=416,imm=255) R9=255 refs=152
+3178: (bf) r2 = r10                   ; R2=fp0 R10=fp0 refs=152
+3179: (07) r2 += -264                 ; R2=fp-264 refs=152
+3180: (0f) r2 += r9                   ; R2=fp-9 R9=255 refs=152
+3181: (71) r2 = *(u8 *)(r2 +0)        ; R2=scalar(smin=smin32=0,smax=umax=smax32=umax32=255,var_off=(0x0; 0xff)) fp-16=mmmmmmmm refs=152
+3182: (73) *(u8 *)(r1 +144) = r2      ; refs=152
+; for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) { @ lsm.bpf.c:405
+3183: (07) r9 += 1                    ; R9=256 refs=152
+3184: (15) if r9 == 0x100 goto pc+924         ; R9=256 refs=152
+4109: (7b) *(u64 *)(r10 -288) = r5    ; R5=scalar(id=161,smin=0,smax=umax=0xffffffff,var_off=(0x0; 0xffffffff)) R10=fp0 fp-288=scalar(id=161,smin=0,smax=umax=0xffffffff,var_off=(0x0; 0xffffffff)) refs=152
+4110: (05) goto pc+9
+; ev->payload.selector[i] = sel_buf[i]; @ lsm.bpf.c:407
+4120: (b7) r1 = 0                     ; R1=0 refs=152
+; __builtin_memset(ev->payload._pad1, 0, sizeof(ev->payload._pad1)); @ lsm.bpf.c:411
+4121: (73) *(u8 *)(r7 +415) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4122: (73) *(u8 *)(r7 +414) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4123: (73) *(u8 *)(r7 +413) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4124: (73) *(u8 *)(r7 +412) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4125: (73) *(u8 *)(r7 +411) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4126: (73) *(u8 *)(r7 +410) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4127: (73) *(u8 *)(r7 +409) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4128: (73) *(u8 *)(r7 +408) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4129: (73) *(u8 *)(r7 +407) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4130: (73) *(u8 *)(r7 +406) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4131: (73) *(u8 *)(r7 +405) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4132: (73) *(u8 *)(r7 +404) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4133: (73) *(u8 *)(r7 +403) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4134: (73) *(u8 *)(r7 +402) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4135: (73) *(u8 *)(r7 +401) = r1      ; R1=0 R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4136: (73) *(u8 *)(r7 +400) = r1      ; R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+; bpf_ringbuf_submit(ev, 0); @ lsm.bpf.c:413
+4137: (bf) r1 = r7                    ; R1=ringbuf_mem(ref_obj_id=152,sz=416) R7=ringbuf_mem(ref_obj_id=152,sz=416) refs=152
+4138: (b7) r2 = 0                     ; R2=0 refs=152
+4139: (85) call bpf_ringbuf_submit#132        ;
+; int BPF_PROG(lsm_file_open, struct file *file, int ret) @ lsm.bpf.c:589
+4140: (79) r0 = *(u64 *)(r10 -288)    ; R0=scalar(id=162,smin=0,smax=umax=0xffffffff,var_off=(0x0; 0xffffffff)) R10=fp0 fp-288=scalar(id=162,smin=0,smax=umax=0xffffffff,var_off=(0x0; 0xffffffff))
+4141: (95) exit
+At program exit the register R0 has smin=0 smax=4294967295 should have been in [-4095, 0]
+processed 516098 insns (limit 1000000) max_states_per_insn 5 total_states 17135 peak_states 207 mark_read 0
+-- END PROG LOAD LOG --
+libbpf: prog 'lsm_file_open': failed to load: -22
+libbpf: failed to load object '/tmp/lsm.bpf.o'
+Error: failed to load object file

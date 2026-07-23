@@ -48,7 +48,7 @@ services:
   # Kafka KRaft — single-node event bus (no ZooKeeper)
   # -------------------------------------------------------------------
   kafka:
-    image: confluentinc/cp-kafka:7.7
+    image: confluentinc/cp-kafka:7.7.0
     container_name: k1-kafka
     environment:
       # KRaft mode: this node is both broker and controller.
@@ -126,14 +126,17 @@ services:
   # SPIRE server — SPIFFE identity provider
   # -------------------------------------------------------------------
   spire-server:
-    image: ghcr.io/spiffe/spire-server:1.10
+    image: ghcr.io/spiffe/spire-server:1.10.0
     container_name: k1-spire-server
     command: ["-config", "/etc/spire/server.conf"]
     ports:
       - "127.0.0.1:8081:8081"
+    tmpfs:
+      - /run/spire/data:mode=0777
     volumes:
       - ./config/spire-server.conf:/etc/spire/server.conf:ro
-      - spire-server-data:/run/spire/data
+      - ./config/spire-ca.crt:/etc/spire/ca/spire-ca.crt:ro
+      - ./config/spire-ca.key:/etc/spire/ca/spire-ca.key:ro
       - spire-server-socket:/tmp/spire-server/private
     networks:
       - kernel-v1-dev

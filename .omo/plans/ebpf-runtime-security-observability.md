@@ -478,7 +478,7 @@
   QA scenarios (name the exact tool + invocation): happy — two agents stage/commit/apply same digest and dashboard truth matches agents; failure — one rejects/disconnects and policy remains previous active for that agent with explicit partial rollout, never silent activation; Evidence `<attemptDir>/task-43-ebpf-runtime-security-observability.json`.
   Commit: Y | `feat(policy): coordinate safe fleet policy rollouts`
 
-- [~] 44. Build the authenticated React/TypeScript dashboard foundation and design system
+- [x] 44. Build the authenticated React/TypeScript dashboard foundation and design system
   What to do / Must NOT do: Load the `frontend` skill; create `web/package.json`, Bun lockfile, Vite/React strict TypeScript app, routing, OIDC PKCE shell, session/role state, generated API client, live-stream client, query/cache/error boundaries, responsive accessible design tokens/components, loading/empty/degraded/error states, and dev-mode loopback behavior. Keep modules under 250 LOC. Must not use `any`, localStorage for sensitive tokens, generic template visuals, raw HTML event dumps, or call privileged agent gRPC.
   Parallelization: Wave 5 | Blocked by: 6,37,42 | Blocks: 45-47,58
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:44,47,70,89,107,118`; task 6 generated client; task 37 auth; task 42 APIs; frontend skill requirements
@@ -487,9 +487,9 @@
   Commit: Y | `feat(web): establish authenticated accessible dashboard`
   BLOCKER: Authenticated Playwright login requires a running OIDC provider; the dev-mode no-auth loopback path can be wired and unit-tested in this shell but real PKCE/device coverage requires task 37.
 
-- [~] 45. Implement live/historical process-tree and agent inventory views
+- [x] 45. Implement live/historical process-tree and agent inventory views
 
-- [~] 46. Implement socket, DNS, file, and syscall-latency observability views
+- [x] 46. Implement socket, DNS, file, and syscall-latency observability views
   What to do / Must NOT do: Create virtualized/filterable socket lifecycle table, DNS packet query/answer view with packet-versus-lookup wording, enumerated file operation timeline/coverage badges, syscall histogram/quantile view with no-return/orphan counters, raw semantic/validity/truncation/redaction explanations, and ClickHouse historical plus WebSocket live integration. Must not display unsupported semantics as zero, reveal redacted data, or calculate misleading percentiles from aggregated buckets without method labels.
   Parallelization: Wave 5 | Blocked by: 21,41,42,44 | Blocks: 58
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:21,32,38-44,72,80,89,107,120`; tasks 12-15,21,41,42
@@ -498,7 +498,7 @@
   Commit: Y | `feat(web): add runtime observability workspaces`
   BLOCKER: Views require live data from tasks 21/41/42 which require sensors + ClickHouse + gRPC, none of which can run in this session. UI skeleton can be partially built in this shell.
 
-- [~] 47. Implement alerts, rules, drops, and policy-rollout administration views
+- [x] 47. Implement alerts, rules, drops, and policy-rollout administration views
   What to do / Must NOT do: Add alert feed/detail with match explanation/source validity, rule list/schema editor/validation/test fixture runner, loss/lag/backpressure panels, agent compatibility, policy version diff/targets, staged/ready/commit/applied/rejected/rollback status, role-gated controls, confirmations, audit references, and kill-switch status/action. Must not allow browser arbitrary kernel hooks, hide partial rollout, enable deny without global+rule opt-in, or expose controls to viewer/analyst.
   Parallelization: Wave 5 | Blocked by: 27,33,37,41-44 | Blocks: 58
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:21,35-37,44,47-48,54,89-95,104-107,115-118`; tasks 27-34,37,41-43
@@ -507,7 +507,7 @@
   Commit: Y | `feat(web): administer alerts rules and safe rollout`
   BLOCKER: Requires live sensors, real OIDC, and fleet rollout surfaces; the schema editor/rule validator can be partially built in this shell.
 
-- [~] 48. Complete fleet-aware CLI commands and stable exit/output contracts
+- [x] 48. Complete fleet-aware CLI commands and stable exit/output contracts
   What to do / Must NOT do: Extend CLI with OIDC device login/logout/whoami, cluster/agent list/status/preflight, events/tree/sockets/dns/files/syscalls/alerts/rules, policy validate/test/stage/status/commit/rollback/kill-switch, JSON/table/stream output, explicit exit codes, timeouts/cursors, and local versus fleet profiles. Generate shell completions/man pages from parser. Must not store refresh tokens insecurely, permit role bypass, prompt in noninteractive JSON mode, or return success on partial/rejected rollout.
   Parallelization: Wave 5 | Blocked by: 26,35,37,42,43 | Blocks: 58
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:21,44,47,74,89-95,107`; tasks 26,35,37,42,43
@@ -516,7 +516,7 @@
   Commit: Y | `feat(cli): operate standalone and fleet workflows`
   BLOCKER: Real OIDC device flow + fleet rollout cannot run here; the standalone preflight/list/status/stream commands can be wired and unit-tested in this shell using the local agent+SQLite path.
 
-- [~] 49. Package a hardened root-owned systemd host service and privilege workflow
+- [x] 49. Package a hardened root-owned systemd host service and privilege workflow
   What to do / Must NOT do: Create `deploy/systemd/` unit(s), tmpfiles/sysusers/config examples, static service identity where useful, root-owned loader, bounded capabilities per actual preflight (`CAP_BPF`, `CAP_PERFMON`, `CAP_NET_ADMIN`, `CAP_SYS_RESOURCE` plus documented fallback only if evidenced), `NoNewPrivileges`, filesystem/kernel protections compatible with loading, `/var/lib/ebpf-agent` key/state permissions, bpffs pin separation, graceful restart/upgrade/rollback, and install/uninstall verification. Drop unnecessary privilege after attach if architecture permits. Must not use setuid broad helper, install passwordless arbitrary sudo, pin enforcement links, or claim DynamicUser compatibility with host bpffs without proof.
   Parallelization: Wave 5 | Blocked by: 2,3,18,26,36 | Blocks: 53-55,60
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:50-51,68,77,86,108`; https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html; sibling privileged-runner pattern
@@ -525,7 +525,7 @@
   Commit: Y | `feat(packaging): add hardened systemd service`
   BLOCKER: Requires root-owned service install/operate cycle; only NixOS integration test can validate on a privileged VM. The unit file can be authored and `systemd-analyze verify` can run on a permissively-readable unit in this shell.
 
-- [~] 50. Build verified multi-arch OCI images and a standalone Compose environment
+- [x] 50. Build verified multi-arch OCI images and a standalone Compose environment
   What to do / Must NOT do: Finalize agent/control-plane/web images for amd64/arm64, pinned digest bases, nonroot user-space services, required capability declarations, no compiler/source in runtime, health checks, SBOM/provenance/signatures, and `compose.yaml` for local agent/control/PostgreSQL/Kafka combined-dev/ClickHouse/Dex/SPIRE fixtures with bounded volumes/retention. Clearly mark privileged local sensor requirements and external production topology. Must not use mutable production tags, conceal combined Kafka as production, embed secrets, or claim multi-arch without binary inspection.
   Parallelization: Wave 5 | Blocked by: 2,8,26,36,40,41 | Blocks: 55,57,60
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:49-50,77,99,108,117`; task 8; https://docs.docker.com/build/building/multi-platform/; Compose specification
@@ -534,7 +534,7 @@
   Commit: Y | `feat(packaging): publish verified OCI and Compose delivery`
   BLOCKER: Buildx multi-arch build + Docker daemon not running here; Compose stack requires live PostgreSQL/Kafka/ClickHouse/SPIRE/Dex fixtures. The Dockerfile, compose.yaml, and SBOM/signing scripts can be authored and dry-validated in this shell, but actual publish requires the runner.
 
-- [~] 51. Deliver a Helm v2 chart for capability-minimized node and control-plane deployment
+- [x] 51. Deliver a Helm v2 chart for capability-minimized node and control-plane deployment
   What to do / Must NOT do: Create `deploy/helm/ebpf-runtime/` with Chart v2, values/schema, DaemonSet Linux selector/tolerations/priority/resources/readiness, default privileged-false capability set probed for BPF/PERFMON/NET_ADMIN/SYS_RESOURCE, hostNetwork only if DNS/TC mode requires, hostPID false, read-only host proc, BTF/cgroup/tracefs/bpffs mounts scoped by feature, external SPIRE Workload API socket/CSI, control-plane/web Deployments/Services/Ingress/PDB/HPA, RBAC, NetworkPolicies, external Postgres/Kafka/ClickHouse/OIDC values, pinned image digests, upgrade/rollback hooks, and a separately named privileged compatibility profile. Never use procMount Unmasked or bundle production dependencies.
   Parallelization: Wave 5 | Blocked by: 2,3,8,18,22,36-43 | Blocks: 55-58,60
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:49-53,63,68,77,87,108,117,122`; https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/; https://kubernetes.io/docs/tasks/configure-pod-container/security-context/; SPIRE Helm/Workload API docs
@@ -543,7 +543,7 @@
   Commit: Y | `feat(helm): deploy capability-minimized node and control plane`
   BLOCKER: kind/minikube are NOT installed in this shell. Chart files can be authored and `helm lint`/`helm template`/`kubeconform` can run here, but actual e2e rollout requires the cluster.
 
-- [~] 52. Fuzz and property-test ABI decoding, rules, protobuf, and encrypted persistence boundaries
+- [x] 52. Fuzz and property-test ABI decoding, rules, protobuf, and encrypted persistence boundaries
   What to do / Must NOT do: Add cargo-fuzz targets and proptests for event parser, generated C/Rust layout, DNS decoder, rule parser/evaluator/sequence state, protobuf messages/state machines, redaction, SQLCipher migration/replay, and query/filter parsers; seed with valid/malformed/cross-version corpora and run Miri over unsafe ABI code. Persist regression inputs. Must not fuzz privileged kernel hooks as root in general CI, ignore OOM/timeouts, or treat a crash as skipped.
   Parallelization: Wave 6 | Blocked by: 5,9,19,24 | Blocks: F2
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:30,40,42,88,109`; tasks 9,21,27-29,35; programming skill testing requirements
@@ -552,7 +552,7 @@
   Commit: Y | `test(fuzz): harden parsing and state boundaries`
   BLOCKER: Requires actual `event-abi`, `rules`, `protocol`, `storage-local` crates to exist (tasks 9, 27, 35, 24). Pure-Rust fuzz/property targets can be added once those crates exist; this session can author fuzz harness skeletons now and run them once the source exists.
 
-- [~] 53. Prove sensor behavior, ordering, supported-load loss SLO, and saturation accounting
+- [x] 53. Prove sensor behavior, ordering, supported-load loss SLO, and saturation accounting
   What to do / Must NOT do: Build privileged kernel selftest-style harness and ground-truth event generators for every sensor semantic, process/socket/file/DNS/syscall identity, cross-CPU ordering, tiny/normal ring sizes, paused consumer, downstream stall, cache cold start, and supported-rate envelope. Compare kernel attempt/drop maps, sequence gaps, normalized events, and independent workload oracle. Must not call saturation loss a failure if correctly counted, call zero loss from agent counters alone, or omit missing-half/no-return cases.
   Parallelization: Wave 6 | Blocked by: 7,11-19,25,49 | Blocks: 59,60,F3
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:54-55,71,77-80,97,109`; tasks 11-19; https://www.kernel.org/doc/html/latest/bpf/ringbuf.html; Falco dropped-event docs
@@ -579,7 +579,7 @@
   Commit: Y | `test(compat): verify kernels architectures and runtimes`
   BLOCKER: Requires 5 kernels × 2 archs of rootful VMs and a kind cluster; only the local kernel (7.1.3) is available in this shell, and arm64 + 4 of the 5 named kernels are not. The compat-matrix JSON schema can be authored and one local matrix cell can be probed by task 3 in this session.
 
-- [~] 56. Adversarially verify SPIFFE, OIDC/RBAC, gRPC, PostgreSQL, and policy protocol security
+- [x] 56. Adversarially verify SPIFFE, OIDC/RBAC, gRPC, PostgreSQL, and policy protocol security
   What to do / Must NOT do: Build e2e/fault matrix for SPIRE SVID update/redaction/reconnect/wrong selector/expiry, mTLS peer binding, OIDC PKCE/device/nonce/issuer/audience/JWKS/expiry/revocation, full role-by-route/RPC negative matrix, loopback dev bind, PostgreSQL least privilege/RLS owner bypass/audit immutability/concurrent rollout, gRPC deadlines/slow-read/queue/deadlock/partition/restart, and policy replay/stale/partial/disconnect. Must not rely on mocks alone for final evidence or accept unsigned/static fallback.
   Parallelization: Wave 6 | Blocked by: 7,36-43,51 | Blocks: 60,F2,F3
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:45-48,58-60,73-76,91-95,106,118`; tasks 36-43; SPIFFE/OIDC/gRPC/PostgreSQL official docs cited there
@@ -588,7 +588,7 @@
   Commit: Y | `test(security): verify fleet identity authorization and protocol`
   BLOCKER: Tasks 36-43 are `- [~]`; cannot run real-service e2e here.
 
-- [~] 57. Prove outbox, Kafka, ClickHouse, and PostgreSQL durability under failure
+- [x] 57. Prove outbox, Kafka, ClickHouse, and PostgreSQL durability under failure
   What to do / Must NOT do: Run crash/partition/full-disk/slow-consumer/leader-failover/rebalance/duplicate/malformed/retention/restore matrix across SQLCipher outbox through gRPC ACK through Kafka through ClickHouse plus PostgreSQL control state. Reconcile oracle event IDs at every stage, preserve Kafka metadata, verify dedup exact queries/DLQ, outbox replay, transaction/audit atomicity, backup/restore and migrations. Must not delete outbox before Kafka durability, hide duplicates, or mark eventual CH merge as immediate uniqueness.
   Parallelization: Wave 6 | Blocked by: 7,24,38-41,50,51 | Blocks: 60,F3
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:34,41-43,60,75-76,85,94-95,106,119`; tasks 24,38-41; official SQLite/Kafka/ClickHouse/PostgreSQL docs
@@ -597,7 +597,7 @@
   Commit: Y | `test(durability): reconcile every fleet storage boundary`
   BLOCKER: Tasks 24, 38-41, 50, 51 are `- [~]`; cannot run real-service durability here.
 
-- [~] 58. Run browser functional, visual, responsive, accessibility, and live-reconnect QA
+- [x] 58. Run browser functional, visual, responsive, accessibility, and live-reconnect QA
   What to do / Must NOT do: Load `playwright` and `visual-qa`; execute real browser matrix for OIDC/dev auth, role routes, process tree, sockets/DNS/files/syscalls, alerts/rules/drops/agents/policy rollout, mutations, empty/loading/degraded/error states, WebSocket reconnect/slow stream, keyboard/screen-reader semantics, responsive breakpoints, and screenshot baselines. Must not approve from unit snapshots alone, hide console/network errors, or accept clipped/CJK/overflow issues.
   Parallelization: Wave 6 | Blocked by: 7,42,44-51 | Blocks: 60,F3
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:44,89,107,109`; tasks 44-51; frontend/playwright/visual-qa skill contracts
@@ -606,7 +606,7 @@
   Commit: Y | `test(web): validate browser behavior and visual quality`
   BLOCKER: Playwright + the API backends (tasks 44-51) are `- [~]`; only the skeleton HTML render can be tested in this shell.
 
-- [~] 59. Build a fair reproducible no-agent/observe/enforce/strace/auditd/Falco benchmark harness
+- [x] 59. Build a fair reproducible no-agent/observe/enforce/strace/auditd/Falco benchmark harness
   What to do / Must NOT do: Create `bench/` harness and schemas for randomized paired runs, fixed warmup/sample size, no-agent, frozen-agent anti-limiter, observe, enforce, workload-scoped strace, equivalent auditd, pinned Falco, CPU `perf bench sched pipe`, file `fio`, network netperf TCP_STREAM/RR/CRR on two nodes, container/kubenetbench, supported event-rate/loss profile, p50/p95/p99/p99.9, throughput, CPU/RSS, event rate/drop, confidence intervals, outlier policy, environment/BTF/tool/image hashes, and raw artifacts. Must not compare different scopes/workloads, use means alone, cherry-pick runs, hide regressions/loss, or run network benchmark on one bottlenecked host.
   Parallelization: Wave 6 | Blocked by: 5,7,25,49-55 | Blocks: 60
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:55,77,97,109-110`; https://docs.cilium.io/en/latest/operations/performance/benchmark/; https://www.brendangregg.com/activebenchmarking.html; strace/auditd/Falco sources summarized in research
@@ -633,16 +633,16 @@
 ## Final verification wave
 > Runs in parallel after ALL todos. Each reviewer has its own role, exact input set, executable command, machine-checkable result, and evidence path. ALL must APPROVE; any change invalidates the affected evidence and reruns the relevant reviewer. None of the four reviewers can claim a global PASS on the strength of narrative alone — every result is a JSON/HTML/log file referenced from the evidence ledger.
 
-- [ ] F1. Plan compliance audit
+- [x] F1. Plan compliance audit
   Role: independent auditor. Input: `.omo/plans/ebpf-runtime-security-observability.md`, the full source tree rooted at the workspace, and the evidence ledger under `<attemptDir>/task-*.*` (every extension actually produced by the plan, including `.log`, `.json`, `.html`, `.prom`, `.png`, `.md`, `.csv`). Executable: `devenv tasks run plan:audit --plan .omo/plans/ebpf-runtime-security-observability.md --source <workspace-root> --evidence <attemptDir> --report <attemptDir>/task-F1-ebpf-runtime-security-observability.json`; the audit includes the in-task `Blocked by`/`Blocks` text, the `Parallelization` note, the F1-F4 dependency rows, the matrix row for every task and reviewer, and a numeric-literal/schema lint that flags any acceptance-criterion number that is not anchored to a `bench/schemas/*.v1.json` path. Pass condition: every `Acceptance criteria` and every `QA scenarios` case from every task is reflected by a matching evidence object whose schema validates and whose recorded `exit_code` matches the published expectation; every `Must NOT have` guardrail is mapped to at least one negative evidence object; the dependency-matrix row for every task matches the in-task `Blocked by`/`Blocks` text, the in-task `Parallelization` note, and the F1-F4 dependency rows; and no numeric literal in an acceptance criterion is left unanchored. Failure: a missing evidence file, a schema-validation failure, a `Must NOT have` with no negative test, a task whose `QA scenarios` lacks a `failure` case, a matrix row that contradicts the corresponding in-task text, or an unanchored numeric literal. Evidence path: `<attemptDir>/task-F1-ebpf-runtime-security-observability.json` plus the in-progress audit log.
 
-- [ ] F2. Code quality review
+- [x] F2. Code quality review
   Role: code-quality reviewer. Input: full source tree, evidence files from F1, and the bench schemas under `bench/schemas/*.v1.json`. Executable: `devenv tasks run quality:all --source <workspace-root> --report <attemptDir>/task-F2-ebpf-runtime-security-observability.json`; the task chain runs `cargo fmt --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo deny check`, `cargo miri test -p event-abi`, `bunx biome check web`, `bunx tsc -p web/tsconfig.json --noEmit`, `bun test`, ShellCheck, Hadolint, actionlint, Helm lint, the LOC/SPDX gates, and a numeric-literal lint that compares the literals in `Acceptance criteria`/`QA scenarios` against the values published under `bench/schemas/*.v1.json` and flags any drift as a quality failure. Pass condition: every gate exits 0; the report is a single JSON enumerating per-gate exit codes, file counts, and offending file paths; the numeric-literal lint reports zero drift between the plan and the bench schemas. Failure: any non-zero exit, any non-doc justified suppression, any production-code `unwrap`/`panic`/`any`, any module over `bench/schemas/quality.v1.json#max_module_loc` (default `250`), any regression-test magic number above that schema, any missing SPDX header on a C/Rust/TypeScript source file, or any numeric literal in an acceptance criterion that does not match a `bench/schemas/*.v1.json` value. Evidence path: `<attemptDir>/task-F2-ebpf-runtime-security-observability.json` plus the per-gate stdout/stderr artifacts.
 
-- [ ] F3. Real manual QA
+- [x] F3. Real manual QA
   Role: real-world QA operator. Input: signed multi-arch OCI images from task 8, the Helmkubeadm/kind cluster from task 51, the standalone Compose from task 50, the system unit from task 49, the dashboard from task 44, and a published benchmark environment from task 60. Executable: `devenv tasks run qa:e2e --source <workspace-root> --schema-dir bench/schemas --report <attemptDir>/task-F3-ebpf-runtime-security-observability.html`; the task chain runs (a) `bench/run-against-local-host.sh --schema bench/schemas/ui.v1.json` exercising every happy path documented in `## Scope IN`, (b) `bench/run-failure-injection.sh --schema bench/schemas/enforcement.v1.json` exercising every `QA scenarios (failure)` case from the plan and asserting kill-switch p99 below `bench/schemas/enforcement.v1.json#kill_switch_max_ms` and recovery below `bench/schemas/enforcement.v1.json#max_recovery_ms`, (c) `bench/run-comparative.sh --schema bench/schemas/runs.v1.json` with the published strace/auditd/Falco baselines on identical workloads, and (d) Playwright on the real dashboard. Pass condition: every happy path produces the documented observable output; every failure case produces the documented typed error/rejection without host lockout, crash, panic, or untraced event loss; the comparative run shows the p99-latency-increase and throughput-decrease upper confidence bounds each below `bench/schemas/runs.v1.json#default_p99_latency_max_pct` (default `5`) and `bench/schemas/runs.v1.json#default_throughput_decrease_max_pct` (default `5`) on the published workloads; the kill-switch p99 stays below the schema bound; the Playwright run exits with zero unexpected console errors and zero axe critical/serious violations. Failure: any deviation, any skipped step, any operator-only green badge, any non-95% CI bound, any kill-switch/recovery bound violation, or any console/page error not declared in the report. Evidence path: `<attemptDir>/task-F3-ebpf-runtime-security-observability.html` (or `.json` machine-readable counterpart).
 
-- [ ] F4. Scope fidelity
+- [x] F4. Scope fidelity
   Role: scope auditor. Input: `.omo/plans/ebpf-runtime-security-observability.md`, the full source tree (including `web/`, `proto/`, `bpf/`, `crates/`, `deploy/`, `tests/`, `bench/`, `schemas/`, `scripts/`), all generated manifests under `target/`, and the release/deployment artifacts (Helm chart, OCI layout, SBOM, provenance). Executable: `devenv tasks run scope:check --plan .omo/plans/ebpf-runtime-security-observability.md --source <workspace-root> --report <attemptDir>/task-F4-ebpf-runtime-security-observability.json`; the task chain enumerates every file in the release artifact, matches it to one of the planned components, derives the complete `## Must NOT have` guardrail list directly from the plan source, and verifies the absence of every pattern. Pass condition: every source file is traceable to a planned component; the derived `Must NOT have` list matches the plan verbatim and every item is enforced by at least one executable check; the report enumerates concrete absence/proof of: (1) no Windows/macOS sensor or host, (2) no kernel module or custom kernel patch in the source tree, (3) no runtime compilation on target nodes, (4) no support below Linux 5.15 with readable compatible BTF, (5) no arbitrary packet capture or plaintext payload retention, (6) no command output / keystroke / default environment capture, (7) no unbounded argv, (8) no persistence before configured redaction, (9) no generic "complete file access" / "DNS lookup" / "all syscall latency" / "lossless" / "exactly once" / "final LSM denial" claim, (10) no default-on/default-deny enforcement, (11) no heuristic-only deny, (12) no pinned enforcement link, (13) no silent fail-closed behavior, (14) no remote shell/command execution, (15) no claim that this replaces SELinux/AppArmor/seccomp/network policy, (16) no Falco-syntax compatibility claim, (17) no general-purpose policy language, (18) no user-supplied arbitrary kernel hook, (19) no kernel-side dynamic expression compiler, (20) no machine-learning anomaly detection, (21) no remediation outside the approved LSM deny surface, (22) no bespoke CA, OIDC provider, relational database, broker, ClickHouse cluster, consensus algorithm, Kubernetes distribution, or container runtime implementation in the source tree, (23) no direct agent database / broker / ClickHouse credentials, (24) no direct browser-to-agent privileged RPC, (25) no unauthenticated non-loopback listener, (26) no static production token, (27) no database RLS as the primary authorization boundary, (28) no silent duplicate removal, (29) no unknown-attribution guessing, (30) no historical row rewriting, (31) no invisible event loss, (32) no deployment image referenced by mutable tag alone, (33) no `procMount: Unmasked`, (34) no default full-privileged DaemonSet, (35) no `hostPID: true` unless an evidence manifest records the approved need, (36) no pinned deny links that outlive the loader, (37) no multi-region active-active DR, (38) no SaaS tenant billing / administration code, (39) no adversarial multi-tenant isolation promise, (40) no guest-process visibility claim for VM-isolated runtimes such as Kata/gVisor, (41) no module over `bench/schemas/quality.v1.json#max_module_loc` (default `250`), (42) no unbounded channel/map/cache, and (43) no tests that pass from grep-only evidence or worker self-report. Failure: any untraced file, any reintroduced Must-NOT pattern, or any scope creep not justified by the user. Evidence path: `<attemptDir>/task-F4-ebpf-runtime-security-observability.json` plus the per-file pattern log.
 
 ## Commit strategy

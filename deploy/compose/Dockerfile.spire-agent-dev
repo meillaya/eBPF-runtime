@@ -8,8 +8,8 @@
 # Build context: deploy/compose/
 # Build:         docker compose -f dev-infra.yml build spire-agent
 
-FROM ghcr.io/spiffe/spire-server:1.10 AS server
-FROM ghcr.io/spiffe/spire-agent:1.10 AS agent
+FROM ghcr.io/spiffe/spire-server:1.10.0 AS server
+FROM ghcr.io/spiffe/spire-agent:1.10.0 AS agent
 
 FROM alpine:3.20
 

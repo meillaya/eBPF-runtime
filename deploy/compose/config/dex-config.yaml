@@ -12,6 +12,9 @@ issuer: http://127.0.0.1:5556/dex
 storage:
   type: memory
 
+# Required for staticPasswords to work with memory storage.
+enablePasswordDB: true
+
 web:
   http: 0.0.0.0:5556
 
