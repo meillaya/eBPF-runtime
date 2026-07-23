@@ -7,52 +7,100 @@ control plane, and a React/TypeScript dashboard.
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph KERNEL["⬛ KERNEL SPACE — Linux 5.15+ · CO-RE · BTF"]
+        direction TB
+        subgraph SENSORS["BPF Sensors (C / libbpf)"]
+            direction LR
+            P["process<br/><i>fork · exec · exit</i>"]
+            F["file<br/><i>open · create · rename<br/>unlink · truncate</i>"]
+            N["network<br/><i>connect · accept<br/>state transitions</i>"]
+            D["dns<br/><i>UDP/TCP :53 packets<br/>truncation-aware</i>"]
+            S["syscall<br/><i>latency histograms<br/>NO_RETURN · ORPHAN</i>"]
+            I["identity<br/><i>cgroup · namespaces<br/>creds · capabilities</i>"]
+            L["BPF LSM<br/><i>file_open · bprm<br/>socket_connect</i>"]
+        end
+        RB[["Ring Buffer — MPSC · per-CPU seq · loss counters"]]
+        SENSORS --> RB
+    end
+
+    subgraph AGENT["⬛ NODE AGENT — Rust · panic-free · bounded"]
+        direction TB
+        CONS["Bounded Ring Consumer<br/><i>priority channels · backpressure · drain-on-shutdown</i>"]
+        subgraph PIPE["Correlation & Enrichment"]
+            direction LR
+            PT["Process Tree<br/><i>generation-keyed<br/>PID-reuse safe</i>"]
+            SC["Socket / DNS<br/><i>cookie correlation<br/>bounded TTL</i>"]
+            EN["CRI Enrichment<br/><i>containerd · CRI-O<br/>Docker · k8s</i>"]
+        end
+        RULE["Rule Engine<br/><i>YAML DSL · predicates<br/>temporal sequences</i>"]
+        PRIV["Privacy Redaction<br/><i>before every persist</i>"]
+        subgraph LOCAL["Local Surfaces"]
+            direction LR
+            DB["SQLCipher<br/><i>history + outbox</i>"]
+            MET["Prometheus<br/><i>low-cardinality</i>"]
+            API["REST / WebSocket<br/><i>+ CLI</i>"]
+        end
+        CONS --> PIPE
+        PIPE --> RULE
+        RULE --> PRIV
+        PRIV --> LOCAL
+    end
+
+    subgraph CONTROL["⬛ CONTROL PLANE — SPIFFE mTLS · fleet-wide"]
+        direction TB
+        TP["Transport<br/><i>separate control / event streams<br/>outbox ACK after durable accept</i>"]
+        subgraph STORES["State & Analytics"]
+            direction LR
+            PG["PostgreSQL<br/><i>authority · RLS<br/>append-only audit</i>"]
+            KF["Kafka<br/><i>idempotent producer<br/>acks=all · DLQ</i>"]
+            CH["ClickHouse<br/><i>ReplacingMergeTree<br/>dedup · TTL</i>"]
+        end
+        subgraph IDENTITY["Identity & Access"]
+            direction LR
+            SPIRE["SPIRE<br/><i>rotating SVIDs</i>"]
+            DEX["Dex<br/><i>OIDC PKCE · device</i>"]
+            RBAC["RBAC<br/><i>viewer → analyst →<br/>policy-admin → admin</i>"]
+        end
+        ROLLOUT["Policy Rollout<br/><i>STAGE → READY → COMMIT → APPLIED<br/>kill switch · rollback</i>"]
+        DASH["React Dashboard<br/><i>live-stream · process tree<br/>alerts · rollout admin</i>"]
+        TP --> STORES
+        IDENTITY --> TP
+        ROLLOUT --> TP
+        DASH --> TP
+    end
+
+    RB ==>|"events + validity flags"| CONS
+    API -.->|"fleet mode"| TP
+    PRIV ==>|"redacted batches"| TP
+    L -.->|"deny verdicts<br/>(audit-first)"| RB
+
+    classDef kernel fill:#1a1f2b,stroke:#5b6478,stroke-width:1px,color:#e6e9f0
+    classDef sensor fill:#232b3d,stroke:#7aa2f7,stroke-width:1.5px,color:#c0caf5
+    classDef agent fill:#1f2733,stroke:#9ece6a,stroke-width:1.5px,color:#c0caf5
+    classDef ctrl fill:#251f2e,stroke:#bb9af7,stroke-width:1.5px,color:#c0caf5
+    classDef store fill:#2b2436,stroke:#f7768e,stroke-width:1px,color:#c0caf5
+    classDef ring fill:#2e2a1f,stroke:#e0af68,stroke-width:2px,color:#e0af68
+
+    class P,F,N,D,S,I,L sensor
+    class RB ring
+    class CONS,PT,SC,EN,RULE,PRIV,DB,MET,API agent
+    class TP,ROLLOUT,DASH ctrl
+    class PG,KF,CH,SPIRE,DEX,RBAC store
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Kernel (Linux 5.15+)                                           │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
-│  │ process  │ │  file    │ │ network  │ │   dns    │           │
-│  │ fork/exec│ │ open/    │ │ connect/ │ │ UDP/TCP  │           │
-│  │ /exit    │ │ create/  │ │ accept/  │ │ port 53  │           │
-│  │          │ │ rename/  │ │ state    │ │ packets  │           │
-│  │          │ │ unlink   │ │          │ │          │           │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘           │
-│       │             │            │             │                │
-│  ┌────┴─────┐ ┌────┴─────┐ ┌───┴──────────────┴───┐            │
-│  │ syscall  │ │ identity │ │      BPF LSM         │            │
-│  │ latency  │ │ cgroup/  │ │ file_open / bprm /   │            │
-│  │ histos   │ │ ns/creds │ │ socket_connect       │            │
-│  └────┬─────┘ └────┬─────┘ │ (audit-first deny)   │            │
-│       │             │       └──────────┬───────────┘            │
-│       └─────────────┴──────────────────┘                        │
-│                    Ring Buffer (MPSC)                            │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────────┐
-│  Node Agent (Rust)                                              │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │
-│  │ Bounded    │ │ Process    │ │ Socket/DNS │ │ Privacy    │   │
-│  │ Ring       │ │ Tree       │ │ Correlation│ │ Redaction  │   │
-│  │ Consumer   │ │ Reconstr.  │ │            │ │            │   │
-│  └────────────┘ └────────────┘ └────────────┘ └────────────┘   │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │
-│  │ Rule Engine│ │ SQLCipher  │ │ Prometheus │ │ REST/WS    │   │
-│  │ (YAML DSL) │ │ Local Store│ │ Metrics    │ │ API + CLI  │   │
-│  └────────────┘ └────────────┘ └────────────┘ └────────────┘   │
-└────────────────────────┬────────────────────────────────────────┘
-                         │ gRPC (SPIFFE mTLS)
-┌────────────────────────▼────────────────────────────────────────┐
-│  Control Plane                                                  │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │
-│  │ PostgreSQL │ │   Kafka    │ │ ClickHouse │ │    Dex     │   │
-│  │ (authority)│ │ (events)   │ │ (analytics)│ │  (OIDC)    │   │
-│  └────────────┘ └────────────┘ └────────────┘ └────────────┘   │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐                   │
-│  │   SPIRE    │ │ Policy     │ │ React      │                   │
-│  │ (identity) │ │ Rollout    │ │ Dashboard  │                   │
-│  └────────────┘ └────────────┘ └────────────┘                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+**Data flow:** sensors emit versioned events with validity/degradation flags into
+a shared ring buffer → the agent consumes with bounded backpressure, reconstructs
+process trees and correlates sockets/DNS, evaluates rules, redacts, then persists
+locally (SQLCipher) and ships to the control plane over SPIFFE mTLS → PostgreSQL
+holds authoritative state, Kafka carries event batches, ClickHouse serves
+analytics, and the dashboard streams live + historical views.
+
+**Enforcement is audit-first:** the LSM sensor records `OWN_LSM_DENY` only when
+*its own* program returns an errno, preserves any prior LSM's nonzero return,
+fails open on unknown context, and honors an immediate kill switch. Deny links
+are never pinned.
 
 ## Quick Start
 
