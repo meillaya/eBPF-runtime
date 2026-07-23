@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "$id": "https://kernel-v1.local/schemas/runs/v1.json",
+  "title": "kernel-v1 comparative benchmark run constants (v1)",
+  "description": "Versioned source of truth for every numeric constant the comparative benchmark harness (bench/benchmark.sh, bench/analyze.sh) reads. The harness refuses to start if this schema is missing or malformed. No numeric constant in the harness may be hardcoded; every threshold, sample size, and confidence level is anchored here. The release gate (task 60) asserts sub-5% p99 latency increase and sub-5% throughput decrease for observe and enforce modes relative to the no-agent baseline; those thresholds live here as default_p99_latency_max_pct and default_throughput_decrease_max_pct.",
+  "type": "object",
+  "properties": {
+    "sample_size": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 10000,
+      "default": 30,
+      "description": "Number of measured iterations per (workload, comparator) pair. Warmup iterations are excluded. The harness runs exactly this many measurement iterations after warmup; each iteration produces one JSONL row. A minimum of 3 is required so the paired-difference confidence interval is computable."
+    },
+    "warmup_iterations": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000,
+      "default": 5,
+      "description": "Number of warmup iterations run (and discarded) before measurement begins. Warmup primes CPU caches, JIT paths, and filesystem page cache so the measured iterations reflect steady-state behavior. Set to 0 to disable warmup."
+    },
+    "confidence_level": {
+      "type": "number",
+      "minimum": 0.5,
+      "maximum": 0.999,
+      "default": 0.95,
+      "description": "Confidence level for the paired-difference confidence interval computed by bench/analyze.sh. The analysis reports the upper bound of the CI for p99 latency increase and the upper bound of the CI for throughput decrease at this confidence level. 0.95 corresponds to a 95% CI."
+    },
+    "default_p99_latency_max_pct": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 5,
+      "description": "Release-gate threshold: maximum permitted p99 latency increase (as a percentage of the no-agent baseline p99) for observe and enforce modes. The analysis marks a workload/comparator pair as failing when the 95% CI upper bound of the p99 increase exceeds this value. Anchored here so the harness never hardcodes the 5% gate."
+    },
+    "default_throughput_decrease_max_pct": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 5,
+      "description": "Release-gate threshold: maximum permitted throughput decrease (as a percentage of the no-agent baseline throughput) for observe and enforce modes. The analysis marks a workload/comparator pair as failing when the 95% CI upper bound of the throughput decrease exceeds this value. Anchored here so the harness never hardcodes the 5% gate."
+    },
+    "ops_per_iteration": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 10000000,
+      "default": 10000,
+      "description": "Number of individual operations each workload performs per measured iteration. Per-operation latencies are collected within an iteration to compute p50/p95/p99/p99.9. A larger value yields tighter percentile estimates at the cost of longer iteration duration."
+    },
+    "workloads": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["cpu", "io", "net", "syscall"]
+      },
+      "default": ["cpu", "io", "net", "syscall"],
+      "description": "The workload identifiers the harness iterates over. Each maps to bench/workloads/<name>.sh. The harness validates that every listed workload script exists and is executable before starting."
+    },
+    "comparators": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["no-agent", "observe", "enforce", "strace", "auditd", "falco"]
+      },
+      "default": ["no-agent", "observe", "enforce", "strace", "auditd", "falco"],
+      "description": "The comparator identifiers the harness iterates over. Each maps to bench/comparators/<name>.sh. no-agent is the mandatory baseline; the analysis computes paired differences against it. The harness validates that every listed comparator script exists and is executable before starting."
+    }
+  },
+  "required": [
+    "sample_size",
+    "warmup_iterations",
+    "confidence_level",
+    "default_p99_latency_max_pct",
+    "default_throughput_decrease_max_pct",
+    "ops_per_iteration",
+    "workloads",
+    "comparators"
+  ],
+  "additionalProperties": false
+}

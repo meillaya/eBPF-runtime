@@ -1,0 +1,11 @@
+{
+  "name": "cancel-in-progress",
+  "description": "Operator cancels a rollout in AwaitingReady phase. Rollout transitions to Cancelled.",
+  "steps": [
+    {"action": "stage", "version": 1, "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "cancel", "actor": "spiffe://kernel-v1.test/operator/admin"}
+  ],
+  "expect": {
+    "phase": "Cancelled"
+  }
+}

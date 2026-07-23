@@ -1,0 +1,19 @@
+{{/*
+SPDX-License-Identifier: Apache-2.0 OR MIT
+
+PodDisruptionBudget for the control-plane Deployment.
+Ensures availability during voluntary disruptions (node drains, upgrades).
+*/}}
+{{- if and .Values.controlPlane.enabled .Values.controlPlane.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "kernel-v1.fullname" . }}-control-plane
+  labels:
+    {{- include "kernel-v1.controlPlane.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.controlPlane.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "kernel-v1.controlPlane.selectorLabels" . | nindent 6 }}
+{{- end }}

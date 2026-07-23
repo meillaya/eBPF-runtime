@@ -1,0 +1,75 @@
+[package]
+name = "sensor-tests"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "kernel-v1 sensor harness integration tests (task 11 — process lifecycle decoder fixtures; task 12 — file-sensor fixtures; task 13 — network-sensor fixtures)."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+# This crate has no library surface: it exists purely so that
+# `cargo test -p sensor-tests --test process_events` can decode the
+# committed `.binpb` fixtures under `tests/fixtures/{process,file}/`
+# and assert the task-11 + task-12 acceptance criteria. The recorder
+# helpers that generate fresh fixtures from a privileged runner are
+# exposed as separate `[[bin]]`s (NOT invoked by `cargo test`;
+# see `src/bin/record-fixtures.rs` and `src/bin/record-file-fixtures.rs`).
+autolib = false
+autobins = false
+
+[[bin]]
+name = "record-fixtures"
+path = "src/bin/record-fixtures.rs"
+required-features = []
+
+[[bin]]
+name = "record-file-fixtures"
+path = "src/bin/record-file-fixtures.rs"
+required-features = []
+
+[[bin]]
+name = "record-network-fixtures"
+path = "src/bin/record-network-fixtures.rs"
+required-features = []
+
+[[bin]]
+name = "record-dns-fixtures"
+path = "src/bin/record-dns-fixtures.rs"
+required-features = []
+
+[[bin]]
+name = "record-syscall-fixtures"
+path = "src/bin/record-syscall-fixtures.rs"
+required-features = []
+
+[[bin]]
+name = "record-identity-fixtures"
+path = "src/bin/record-identity-fixtures.rs"
+required-features = []
+
+[[bin]]
+name = "record-saturation-fixtures"
+path = "src/bin/record-saturation-fixtures.rs"
+required-features = []
+
+
+# `bpf-build` is a runtime dep of the `record-fixtures`,
+# `record-file-fixtures`, `record-network-fixtures`, and
+# `record-dns-fixtures` bins only (NOT used by `cargo test`).
+# Pulling it here means `cargo test` also compiles the bins,
+# which triggers `bpf-build`'s own build.rs (clang + bpftool +
+# placeholder.bpf.c compile). That is the intended behaviour:
+# the bins' `cargo check` + compile is a smoke test that the
+# wiring the privileged runner will use (task 53+) still
+# type-checks. The pinned vmlinux.h digest check in
+# `bpf-build`'s `EXPECTED_SHA256` runs at the bpf-build
+# crate's own `build()` invocation (which `record-fixtures`
+# calls at runtime), NOT at compile time, so `cargo test`
+# succeeds on a host whose /sys/kernel/btf/vmlinux digest
+# differs from the pin.
+[dependencies]
+bpf-build = { path = "../bpf-build" }
+event-abi = { path = "../event-abi" }
+
+[dev-dependencies]
+serde_json = "1.0"

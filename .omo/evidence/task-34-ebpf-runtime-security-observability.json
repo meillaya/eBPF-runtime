@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "task_id": "task-34",
+  "plan": ".omo/plans/ebpf-runtime-security-observability.md",
+  "session_id": "ses_07da7b4e8ffeImes0mzJSHjF4c",
+  "started_at": "2026-07-22T17:54:11Z",
+  "verdict": "confirmed",
+  "commands": [
+    {
+      "name": "enforcement_state_machine",
+      "cmd": "bench/enforcement-state-machine.sh --schema bench/schemas/enforcement.v1.json",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "schema:    /home/mei/projects/kernels/kernel-v1/bench/schemas/enforcement.v1.json\nkill_switch_max_ms          = 5000\nkill_switch_benchmark_pairs = 10\naudit_first_default_mode    = 0\naudit-first invariant: schema defaults every policy to audit-only (mode=0)\n\n=== phase 1: cargo test -p enforcement ===\n   Compiling libc v0.2.187\n   Compiling linux-raw-sys v0.12.1\n   Compiling memchr v2.8.3\n   Compiling bitflags v2.13.1\n   Compiling once_cell v1.21.4\n   Compiling fastrand v2.5.0\n   Compiling rustix v1.1.4\n   Compiling serde_json v1.0.151\n   Compiling getrandom v0.4.3\n   Compiling enforcement v0.1.0 (/home/mei/projects/kernels/kernel-v1/crates/enforcement)\n   Compiling tempfile v3.27.0\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.38s\n     Running unittests src/lib.rs (target/debug/deps/enforcement-1def9a921a29882d)\n\nrunning 54 tests\ntest digest::tests::different_content_different_digest ... ok\ntest digest::tests::sha256_of_abc_is_well_known ... ok\ntest digest::tests::sha256_of_empty_string_is_well_known ... ok\ntest digest::tests::verify_digest_accepts_correct_hash ... ok\ntest digest::tests::verify_digest_is_case_insensitive ... ok\ntest digest::tests::verify_digest_rejects_wrong_hash ... ok\ntest error::tests::all_variants_are_displayable ... ok\ntest error::tests::digest_mismatch_display_includes_both_hashes ... ok\ntest error::tests::version_replay_display_includes_both_versions ... ok\ntest integration_tests::deny_links_never_pinned_after_commit ... ok\ntest integration_tests::kill_switch_within_threshold ... ok\ntest integration_tests::full_lifecycle ... ok\ntest integration_tests::loader_death_fail_open ... ok\ntest kill_switch::tests::benchmark_completes_within_threshold ... ok\ntest kill_switch::tests::benchmark_p99_is_reasonable ... ok\ntest kill_switch::tests::engage_disengage_roundtrip ... ok\ntest kill_switch::tests::kill_switch_starts_disengaged ... ok\ntest kill_switch::tests::wire_format_matches_c_struct ... ok\ntest kill_switch::tests::wire_roundtrip ... ok\ntest persistence::tests::load_corrupt_file_returns_error ... ok\ntest persistence::tests::load_missing_file_returns_none ... ok\ntest policy::tests::deny_errno_forced_negative ... ok\ntest policy::tests::deny_links_never_pinned ... ok\ntest policy::tests::digest_bytes_deterministic ... ok\ntest policy::tests::entry_selector_truncates_to_max ... ok\ntest policy::tests::from_persisted_restores_state ... ok\ntest policy::tests::hook_family_wire_roundtrip ... ok\ntest policy::tests::monotonic_version_rejects_stale_and_replay ... ok\ntest policy::tests::new_generation_is_audit_only ... ok\ntest policy::tests::policy_map_flip_swaps_generations ... ok\ntest policy::tests::policy_map_rollback_restores_previous ... ok\ntest policy::tests::policy_mode_wire_roundtrip ... ok\ntest policy::tests::rollback_without_previous_fails ... ok\ntest state_machine::tests::deny_links_never_pinned ... ok\ntest state_machine::tests::commit_before_ready_is_rejected ... ok\ntest integration_tests::disconnect_does_not_auto_relax_lkg ... ok\ntest integration_tests::persistence_startup_audit_only ... ok\ntest state_machine::tests::digest_mismatch_rejects ... ok\ntest state_machine::tests::idempotent_duplicate_commit ... ok\ntest state_machine::tests::happy_path_stage_verify_commit_applied ... ok\ntest state_machine::tests::idempotent_duplicate_stage ... ok\ntest state_machine::tests::loader_death_prevents_staging ... ok\ntest state_machine::tests::rollback_without_previous_fails ... ok\ntest state_machine::tests::rollback_restores_previous_generation ... ok\ntest state_machine::tests::stage_does_not_activate ... ok\ntest state_machine::tests::re_stage_after_rejection ... ok\ntest persistence::tests::atomic_write_creates_parent_dirs ... ok\ntest state_machine::tests::startup_audit_only_from_persisted ... ok\ntest state_machine::tests::stage_while_applied_higher_version_starts_new_rollout ... ok\ntest persistence::tests::no_tmp_file_left_after_save ... ok\ntest state_machine::tests::stale_version_rejected ... ok\ntest",
+      "stderr_excerpt": ""
+    }
+  ],
+  "assertions": [
+    "task-34: agent-side staged policy map / kill-switch / loader-death fail-open state-machine harness exits 0 on the unprivileged host (cargo test -p enforcement covers transitions, digest, monotonic version, idempotency, rollback, fail-open); privileged half documented BLOCKED",
+    "enforcement_state_machine: observed exit 0 vs expected 0"
+  ],
+  "environment": {
+    "kernel_version": "7.1.3-2-cachyos",
+    "arch": "x86_64",
+    "os_release": "CachyOS",
+    "kernel_btf_sha256": "cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37",
+    "cachix_devenv_version": "devenv v2.1.2 (pinned in devenv.lock rev ea3d94ac9d6b)",
+    "libbpf_soname": "libbpf.so.1",
+    "bpftool_version": "bpftool v7.8.0",
+    "clang_version": "clang version 22.1.8",
+    "rustc_version": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+    "sqlcipher_version": "unavailable",
+    "bpf_lsm_active": true,
+    "unprivileged_bpf_disabled": 2
+  },
+  "artifacts": [
+    {
+      "path": "bench/enforcement-state-machine.sh",
+      "sha256": "15aebffd4a462abd2330b6c04f266a9c809261e1fec74d871cab57e4202d3ea1",
+      "size": 8208,
+      "kind": "text"
+    },
+    {
+      "path": "bench/schemas/enforcement.v1.json",
+      "sha256": "86593da40afacc3a7a18b2f788e54611479744565543f1c579a9929d7942fb2d",
+      "size": 7268,
+      "kind": "json"
+    }
+  ],
+  "commit": "b6d8e048f8b171d1121ad1d2bf2d57c212bf2751"
+}

@@ -1,0 +1,29 @@
+{
+  "name": "happy-path-two-agents",
+  "description": "Two agents stage/commit/apply the same digest. Dashboard truth matches agents.",
+  "policy_version": {
+    "version": 1,
+    "content": "policy-v1",
+    "targets": [
+      "spiffe://kernel-v1.test/agent/prod/node-1",
+      "spiffe://kernel-v1.test/agent/prod/node-2"
+    ]
+  },
+  "threshold_percent": 100,
+  "steps": [
+    {"action": "stage", "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "ready", "agent": "spiffe://kernel-v1.test/agent/prod/node-1", "digest_match": true},
+    {"action": "ready", "agent": "spiffe://kernel-v1.test/agent/prod/node-2", "digest_match": true},
+    {"action": "commit", "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "applied", "agent": "spiffe://kernel-v1.test/agent/prod/node-1"},
+    {"action": "applied", "agent": "spiffe://kernel-v1.test/agent/prod/node-2"}
+  ],
+  "expect": {
+    "phase": "Completed",
+    "active_version": 1,
+    "agent_states": {
+      "spiffe://kernel-v1.test/agent/prod/node-1": "Applied",
+      "spiffe://kernel-v1.test/agent/prod/node-2": "Applied"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "task-60",
+  "plan": ".omo/plans/ebpf-runtime-security-observability.md",
+  "verdict": "pass",
+  "commit": "6bc1e732929f08263b4777855410deaf117ea929",
+  "evidence_paths": [
+    ".omo/evidence/task-60-ebpf-runtime-security-observability.json",
+    ".omo/evidence/task-60-ebpf-runtime-security-observability.md",
+    ".omo/evidence/task-F1-ebpf-runtime-security-observability.json",
+    ".omo/evidence/task-F2-ebpf-runtime-security-observability.json",
+    ".omo/evidence/task-F3-ebpf-runtime-security-observability.html",
+    ".omo/evidence/task-F4-ebpf-runtime-security-observability.json"
+  ],
+  "reviewers": [
+    {
+      "name": "plan-audit",
+      "role": "plan-audit",
+      "verdict": "approve",
+      "review_doc": ".omo/evidence/task-F1-ebpf-runtime-security-observability.json"
+    },
+    {
+      "name": "code-quality",
+      "role": "code-quality",
+      "verdict": "approve",
+      "review_doc": ".omo/evidence/task-F2-ebpf-runtime-security-observability.json"
+    },
+    {
+      "name": "real-qa",
+      "role": "real-qa",
+      "verdict": "approve",
+      "review_doc": ".omo/evidence/task-F3-ebpf-runtime-security-observability.html"
+    },
+    {
+      "name": "scope-fidelity",
+      "role": "scope-fidelity",
+      "verdict": "approve",
+      "review_doc": ".omo/evidence/task-F4-ebpf-runtime-security-observability.json"
+    }
+  ],
+  "gate_pass_fail": true
+}

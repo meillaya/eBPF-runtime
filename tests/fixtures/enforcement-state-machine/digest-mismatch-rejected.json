@@ -1,0 +1,13 @@
+{
+  "name": "digest-mismatch-rejected",
+  "description": "STAGE with a wrong content digest: VERIFY detects the mismatch and transitions to Rejected",
+  "transitions": [
+    {"action": "stage", "version": 1, "content_digest": "0000000000000000000000000000000000000000000000000000000000000000", "expect_state": "Staged", "expect_ok": true},
+    {"action": "verify", "expect_state": "Rejected", "expect_ok": false, "expect_error": "DigestMismatch"}
+  ],
+  "expect": {
+    "final_state": "Rejected",
+    "active_mode_file_open": "audit",
+    "deny_links_pinned": false
+  }
+}

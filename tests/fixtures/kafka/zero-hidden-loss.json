@@ -1,0 +1,21 @@
+{
+  "name": "zero-hidden-loss-declared-duplicates",
+  "description": "Across a mixed workload (happy publishes, transient retries, schema rejections, broker failures, queue full), every submitted batch is accounted for. The no-hidden-loss invariant holds: submitted == accepted + timed_out + queue_full + dlq + declared_duplicates + unrecoverable + in_flight. All duplicates are declared (idempotent producer deduplication), never hidden.",
+  "workload": [
+    {"type": "happy", "count": 10},
+    {"type": "transient_retry", "count": 3, "fail_count": 2},
+    {"type": "schema_rejected", "count": 2, "schema_major": 99},
+    {"type": "broker_down", "count": 1},
+    {"type": "queue_full", "count": 1}
+  ],
+  "expect": {
+    "total_submitted": 17,
+    "total_accepted": 13,
+    "total_dlq": 2,
+    "total_broker_unavailable": 1,
+    "total_queue_full": 1,
+    "no_hidden_loss": true,
+    "all_duplicates_declared": true,
+    "no_cross_session_exactly_once_claim": true
+  }
+}

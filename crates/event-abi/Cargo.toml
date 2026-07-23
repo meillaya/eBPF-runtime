@@ -1,0 +1,30 @@
+[package]
+name = "event-abi"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "kernel-v1 event ABI v1: hand-written + bindgen-rustified C header, safe parser, decoder and typed errors."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "event_abi"
+path = "src/lib.rs"
+
+[[bin]]
+name = "emit-fixture"
+path = "src/bin/emit_fixture.rs"
+
+[[bin]]
+name = "fuzz-roundtrip"
+path = "src/bin/fuzz_roundtrip.rs"
+
+[features]
+default = []
+miri = []
+fuzz = []
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"

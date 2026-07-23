@@ -1,0 +1,103 @@
+# .github/workflows/deterministic.yml
+#
+# kernel-v1 deterministic CI lane.
+#
+# This workflow is the PR and push gate. It runs on the hosted ubuntu-22.04
+# image only (no self-hosted, no rootful). Every step is non-mutating and
+# hermetic: it spins up the pinned devenv/Nix shell, runs the unit/property/
+# fuzz-smoke slice plus the full quality gate, and validates the evidence
+# ledger fixtures.
+#
+# Privileged sensor/enforcement/compatibility checks live in
+# `.github/workflows/privileged-host.yml` and are explicitly NOT exercised
+# here. Per the plan, deterministic and privileged lanes must never be
+# merged into a single runner image, and a missing privileged runner must
+# emit `blocked` evidence rather than passing.
+#
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+name: deterministic
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# Sequential concurrency on PRs: at most one in-flight deterministic run per
+# ref so a re-push does not race a queued one and flood the evidence ledger
+# with overlapping samples.
+concurrency:
+  group: deterministic-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Hard timeout — when quality:all hangs we want a loud exit, not a stall.
+timeout-minutes: 30
+
+jobs:
+  deterministic:
+    name: devenv + quality + proto + flake check (ubuntu-22.04)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      # Cachix token is a no-op for fork PRs (the secret resolves to ''), so
+      # the cachix step degrades to a normal pull-from-cache path. The job
+      # never fails just because the cache is unreachable.
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: install Nix
+        uses: cachix/install-nix-action@v24
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: "experimental-features = nix-command flakes"
+
+      - name: configure Cachix for devenv
+        uses: cachix/cachix-action@v13
+        with:
+          name: devenv
+          pushToHostedCache: true
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      # Unit / property / fuzz-smoke slice (task 4 quality gates).
+      # `devenv test` is the relaxed aggregate from devenv.nix; later tasks
+      # replace it with the nextest/proptest/cargo-fuzz proper suite.
+      - name: devenv test (unit/property/fuzz-smoke slice)
+        run: nix develop --no-pure-eval -c 'devenv test'
+
+      # Full quality gate: rustfmt, clippy, deny, biome, tsc, shellcheck,
+      # hadolint, helm, actionlint, spdx, loc, pre-commit.
+      - name: quality:all (aggregate quality gate)
+        run: nix develop --no-pure-eval -c 'devenv tasks run quality:all'
+
+      # Versioned protobuf / OpenAPI contract check (task 6).
+      - name: proto:check (buf lint + freshness + roundtrip)
+        run: nix develop --no-pure-eval -c 'devenv tasks run proto:check'
+
+      # Nix flake check. --accept-flake-config matches task 2's lockfile
+      # setup; reviewers can re-run without it later. The flag is a
+      # workspace acceptance, NOT a suppression of gate failures.
+      - name: nix flake check
+        run: nix develop --no-pure-eval -c 'nix flake check -L --accept-flake-config'
+
+      # Evidence-ledger validation: every valid/ fixture must validate
+      # against its schema, every invalid/ fixture must be rejected.
+      - name: validate evidence ledger fixtures
+        run: bash scripts/validate-evidence.sh tests/fixtures/evidence/valid
+
+      - name: confirm invalid evidence fixtures are rejected
+        run: |
+          set +e
+          bash scripts/validate-evidence.sh tests/fixtures/evidence/invalid
+          rc=$?
+          set -e
+          if [[ "$rc" -eq 0 ]]; then
+            echo "::error::validate-evidence.sh accepted invalid fixtures (rc=0) - schema drift?"
+            exit 1
+          fi
+          echo "validate-evidence.sh correctly rejected invalid fixtures (rc=$rc)"

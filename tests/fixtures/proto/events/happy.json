@@ -1,0 +1,99 @@
+{
+  "agent_generation": "agent-gen-1",
+  "boot_id_hex": "00000000000000000000000000000000",
+  "events": [
+    {
+      "event_id": "00000000-0000-0000-0000-000000000000",
+      "event_kind": "EVENT_KIND_PROCESS_FORK",
+      "sensor": "process",
+      "seq": 0
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000001",
+      "event_kind": "EVENT_KIND_PROCESS_EXEC_RESULT",
+      "sensor": "process",
+      "seq": 1
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000002",
+      "event_kind": "EVENT_KIND_PROCESS_EXIT",
+      "sensor": "process",
+      "seq": 2
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000003",
+      "event_kind": "EVENT_KIND_FILE_OPEN",
+      "sensor": "ops",
+      "seq": 3
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000004",
+      "event_kind": "EVENT_KIND_FILE_CREATE",
+      "sensor": "ops",
+      "seq": 4
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000005",
+      "event_kind": "EVENT_KIND_FILE_UNLINK",
+      "sensor": "ops",
+      "seq": 5
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000006",
+      "event_kind": "EVENT_KIND_FILE_RENAME",
+      "sensor": "ops",
+      "seq": 6
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000007",
+      "event_kind": "EVENT_KIND_NETWORK_CONNECT",
+      "sensor": "ops",
+      "seq": 7
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000008",
+      "event_kind": "EVENT_KIND_NETWORK_ACCEPT",
+      "sensor": "ops",
+      "seq": 8
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000009",
+      "event_kind": "EVENT_KIND_NETWORK_STATE",
+      "sensor": "ops",
+      "seq": 9
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000010",
+      "event_kind": "EVENT_KIND_DNS_PACKET",
+      "sensor": "ops",
+      "seq": 10
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000011",
+      "event_kind": "EVENT_KIND_SYSCALL_ENTER",
+      "sensor": "ops",
+      "seq": 11
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000012",
+      "event_kind": "EVENT_KIND_SYSCALL_EXIT",
+      "sensor": "ops",
+      "seq": 12
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000013",
+      "event_kind": "EVENT_KIND_LSM_DENY_OWN",
+      "sensor": "ops",
+      "seq": 13
+    },
+    {
+      "event_id": "00000000-0000-0000-0000-000000000014",
+      "event_kind": "EVENT_KIND_IDENTITY",
+      "sensor": "ops",
+      "seq": 14
+    }
+  ],
+  "node_name": "node-1",
+  "schema_major": 1,
+  "schema_minor": 0
+}

@@ -1,0 +1,44 @@
+# devenv.yaml — kernel-v1 (eBPF Runtime Security & Observability)
+#
+# Single pinned input set consumed by `devenv` (CLI) and `flake.nix` (Nix).
+# Inputs declared here are tracked in `devenv.lock`; the same `devenv.nix`
+# is reused so package lists are never duplicated.
+#
+# Task 2 of .omo/plans/ebpf-runtime-security-observability.md.
+require_version: ">=2.1"
+
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+  rust-overlay:
+    # Required by `languages.rust` so devenv can pin a specific Rust
+    # toolchain. Follows the same nixpkgs as the rest of the env.
+    url: github:oxalica/rust-overlay
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+  devenv:
+    # Pinned to the stable v2.1.2 release. The exact resolved rev is
+    # recorded in devenv.lock; bump deliberately and re-run `devenv update`.
+    url: github:cachix/devenv/v2.1.2
+
+imports:
+  - ./devenv.nix
+
+# Minimum viable shell block. The actual package list lives in devenv.nix
+# so both `devenv shell` and `nix develop` share one module.
+shell: bash
+
+# Convenience `devenv scripts` for printing the resolved tool versions
+# without leaving the shell. The actual package list lives in devenv.nix
+# so both `devenv shell` and `nix develop` share one module.
+scripts:
+  versions.exec: |
+    set -e
+    echo "tool versions for kernel-v1 task-2 evidence"
+    rustc --version || true
+    cargo --version || true
+    clang --version || true
+    bpftool version 2>/dev/null || bpftool --version || true
+    bun --version || true
+    sqlcipher -version 2>/dev/null || sqlcipher --version || true

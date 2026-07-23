@@ -1,0 +1,25 @@
+{
+  "name": "duplicate-commands-idempotent",
+  "description": "Duplicate STAGE, READY, COMMIT, APPLIED commands are all safe no-ops.",
+  "policy_version": {
+    "version": 1,
+    "content": "policy-v1",
+    "targets": ["spiffe://kernel-v1.test/agent/prod/node-1"]
+  },
+  "threshold_percent": 100,
+  "steps": [
+    {"action": "stage", "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "stage", "actor": "spiffe://kernel-v1.test/operator/admin", "note": "duplicate"},
+    {"action": "ready", "agent": "spiffe://kernel-v1.test/agent/prod/node-1", "digest_match": true},
+    {"action": "ready", "agent": "spiffe://kernel-v1.test/agent/prod/node-1", "digest_match": true, "note": "duplicate"},
+    {"action": "commit", "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "commit", "actor": "spiffe://kernel-v1.test/operator/admin", "note": "duplicate"},
+    {"action": "applied", "agent": "spiffe://kernel-v1.test/agent/prod/node-1"},
+    {"action": "applied", "agent": "spiffe://kernel-v1.test/agent/prod/node-1", "note": "duplicate"}
+  ],
+  "expect": {
+    "phase": "Completed",
+    "active_version": 1,
+    "no_errors": true
+  }
+}

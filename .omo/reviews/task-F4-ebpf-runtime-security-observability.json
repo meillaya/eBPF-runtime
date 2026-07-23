@@ -1,0 +1,235 @@
+{
+  "reviewer": "F4-scope-fidelity",
+  "verdict": "REJECT",
+  "timestamp": "2026-07-22T13:10:00Z",
+  "plan_file": ".omo/plans/ebpf-runtime-security-observability.md",
+  "plan_must_not_have_lines": "18-29",
+  "files_enumerated": 536,
+  "files_untraceable": [],
+  "file_traceability": {
+    "bpf/": {
+      "count": 14,
+      "traced_to": "Tasks 9-17 (sensors), Task 10 (build/vmlinux.h/Makefile), Task 1 (.gitkeep)"
+    },
+    "crates/": {
+      "count": 311,
+      "crate_task_map": {
+        "agent-core": "Tasks 19-22",
+        "agent": "Task 26",
+        "analytics-clickhouse": "Task 41",
+        "auth": "Task 37",
+        "bpf-build": "Task 10",
+        "bpf-loader": "Task 18",
+        "cli": "Task 48",
+        "control-db": "Task 38",
+        "control-plane": "Task 42",
+        "enforcement": "Tasks 33-34",
+        "enrichment": "Task 22",
+        "event-abi": "Task 9",
+        "event-bus-kafka": "Task 40",
+        "identity-spiffe": "Task 36",
+        "observability": "Task 25",
+        "policy-rollout": "Task 43",
+        "preflight-schema": "Task 3",
+        "privacy": "Task 23",
+        "protocol": "Task 35",
+        "rules": "Tasks 27-32",
+        "sensor-tests": "Tasks 11-17 (test fixtures)",
+        "storage-local": "Task 24",
+        "transport": "Task 39"
+      }
+    },
+    "proto/": {
+      "count": 3,
+      "traced_to": "Task 6 (protobuf contracts), Task 35 (protocol), Task 1 (.gitkeep)"
+    },
+    "web/": {
+      "count": 1,
+      "traced_to": "Task 1 (.gitkeep placeholder; dashboard deferred to tasks 44-47)"
+    },
+    "deploy/": {
+      "count": 8,
+      "traced_to": "Task 41 (ClickHouse SQL/config), Task 1 (.gitkeep)"
+    },
+    "tests/": {
+      "count": 153,
+      "traced_to": "Tasks 5 (evidence fixtures), 7 (preflight), 11-17 (sensor), 27-34 (rules/enforcement), 36-43 (fleet/auth/protocol/transport/kafka/clickhouse/policy-rollout/control-db/control-plane)"
+    },
+    "bench/": {
+      "count": 15,
+      "traced_to": "Verification strategy (bench/schemas/*.json), Tasks 17/33-34/40/53-60 (bench scripts)"
+    },
+    "schemas/": {
+      "count": 9,
+      "traced_to": "Task 3 (preflight-v1), Task 5 (evidence-*), Task 27 (rule-v1), Task 1 (.gitkeep)"
+    },
+    "scripts/": {
+      "count": 19,
+      "traced_to": "Tasks 2-8 (quality/preflight/evidence/proto/release/privileged/spdx/loc-lint), Task 1 (.gitkeep)"
+    },
+    "rules/": {
+      "count": 3,
+      "traced_to": "Task 30 (sensitive-files), Task 31 (reverse-shell), Task 32 (container-escape)"
+    }
+  },
+  "guardrails_checked": 11,
+  "guardrails_violated": [
+    {
+      "plan_item": 11,
+      "plan_text": "No module over 250 pure LOC without decomposition, no unwrap/panic/any in production code, no unbounded channel/map/cache, and no tests that pass from grep-only evidence or worker self-report.",
+      "violations": [
+        {
+          "type": "production_unwrap",
+          "severity": "MODERATE",
+          "file": "crates/agent/src/api.rs",
+          "lines": [390, 719, 995, 1003],
+          "detail": "4 .unwrap() calls in production functions (file has NO #[cfg(test)] module). Line 390: HeaderValue parse unwrap in export(). Lines 719/995/1003: Response::builder().body().unwrap() in ws_upgrade_response(), json_response(), text_response().",
+          "evidence_command": "grep -n '\\.unwrap()' crates/agent/src/api.rs",
+          "note": "Response::builder().body().unwrap() is a common hyper pattern (fails only on invalid headers; headers are hardcoded). But the plan explicitly forbids unwrap in production code."
+        },
+        {
+          "type": "loc_limit_exceeded",
+          "severity": "MAJOR",
+          "files_exceeding": 51,
+          "baselined_waivers": 2,
+          "enforcement_script": "scripts/loc-lint.sh",
+          "enforcement_exit_code": 1,
+          "largest_file": "crates/sensor-tests/tests/process_events.rs (2581 pure LOC)",
+          "top_production_violations": [
+            "crates/policy-rollout/src/state_machine.rs (1329 pure LOC)",
+            "crates/agent/src/api.rs (858 pure LOC)",
+            "crates/privacy/src/lib.rs (768 pure LOC)",
+            "crates/observability/src/lib.rs (781 pure LOC)",
+            "bpf/sensors/file.bpf.c (817 pure LOC)",
+            "bpf/include/event_abi.h (660 pure LOC)",
+            "bpf/sensors/dns.bpf.c (603 pure LOC)",
+            "bpf/sensors/network.bpf.c (593 pure LOC)",
+            "bpf/sensors/lsm.bpf.c (559 pure LOC)",
+            "crates/control-db/src/policy.rs (528 pure LOC)",
+            "crates/enforcement/src/state_machine.rs (507 pure LOC)",
+            "crates/event-bus-kafka/src/publisher.rs (485 pure LOC)",
+            "crates/transport/src/channel.rs (496 pure LOC)",
+            "crates/transport/src/transport.rs (445 pure LOC)",
+            "crates/identity-spiffe/src/workload.rs (431 pure LOC)"
+          ],
+          "evidence_command": "bash scripts/loc-lint.sh; echo $?",
+          "note": "loc-lint.sh correctly detects violations and exits 1. Only 2 files are baselined (preflight-schema/src/lib.rs, scripts/preflight.sh). 49 files are NOT baselined and exceed the 250 pure-LOC limit. Many violations are in test files, but production files also violate."
+        }
+      ]
+    }
+  ],
+  "forbidden_patterns_found": [],
+  "per_guardrail_verification": [
+    {
+      "item": 1,
+      "plan_text": "No Windows/macOS sensor, kernel module, custom kernel patch, runtime compilation on target nodes, support below Linux 5.15, or sensor startup without readable compatible BTF.",
+      "status": "PASS",
+      "checks": [
+        {"check": "grep -rl 'windows\\.h' across all source dirs", "result": "no matches"},
+        {"check": "grep -rl 'mach\\.h' across all source dirs", "result": "no matches"},
+        {"check": "grep -rl '#ifdef _WIN32|#ifdef __APPLE__' across all source dirs", "result": "no matches"},
+        {"check": "grep -rn 'module_init|MODULE_LICENSE|module_exit' across all source dirs", "result": "no matches"},
+        {"check": "grep for 'clang -target bpf' outside build scripts", "result": "only in bpf/sensors/Makefile, crates/bpf-build (build infrastructure), crates/sensor-tests/src/bin/ (test fixture recorders), and bpf/include/event_abi.h (comment). No runtime compilation on target."}
+      ]
+    },
+    {
+      "item": 2,
+      "plan_text": "No arbitrary packet capture, encrypted/plaintext payload interception, command output, keystroke capture, environment capture by default, unbounded argv, or persistence/export before configured redaction.",
+      "status": "PASS",
+      "checks": [
+        {"check": "grep for AF_PACKET/packet_socket/pcap_/SOCK_RAW in bpf/ and crates/", "result": "only in bpf/sensors/vmlinux.h (kernel type definitions, not sensor usage)"},
+        {"check": "DNS sensor bounded metadata (bpf/sensors/dns.bpf.c)", "result": "bounded capture with MAX_DNS limits, truncation reasons, bounded qname buffer (253 bytes), bounded payload read via bpf_skb_load_bytes"},
+        {"check": "argv bounds (crates/agent-core/src/process_graph.rs)", "result": "ARGV_LIMIT = 4*1024, EXEC_PATH_LIMIT = 256, argv_truncated flag set when exceeded"}
+      ]
+    },
+    {
+      "item": 3,
+      "plan_text": "No generic 'complete file access,' 'DNS lookup,' 'all syscall latency,' 'lossless,' 'exactly once,' or 'final LSM denial' claim.",
+      "status": "PASS",
+      "checks": [
+        {"check": "grep for lossless/exactly.once/final LSM denial/complete file access/all syscall latency in production code", "result": "only negation contexts: event-bus-kafka/src/lib.rs says 'cross-session exactly-once claim' (negating it), events.proto says 'plan forbids claims like final LSM denial'"}
+      ]
+    },
+    {
+      "item": 4,
+      "plan_text": "No default-on/default-deny enforcement, heuristic-only deny, pinned enforcement link, silent fail-closed behavior, remote shell/command execution, or claim that this replaces SELinux/AppArmor/seccomp/network policy.",
+      "status": "PASS",
+      "checks": [
+        {"check": "audit-first default in enforcement crate", "result": "PolicyGeneration::new_audit_only() used at startup; state_machine.rs line 27: 'All policies start audit-only (mode=0) at startup'; persistence.rs: 'startup audit-only invariant'; lib.rs: 'audit_first_default_mode = 0'"},
+        {"check": "deny_links_pinned() == false", "result": "policy.rs:340 deny_links_pinned() always returns false; state_machine.rs:121 deny_links_pinned: false at construction; state_machine.rs:390 reset to false on kill-switch; tests assert !deny_links_pinned()"},
+        {"check": "no default-deny pattern", "result": "grep for 'default.*deny|DefaultDeny' found only 'default deny errno' (the errno value for deny entries, not a default-deny mode)"},
+        {"check": "no remote shell/command execution", "result": "no matches for remote shell/command execution patterns in production code"}
+      ]
+    },
+    {
+      "item": 5,
+      "plan_text": "No Falco-syntax compatibility promise, general-purpose policy language, user-supplied arbitrary kernel hook, kernel-side dynamic expression compiler, machine-learning anomaly detection, or remediation outside the approved LSM deny surface.",
+      "status": "PASS",
+      "checks": [
+        {"check": "grep for 'falco compatible' in docs/code", "result": "all Falco references explicitly state 'NOT Falco-compatible': rules/Cargo.toml, rules/src/error.rs, rules/src/parse.rs, rules/src/lib.rs, schemas/rule-v1.schema.json"},
+        {"check": "grep for ML/anomaly/neural in production code", "result": "no matches for machine.learning, neural.net, anomaly.detect, ml_model, tensorflow, pytorch, onnx"},
+        {"check": "grep for standalone 'ml' word in production .rs", "result": "no matches"}
+      ]
+    },
+    {
+      "item": 6,
+      "plan_text": "No bespoke CA, OIDC provider, database, broker, ClickHouse cluster, consensus algorithm, Kubernetes distribution, or container runtime; production integrations remain external.",
+      "status": "PASS",
+      "checks": [
+        {"check": "architecture review", "result": "identity-spiffe crate integrates with external SPIRE; auth crate integrates with external OIDC; control-db connects to external PostgreSQL; event-bus-kafka connects to external Kafka; analytics-clickhouse connects to external ClickHouse. No embedded implementations."}
+      ]
+    },
+    {
+      "item": 7,
+      "plan_text": "No direct agent database/broker/ClickHouse credentials, direct browser-to-agent privileged RPC, unauthenticated non-loopback listener, static production tokens, or database RLS as the primary authorization boundary.",
+      "status": "PASS",
+      "checks": [
+        {"check": "agent bind address", "result": "agent/src/api.rs: DEFAULT_DEV_BIND = '127.0.0.1:9464'; NonLoopbackBindError rejects non-loopback binds; api.rs line 8: 'non-loopback bind (e.g. 0.0.0.0) is rejected by a strict check'"},
+        {"check": "static production tokens", "result": "auth/src/session.rs: 'Sessions are NEVER static production tokens'; identity-spiffe/src/lib.rs: 'No fallback to static tokens'"},
+        {"check": "mutable tags in deploy", "result": "no mutable tag references found in deploy/"}
+      ]
+    },
+    {
+      "item": 8,
+      "plan_text": "No silent duplicate removal, unknown-attribution guessing, historical row rewriting, invisible event loss, or deployment image referenced by mutable tag alone.",
+      "status": "PASS",
+      "checks": [
+        {"check": "silent dedup/hidden loss", "result": "event-bus-kafka/src/metrics.rs: 'These are NOT hidden loss'; verify_no_hidden_loss() method exists; dedup is explicit with DLQ"},
+        {"check": "mutable tags", "result": "no ':latest' or mutable tag references in deploy/"}
+      ]
+    },
+    {
+      "item": 9,
+      "plan_text": "No procMount: Unmasked, default full-privileged DaemonSet, hostPID: true without evidenced need, or pinned deny links that outlive the loader.",
+      "status": "PASS",
+      "checks": [
+        {"check": "grep for procMount/hostPID/privileged in deploy/", "result": "no matches (deploy/ contains only ClickHouse SQL/config, no k8s manifests yet - Helm chart deferred to tasks 49-51)"},
+        {"check": "pinned deny links", "result": "deny_links_pinned() always false; loader_state.rs: 'the loader NEVER pins a deny link'; pinned_deny_links_count() == 0 asserted in tests"}
+      ]
+    },
+    {
+      "item": 10,
+      "plan_text": "No multi-region active-active DR, SaaS tenant billing/administration, adversarial multi-tenant isolation promise, or guest-process visibility claim for VM-isolated runtimes.",
+      "status": "PASS",
+      "checks": [
+        {"check": "grep for multi-region/active-active/SaaS billing/adversarial multi-tenant", "result": "no matches in crates/ or deploy/"}
+      ]
+    },
+    {
+      "item": 11,
+      "plan_text": "No module over 250 pure LOC without decomposition, no unwrap/panic/any in production code, no unbounded channel/map/cache, and no tests that pass from grep-only evidence or worker self-report.",
+      "status": "FAIL",
+      "checks": [
+        {"check": "scripts/loc-lint.sh", "result": "EXIT 1: 51 files exceed 250 pure LOC across 191 files; 2 baseline waivers. Largest: crates/sensor-tests/tests/process_events.rs (2581 pure LOC). 49 non-baselined violations."},
+        {"check": "unwrap in production code", "result": "crates/agent/src/api.rs has 4 .unwrap() calls in production functions (no #[cfg(test)] module in file): lines 390, 719, 995, 1003"},
+        {"check": "unbounded channels/maps/caches", "result": "PASS: agent-core/src/channel.rs uses BoundedChannel with capacity; transport/src/queue.rs uses BoundedQueue; process_graph.rs has DEFAULT_CAPACITY=10000, DEFAULT_TTL_SECONDS=3600, evict()/evict_capacity(); socket_table.rs has capacity+TTL eviction; enrichment/src/cache.rs has bounded cache"},
+        {"check": "TypeScript 'any'", "result": "N/A: web/ contains only .gitkeep (deferred to tasks 44-47)"}
+      ]
+    }
+  ],
+  "notes": "REJECT: Two violations of Must NOT have item 11. (1) crates/agent/src/api.rs contains 4 .unwrap() calls in production code (lines 390, 719, 995, 1003) — the file has no #[cfg(test)] module, so these are unambiguously production paths. (2) scripts/loc-lint.sh exits 1 with 51 files exceeding the 250 pure-LOC limit; only 2 are baselined. All 536 source files trace to planned components (tasks 1-43 or infrastructure). The remaining 10 Must NOT have guardrails (items 1-10) all PASS with concrete grep/find evidence. Deferred tasks 44-60 were not treated as scope violations. The Must NOT have list in the plan (lines 18-29) matches the derived checklist verbatim.",
+  "remediation_required": [
+    "Replace 4 .unwrap() calls in crates/agent/src/api.rs with .expect() with message or proper error handling (lines 390, 719, 995, 1003)",
+    "Decompose 49 non-baselined files exceeding 250 pure LOC, or add them to scripts/loc-baseline.txt with due-task markers and rationale (requires code review per baseline policy)"
+  ]
+}

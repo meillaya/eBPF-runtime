@@ -1,0 +1,71 @@
+{{/*
+SPDX-License-Identifier: Apache-2.0 OR MIT
+
+Migration Job — Helm hooks for pre-install and pre-upgrade.
+
+Runs PostgreSQL migrations from crates/control-db/migrations/ before
+the control-plane starts. The job is idempotent (sqlx migrate run).
+
+Rollback support:
+  - hook-delete-policy: before-hook-creation ensures old jobs are cleaned
+    up before a new migration run, preventing conflicts on rollback+upgrade.
+  - Migrations use sqlx with reversible .up.sql/.down.sql pairs.
+  - For a full rollback, run `helm rollback` and then manually apply
+    down migrations if needed (the job only runs forward migrations).
+  - ttlSecondsAfterFinished cleans up completed jobs automatically.
+*/}}
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "kernel-v1.fullname" . }}-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "kernel-v1.migrations.labels" . | nindent 4 }}
+  annotations:
+    # Run before install and upgrade.
+    "helm.sh/hook": pre-install,pre-upgrade
+    # Lower weight runs first.
+    "helm.sh/hook-weight": "-5"
+    # Delete the previous job before creating a new one (rollback-safe).
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "kernel-v1.migrations.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kernel-v1.serviceAccountName" . }}
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: {{ include "kernel-v1.image" (dict "image" .Values.migrations.image) }}
+          imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.migrations.command | nindent 12 }}
+          args:
+            {{- toYaml .Values.migrations.args | nindent 12 }}
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            {{- include "kernel-v1.postgresql.env" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+{{- end }}

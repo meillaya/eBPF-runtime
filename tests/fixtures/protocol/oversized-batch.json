@@ -1,0 +1,29 @@
+{
+  "name": "oversized-batch",
+  "description": "Failure: batch exceeds max_batch_messages (5 > 3), expect OversizedBatch.",
+  "bounds": {
+    "max_batch_messages": 3,
+    "max_message_size_bytes": 1048576
+  },
+  "idempotency_key": "batch-oversized",
+  "batch": {
+    "schema_major": 1,
+    "schema_minor": 0,
+    "events": [
+      { "event_id": "e0", "seq": 0, "ts_monotonic_ns": 0, "sensor": "ops", "event_kind": "FileOpen", "valids": {} },
+      { "event_id": "e1", "seq": 1, "ts_monotonic_ns": 0, "sensor": "ops", "event_kind": "FileOpen", "valids": {} },
+      { "event_id": "e2", "seq": 2, "ts_monotonic_ns": 0, "sensor": "ops", "event_kind": "FileOpen", "valids": {} },
+      { "event_id": "e3", "seq": 3, "ts_monotonic_ns": 0, "sensor": "ops", "event_kind": "FileOpen", "valids": {} },
+      { "event_id": "e4", "seq": 4, "ts_monotonic_ns": 0, "sensor": "ops", "event_kind": "FileOpen", "valids": {} }
+    ],
+    "agent_generation": "gen-1",
+    "node_name": "node-1",
+    "boot_id_hex": "00000000000000000000000000000000"
+  },
+  "expect": {
+    "state": "Rejected",
+    "error": "OversizedBatch",
+    "actual_count": 5,
+    "max_count": 3
+  }
+}

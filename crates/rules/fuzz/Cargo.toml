@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
+# cargo-fuzz harness crate for the rules parser / predicate boundary
+# (YAML parse, bounded-regex validation, condition nesting). Separate
+# workspace (empty `[workspace]` detaches it from the parent kernel-v1
+# workspace) so `cargo test --workspace` and the main lock are unaffected.
+# Run via `cargo fuzz` (see README.md / top-level FUZZING.md).
+
+[package]
+name = "rules-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rules = { path = ".." }
+
+# Detach from the parent workspace.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "parse_yaml"
+path = "fuzz_targets/parse_yaml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "regex_boundary"
+path = "fuzz_targets/regex_boundary.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "deep_nesting"
+path = "fuzz_targets/deep_nesting.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,44 @@
+[package]
+name = "rules"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "kernel-v1 native versioned YAML rule schema: canonical AST, parser, semantic/type checker, field catalog, deterministic canonical digest, and rich path-aware diagnostics. Native DSL; NOT Falco-compatible."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "rules"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rules-cli"
+path = "src/bin/rules-cli.rs"
+
+[[bin]]
+name = "predicates-cli"
+path = "src/bin/predicates-cli.rs"
+
+[[bin]]
+name = "sequences-cli"
+path = "src/bin/sequences-cli.rs"
+
+[features]
+default = []
+
+[dependencies]
+event-abi = { path = "../event-abi" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "2"
+tracing = "0.1"
+regex = "1"
+regex-automata = "0.4"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+jsonschema = "0.17"
+
+[dev-dependencies]
+proptest = "1"
+tempfile = "3"

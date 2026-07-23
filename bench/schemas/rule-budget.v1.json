@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "$id": "https://kernel-v1.local/schemas/rule-budget/v1.json",
+  "title": "kernel-v1 rule evaluation budget (v1)",
+  "description": "Versioned source of truth for the numeric constants that bound deterministic rule evaluation (task 28): predicate complexity/depth budgets, immutable list size, scoped exception size, bounded-regex character and timing limits, and temporal-sequence step/window bounds (engine wired in task 29). Tasks reference the schema path rather than hardcoding numbers inline; any number not anchored here is a plan defect. The defaults below are the per-evaluation resource budget the predicate evaluator enforces; an evaluation that would exceed any bound is rejected with a typed error instead of consuming unbounded time or memory.",
+  "type": "object",
+  "properties": {
+    "max_ops_per_evaluation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1048576,
+      "default": 1024,
+      "description": "Maximum number of predicate operations (leaf field evaluations) per single condition evaluation (task 28). An evaluation that would exceed this is rejected as too many operations rather than running unbounded."
+    },
+    "max_nested_expressions": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096,
+      "default": 16,
+      "description": "Maximum nesting depth of AND/OR/NOT expressions in a condition (task 28). A deeper condition is rejected as nesting too deep before evaluation."
+    },
+    "max_list_items": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1048576,
+      "default": 64,
+      "description": "Maximum number of items in a reusable immutable list (task 28). A larger list is rejected so membership evaluation stays bounded."
+    },
+    "max_regex_chars": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65536,
+      "default": 256,
+      "description": "Maximum number of characters in a regex pattern (task 28). A longer pattern is rejected as regex too large before compilation."
+    },
+    "max_regex_time_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 60000,
+      "default": 10,
+      "description": "Maximum wall-clock time in milliseconds for a single regex match call (task 28). A match exceeding this is rejected as regex too slow; the regex engine is linear-time (no backtracking) so this is a defensive bound."
+    },
+    "max_exception_items": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1048576,
+      "default": 64,
+      "description": "Maximum number of items in a scoped exception value array (task 28). A larger exception is rejected so exception evaluation stays bounded."
+    },
+    "max_sequence_steps": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096,
+      "default": 16,
+      "description": "Maximum number of ordered steps in a temporal sequence (task 28 budget; sequence engine wired in task 29). A sequence with more steps is rejected."
+    },
+    "max_sequence_window_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 604800,
+      "default": 3600,
+      "description": "Maximum correlation window in seconds for a temporal sequence (task 28 budget; sequence engine wired in task 29). A larger window is rejected."
+    },
+    "fixture_min_precision_and_recall": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1.0,
+      "description": "Minimum precision and recall a rule pack must achieve on its declared fixture corpus (tasks 30-32). Bench harnesses read this default; the value is NOT hardcoded in the harness scripts."
+    }
+  },
+  "required": [
+    "max_ops_per_evaluation",
+    "max_nested_expressions",
+    "max_list_items",
+    "max_regex_chars",
+    "max_regex_time_ms",
+    "max_exception_items",
+    "max_sequence_steps",
+    "max_sequence_window_seconds"
+  ],
+  "additionalProperties": false
+}

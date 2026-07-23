@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#06090f" />
+    <meta
+      name="description"
+      content="kernel-v1 Sentinel Console — eBPF runtime security & observability dashboard"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>KERNEL-V1 // Sentinel Console</title>
+    <!--
+      PANOPTES type system (web/DESIGN.md §3): Chakra Petch display,
+      IBM Plex Sans body, JetBrains Mono data. CDN-loaded with system
+      fallback stacks; the console stays functional offline.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Pre-paint canvas so the console never flashes white. */
+      html {
+        background: #06090f;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

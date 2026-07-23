@@ -1,0 +1,13 @@
+{
+  "name": "deadline-expiry-drop",
+  "description": "A control message with an expired deadline is dropped; a valid message is sent",
+  "now_epoch_ms": 200,
+  "messages": [
+    {"type": "HealthPing", "timestamp_ms": 1, "deadline_epoch_ms": 100, "expect_sent": false},
+    {"type": "HealthPing", "timestamp_ms": 2, "deadline_epoch_ms": 999999, "expect_sent": true}
+  ],
+  "expect": {
+    "sent_total": 1,
+    "dropped_expired": 1
+  }
+}

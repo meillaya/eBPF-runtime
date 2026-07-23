@@ -1,0 +1,19 @@
+{
+  "name": "unlink-shadow",
+  "description": "FileUnlink on /etc/shadow triggers the mutation deny. Unlink (delete) is destructive; deny is eligible on kernel-observable LSM facts.",
+  "event": {
+    "fields": {
+      "file.path": "/etc/shadow",
+      "file.kind": "FileUnlink",
+      "process.exec_path": "/usr/bin/rm",
+      "process.pid": 2345,
+      "process.uid": 0
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": true,
+    "rule_id": "sensitive-file-mutation",
+    "action": "deny"
+  }
+}

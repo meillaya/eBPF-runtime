@@ -1,0 +1,19 @@
+{
+  "name": "allowed-read-non-sensitive",
+  "description": "FileOpen on a non-sensitive path (/tmp/test.txt) must not trigger any rule. Reads and non-sensitive paths are always allowed.",
+  "event": {
+    "fields": {
+      "file.path": "/tmp/test.txt",
+      "file.kind": "FileOpen",
+      "process.exec_path": "/usr/bin/cat",
+      "process.pid": 1234,
+      "process.uid": 1000
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": false,
+    "rule_id": null,
+    "action": null
+  }
+}

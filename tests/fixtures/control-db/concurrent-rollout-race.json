@@ -1,0 +1,21 @@
+{
+  "scenario": "concurrent_rollout_race",
+  "description": "Two concurrent rollout creation attempts for the same policy version. Exactly one wins; the other gets IdempotentDuplicate.",
+  "setup": {
+    "policy": "race-test-policy",
+    "version": 1,
+    "content_digest": "abc123def456",
+    "threshold_percent": 100
+  },
+  "concurrent_attempts": [
+    {"actor": "admin-1", "action": "create_rollout"},
+    {"actor": "admin-2", "action": "create_rollout"}
+  ],
+  "expected": {
+    "winners": 1,
+    "losers": 1,
+    "loser_error": "IdempotentDuplicate",
+    "rollout_state": "pending",
+    "audit_entries": 1
+  }
+}

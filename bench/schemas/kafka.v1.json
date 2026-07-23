@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "$id": "https://kernel-v1.local/schemas/kafka/v1.json",
+  "title": "kernel-v1 Kafka event bus budget (v1)",
+  "description": "Versioned source of truth for the numeric and policy constants that bound the Kafka event publisher (crates/event-bus-kafka). Every Kafka constant the bench harnesses and the Rust fixtures read is anchored here; any number not anchored here is a plan defect. The publisher uses an idempotent producer (acks=all, enable.idempotence=true, bounded in-flight) for at-least-once delivery with declared duplicates only. Per-agent partition ordering is guaranteed by deterministic partition key derivation from cluster/agent identity. Schema-rejected batches route to events.dlq.v1. Agents never see Kafka (control-plane only).",
+  "type": "object",
+  "properties": {
+    "default_broker_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 3,
+      "description": "Default number of brokers in the KRaft fixture cluster. The bench harness reads this to configure the mock cluster topology. Anchored as bench/schemas/kafka.v1.json#default_broker_count."
+    },
+    "acks": {
+      "type": "string",
+      "enum": ["all"],
+      "default": "all",
+      "description": "Producer acks setting. MUST be 'all' for the idempotent producer: every produce request waits for all in-sync replicas to acknowledge before the batch is considered durable. Anchored as bench/schemas/kafka.v1.json#acks."
+    },
+    "enable_idempotence": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the idempotent producer is enabled. MUST be true: the producer assigns a producer ID and sequence numbers per partition, enabling broker-side deduplication of retried batches. Anchored as bench/schemas/kafka.v1.json#enable_idempotence."
+    },
+    "max_in_flight_requests": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "default": 5,
+      "description": "Maximum in-flight requests per connection. Kafka's idempotent producer requires this to be <= 5 to guarantee ordering with retries. Anchored as bench/schemas/kafka.v1.json#max_in_flight_requests."
+    },
+    "max_retries": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647,
+      "default": 2147483647,
+      "description": "Maximum retries for transient produce failures (leader election, network blips). The idempotent producer retries indefinitely by default (i32::MAX). Anchored as bench/schemas/kafka.v1.json#max_retries."
+    },
+    "produce_timeout_ms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300000,
+      "default": 30000,
+      "description": "Produce request timeout in milliseconds. A batch that times out remains in the outbox; no ACK is sent. Anchored as bench/schemas/kafka.v1.json#produce_timeout_ms."
+    },
+    "max_queue_depth": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000,
+      "default": 10000,
+      "description": "Maximum local producer queue depth before backpressure. When the queue is full, new batches are rejected with QueueFull and remain in the outbox for retry. Anchored as bench/schemas/kafka.v1.json#max_queue_depth."
+    },
+    "topic_events": {
+      "type": "string",
+      "default": "events.v1",
+      "description": "The primary event topic. All event batches are published here. Anchored as bench/schemas/kafka.v1.json#topic_events."
+    },
+    "topic_dlq": {
+      "type": "string",
+      "default": "events.dlq.v1",
+      "description": "The dead-letter queue topic. Batches rejected by downstream consumers due to schema incompatibility are routed here. Anchored as bench/schemas/kafka.v1.json#topic_dlq."
+    },
+    "default_partition_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 12,
+      "description": "Default number of partitions for the events topic. Per-agent ordering is guaranteed by deterministic partition key derivation (SHA-256 of cluster/agent identity mod partition count). Anchored as bench/schemas/kafka.v1.json#default_partition_count."
+    },
+    "delivery_semantics": {
+      "type": "string",
+      "enum": ["at-least-once"],
+      "default": "at-least-once",
+      "description": "Delivery semantics. At-least-once with declared duplicates only. No cross-session exactly-once claim. All duplicates are declared via the idempotent producer's deduplication mechanism. Anchored as bench/schemas/kafka.v1.json#delivery_semantics."
+    },
+    "fixture_min_precision_and_recall": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1.0,
+      "description": "Minimum precision and recall the publisher fixture corpus must achieve. Every partition ordering, idempotent retry, ACK ordering, DLQ routing, and queue full case must be covered. Anchored as bench/schemas/kafka.v1.json#fixture_min_precision_and_recall."
+    }
+  },
+  "required": [
+    "default_broker_count",
+    "acks",
+    "enable_idempotence",
+    "topic_events",
+    "topic_dlq"
+  ],
+  "additionalProperties": false
+}

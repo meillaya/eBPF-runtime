@@ -1,0 +1,16 @@
+{
+  "name": "partition-ordering-per-agent",
+  "description": "All batches from the same agent (cluster/prod, agent/prod/node-1) land on the same partition, guaranteeing per-agent ordering. Different agents may share partitions but events from one agent are never split.",
+  "cluster": "prod",
+  "agents": [
+    {"agent_path": "agent/prod/node-1", "batch_count": 5},
+    {"agent_path": "agent/prod/node-2", "batch_count": 3},
+    {"agent_path": "agent/prod/node-1", "batch_count": 2}
+  ],
+  "partition_count": 12,
+  "expect": {
+    "same_agent_same_partition": true,
+    "per_agent_order_preserved": true,
+    "no_partition_split_for_single_agent": true
+  }
+}

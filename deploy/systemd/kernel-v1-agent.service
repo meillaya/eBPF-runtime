@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# kernel-v1-agent.service — hardened systemd unit for the eBPF runtime
+# security & observability agent.
+#
+# Privilege model: the service runs as the unprivileged `kernel-v1` system
+# user.  It receives exactly four Linux capabilities via AmbientCapabilities
+# (inherited across execve without root):
+#
+#   CAP_BPF       — load/attach BPF programs and maps
+#   CAP_PERFMON   — attach to perf events, tracepoints, kprobes
+#   CAP_SYS_ADMIN — mount bpffs/tracefs, pin BPF objects
+#   CAP_NET_ADMIN — attach to network-related hook points (TC, XDP)
+#
+# CapabilityBoundingSet is set to the same four, so the kernel will never
+# grant anything else even if the binary is compromised.
+#
+# The agent MUST implement sd_notify(READY=1, WATCHDOG=1) for Type=notify
+# and WatchdogSec to function.  See deploy/systemd/README.md.
+
+[Unit]
+Description=kernel-v1 eBPF runtime security & observability agent
+Documentation=https://github.com/kernel-v1/kernel-v1
+After=network-online.target
+Wants=network-online.target
+
+# Restart policy: retry up to 3 times within 60 s, then stop.
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=notify
+NotifyAccess=main
+
+# --- Identity (never root) ---------------------------------------------------
+User=kernel-v1
+Group=kernel-v1
+
+# --- Capability workflow ------------------------------------------------------
+# AmbientCapabilities: inherited by the unprivileged user across execve.
+# CapabilityBoundingSet: hard ceiling — the kernel drops everything else.
+AmbientCapabilities=CAP_BPF CAP_PERFMON CAP_SYS_ADMIN CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_BPF CAP_PERFMON CAP_SYS_ADMIN CAP_NET_ADMIN
+
+# --- Binary -------------------------------------------------------------------
+ExecStart=/usr/local/bin/kernel-v1-agent
+WorkingDirectory=/var/lib/kernel-v1
+
+# --- Restart & watchdog -------------------------------------------------------
+Restart=on-failure
+RestartSec=5s
+WatchdogSec=30s
+
+# --- Filesystem hardening -----------------------------------------------------
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/sys/fs/bpf /sys/kernel/debug/tracing
+StateDirectory=kernel-v1
+RuntimeDirectory=kernel-v1
+
+# --- Kernel / cgroup protection -----------------------------------------------
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+# --- Privilege escalation prevention ------------------------------------------
+NoNewPrivileges=true
+LockPersonality=true
+
+# --- Memory / scheduling hardening --------------------------------------------
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+
+# --- Network restriction ------------------------------------------------------
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+# --- Additional hardening -----------------------------------------------------
+PrivateDevices=false
+ProtectClock=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

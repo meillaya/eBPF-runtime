@@ -1,0 +1,116 @@
+/* SPDX-License-Identifier: Apache-2.0 OR MIT */
+/*
+ * PANOPTES design tokens — kernel-v1 Sentinel Console.
+ * Single source of truth: web/DESIGN.md. No raw color/size values are
+ * allowed elsewhere in src/; everything traces to a token below.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- surface ladder (deep blue-graphite, never pure black) ---- */
+  --bg-void: #06090f;
+  --bg-canvas: #0a101b;
+  --bg-panel: #0f1725;
+  --bg-raised: #152033;
+  --bg-inset: #0b1220;
+
+  /* ---- hairlines ---- */
+  --line-faint: #1b2740;
+  --line-strong: #2b3c5f;
+
+  /* ---- text (AA-verified on canvas/panel) ---- */
+  --text-primary: #e9eff8;
+  --text-secondary: #a3b3cb;
+  --text-muted: #7b8dab;
+  --text-inverse: #04120c;
+
+  /* ---- interactive hues ---- */
+  --accent-live: #3fe0a0;
+  --accent-live-dim: rgba(63, 224, 160, 0.14);
+  --accent-live-line: rgba(63, 224, 160, 0.4);
+  --accent-info: #59c2ff;
+  --accent-info-dim: rgba(89, 194, 255, 0.13);
+  --accent-info-line: rgba(89, 194, 255, 0.4);
+
+  /* ---- severity ladder (never color-alone: always paired with a word) ---- */
+  --sev-critical: #ff5468;
+  --sev-critical-bg: rgba(255, 84, 104, 0.13);
+  --sev-critical-line: rgba(255, 84, 104, 0.42);
+  --sev-high: #ff8f42;
+  --sev-high-bg: rgba(255, 143, 66, 0.13);
+  --sev-high-line: rgba(255, 143, 66, 0.42);
+  --sev-medium: #ffc94d;
+  --sev-medium-bg: rgba(255, 201, 77, 0.12);
+  --sev-medium-line: rgba(255, 201, 77, 0.42);
+  --sev-low: #5aa7ff;
+  --sev-low-bg: rgba(90, 167, 255, 0.13);
+  --sev-low-line: rgba(90, 167, 255, 0.42);
+  --sev-info: #8fa0b8;
+  --sev-info-bg: rgba(143, 160, 184, 0.12);
+  --sev-info-line: rgba(143, 160, 184, 0.4);
+
+  /* ---- connection states ---- */
+  --state-live: var(--accent-live);
+  --state-degraded: var(--sev-medium);
+  --state-offline: var(--sev-critical);
+  --state-idle: var(--text-muted);
+
+  /* ---- type families (DESIGN.md §3) ---- */
+  --font-display: "Chakra Petch", "Bahnschrift", "Franklin Gothic Medium", sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", ui-monospace, "Consolas", monospace;
+
+  /* ---- type scale ---- */
+  --text-display: 700 30px / 36px var(--font-display);
+  --text-display-sm: 600 19px / 24px var(--font-display);
+  --text-heading: 600 13px / 18px var(--font-body);
+  --text-body: 400 13.5px / 20px var(--font-body);
+  --text-caption: 500 11px / 16px var(--font-body);
+  --text-data: 400 12.5px / 18px var(--font-mono);
+  --text-data-strong: 500 12.5px / 18px var(--font-mono);
+  --text-data-lg: 500 22px / 28px var(--font-mono);
+  --text-micro: 500 10px / 14px var(--font-body);
+
+  --tracking-wide: 0.1em;
+  --tracking-wider: 0.12em;
+
+  /* ---- 4px space grid ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+  --space-10: 72px;
+
+  /* ---- radius (angular instrument panel) ---- */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-full: 999px;
+
+  /* ---- elevation: hairline + inset highlight; glow for emphasis ---- */
+  --edge-panel: 1px solid var(--line-faint);
+  --edge-strong: 1px solid var(--line-strong);
+  --inset-highlight: inset 0 1px 0 rgba(233, 239, 248, 0.04);
+  --glow-live: 0 0 0 1px var(--accent-live-line), 0 0 18px rgba(63, 224, 160, 0.12);
+  --glow-error: 0 0 0 1px var(--sev-critical-line), 0 0 18px rgba(255, 84, 104, 0.12);
+  --glow-focus: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent-info);
+
+  /* ---- motion ---- */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.22, 0.9, 0.28, 1);
+
+  /* ---- layout ---- */
+  --rail-w: 216px;
+  --topbar-h: 52px;
+  --row-h: 34px;
+
+  /* ---- modal scrim (void at 74%) ---- */
+  --overlay: rgba(6, 9, 15, 0.74);
+}

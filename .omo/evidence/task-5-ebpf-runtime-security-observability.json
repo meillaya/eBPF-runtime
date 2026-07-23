@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "task_id": "task-5",
+  "plan": ".omo/plans/ebpf-runtime-security-observability.md",
+  "session_id": "ses_07da7b4e8ffeImes0mzJSHjF4c",
+  "started_at": "2026-07-21T06:19:56Z",
+  "verdict": "confirmed",
+  "commands": [
+    {
+      "name": "before_commit",
+      "cmd": "git rev-parse 'HEAD~1'",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "6bc1e732929f08263b4777855410deaf117ea929\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "after_commit",
+      "cmd": "git rev-parse HEAD",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "39179584e47b45a482a14877f73841d6c6ebdff0\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "after_commit_short",
+      "cmd": "git rev-parse --short HEAD",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "3917958\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "branch",
+      "cmd": "git branch --show-current",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "feature/ebpf-runtime-security-observability\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "commit_subject",
+      "cmd": "git log -1 --pretty=%s",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "test(evidence): define machine-verifiable artifact contracts\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "commit_hash_short",
+      "cmd": "git log -1 --pretty=%h",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "3917958\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "files_changed",
+      "cmd": "git diff --name-only 'HEAD~1' HEAD",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "schemas/evidence-benchmark-run.v1.schema.json\nschemas/evidence-compat-matrix.v1.schema.json\nschemas/evidence-fault-test.v1.schema.json\nschemas/evidence-final-verdict.v1.schema.json\nschemas/evidence-privileged-sensor-event.v1.schema.json\nschemas/evidence-task.v1.schema.json\nscripts/lib/check_jsonschema.py\nscripts/validate-evidence.sh\ntests/fixtures/evidence/invalid/benchmark-run-missing-frozen-agent.json\ntests/fixtures/evidence/invalid/compat-matrix-mismatch.json\ntests/fixtures/evidence/invalid/sensor-event-bad-boot-id.json\ntests/fixtures/evidence/invalid/task-bad-verdict.json\ntests/fixtures/evidence/valid/benchmark-run-1.json\ntests/fixtures/evidence/valid/compat-matrix-1.json\ntests/fixtures/evidence/valid/fault-test-1.json\ntests/fixtures/evidence/valid/final-verdict-1.json\ntests/fixtures/evidence/valid/privileged-sensor-event-1.json\ntests/fixtures/evidence/valid/task-1.json\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "diff_stat",
+      "cmd": "git show --stat HEAD",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "commit 39179584e47b45a482a14877f73841d6c6ebdff0\nAuthor: kernel-v1 task-1 worker <task-1-worker@kernel-v1.local>\nDate:   Tue Jul 21 02:16:25 2026 -0400\n\n    test(evidence): define machine-verifiable artifact contracts\n    \n    Add JSON Schemas for the kernel-v1 evidence ledger and the validation tool\n    \n    that enforces them. Six schemas cover task evidence, privileged-sensor\n    \n    events, compatibility matrices, fault-test rows, benchmark runs, and\n    \n    final verdicts. Every evidence object binds task ID, command, exit\n    \n    status, environment hashes, timestamps, assertions, and artifact\n    \n    digests; prose logs and screenshots alone never pass review.\n    \n    scripts/validate-evidence.sh walks a file or directory and validates\n    \n    every .json file against its matching schema. Validator preference:\n    \n    ajv, then check-jsonschema, then a pure-Python stdlib fallback at\n    \n    scripts/lib/check_jsonschema.py so the gate runs even on runners\n    \n    without a JS toolchain. Each failure emits a canonical JSON pointer\n    \n    so reviewers can locate the offending field with one grep.\n    \n    Six valid fixtures (one per schema) and four invalid fixtures (one\n    \n    per schema, each breaking exactly one rule) ship under\n    \n    tests/fixtures/evidence/. Closes task 5 of\n    \n    .omo/plans/ebpf-runtime-security-observability.md.\n\n schemas/evidence-benchmark-run.v1.schema.json      | 197 +++++++++++++\n schemas/evidence-compat-matrix.v1.schema.json      | 154 ++++++++++\n schemas/evidence-fault-test.v1.schema.json         | 129 ++++++++\n schemas/evidence-final-verdict.v1.schema.json      | 134 +++++++++\n ...evidence-privileged-sensor-event.v1.schema.json | 216 ++++++++++++++\n schemas/evidence-task.v1.schema.json               | 277 +++++++++++++++++\n scripts/lib/check_jsonschema.py                    | 327 +++++++++++++++++++++\n scripts/validate-evidence.sh                       | 236 +++++++++++++++\n .../benchmark-run-missing-frozen-agent.json        |  32 ++\n .../evidence/invalid/compat-matrix-mismatch.json   |  49 +++\n .../evidence/invalid/sensor-event-bad-boot-id.json |  37 +++\n .../evidence/invalid/task-bad-verdict.json         |  43 +++\n tests/fixtures/evidence/valid/benchmark-run-1.json |  47 +++\n tests/fixtures/evidence/valid/compat-matrix-1.json |  49 +++\n tests/fixtures/evidence/valid/fault-test-1.json    |  17 ++\n tests/fixtures/evidence/valid/final-verdict-1.json |  42 +++\n .../evidence/valid/privileged-sensor-event-1.json  |  39 +++\n tests/fixtures/evidence/valid/task-1.json          |  88 ++++++\n 18 files changed, 2113 insertions(+)\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "git_status",
+      "cmd": "git status --porcelain",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "?? .omo/\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "acceptance_valid_dir",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && ./scripts/validate-evidence.sh tests/fixtures/evidence/valid",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "acceptance_invalid_task-bad-verdict.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && ./scripts/validate-evidence.sh tests/fixtures/evidence/invalid/task-bad-verdict.json",
+      "expected_exit_code": 1,
+      "actual_exit_code": 1,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "validate-evidence.sh: tests/fixtures/evidence/invalid/task-bad-verdict.json: /verdict: value 'maybe' not in enum ['confirmed', 'false-positive', 'needs-fix', 'needs-human-review', 'inconclusive']\nvalidate-evidence.sh: 1 file(s) failed validation\n"
+    },
+    {
+      "name": "acceptance_invalid_sensor-event-bad-boot-id.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && ./scripts/validate-evidence.sh tests/fixtures/evidence/invalid/sensor-event-bad-boot-id.json",
+      "expected_exit_code": 1,
+      "actual_exit_code": 1,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "validate-evidence.sh: tests/fixtures/evidence/invalid/sensor-event-bad-boot-id.json: /boot_id: string does not satisfy format 'uuid'\nvalidate-evidence.sh: 1 file(s) failed validation\n"
+    },
+    {
+      "name": "acceptance_invalid_compat-matrix-mismatch.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && ./scripts/validate-evidence.sh tests/fixtures/evidence/invalid/compat-matrix-mismatch.json",
+      "expected_exit_code": 1,
+      "actual_exit_code": 1,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "validate-evidence.sh: tests/fixtures/evidence/invalid/compat-matrix-mismatch.json: /cells/1/ok: expected const True\nvalidate-evidence.sh: 1 file(s) failed validation\n"
+    },
+    {
+      "name": "acceptance_invalid_benchmark-run-missing-frozen-agent.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && ./scripts/validate-evidence.sh tests/fixtures/evidence/invalid/benchmark-run-missing-frozen-agent.json",
+      "expected_exit_code": 1,
+      "actual_exit_code": 1,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "validate-evidence.sh: tests/fixtures/evidence/invalid/benchmark-run-missing-frozen-agent.json: /anti_limiter_demonstrated: missing required property\nvalidate-evidence.sh: 1 file(s) failed validation\n"
+    },
+    {
+      "name": "acceptance_schema_id_uniqueness",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && jq -r '.[\\\"$id\\\"]' schemas/evidence-*.v1.schema.json | sort | uniq -c",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "jq: error: syntax error, unexpected INVALID_CHARACTER at <top-level>, line 1, column 3:\n    .[\\\"$id\\\"]\n      ^\njq: 1 compile error\n"
+    },
+    {
+      "name": "schema_parseable_evidence-benchmark-run.v1.schema.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && jq -e . schemas/evidence-benchmark-run.v1.schema.json >/dev/null && echo OK",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "OK\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "schema_parseable_evidence-compat-matrix.v1.schema.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && jq -e . schemas/evidence-compat-matrix.v1.schema.json >/dev/null && echo OK",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "OK\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "schema_parseable_evidence-fault-test.v1.schema.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && jq -e . schemas/evidence-fault-test.v1.schema.json >/dev/null && echo OK",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "OK\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "schema_parseable_evidence-final-verdict.v1.schema.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && jq -e . schemas/evidence-final-verdict.v1.schema.json >/dev/null && echo OK",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "OK\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "schema_parseable_evidence-privileged-sensor-event.v1.schema.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && jq -e . schemas/evidence-privileged-sensor-event.v1.schema.json >/dev/null && echo OK",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "OK\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "schema_parseable_evidence-task.v1.schema.json",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && jq -e . schemas/evidence-task.v1.schema.json >/dev/null && echo OK",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "OK\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "acceptance_schema_version",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && jq -r '.version' schemas/evidence-*.v1.schema.json | sort | uniq -c",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "      6 1\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "qa_happy_real_btf_sha256",
+      "cmd": "sha256sum /sys/kernel/btf/vmlinux",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37  /sys/kernel/btf/vmlinux\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "qa_happy_validates",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && ./scripts/validate-evidence.sh tests/fixtures/evidence/valid/task-1.json",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "qa_failure_jq_del_btf",
+      "cmd": "jq 'del(.environment.kernel_btf_sha256)' /tmp/task-1-no-btf.json > /tmp/task-1-no-btf.json.tmp && mv /tmp/task-1-no-btf.json.tmp /tmp/task-1-no-btf.json && jq '.environment | keys' /tmp/task-1-no-btf.json",
+      "expected_exit_code": 0,
+      "actual_exit_code": 0,
+      "stdout_excerpt": "[\n  \"arch\",\n  \"bpf_lsm_active\",\n  \"bpftool_version\",\n  \"cachix_devenv_version\",\n  \"clang_version\",\n  \"kernel_version\",\n  \"libbpf_soname\",\n  \"os_release\",\n  \"rustc_version\",\n  \"sqlcipher_version\",\n  \"unprivileged_bpf_disabled\"\n]\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "qa_failure_validates",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && ./scripts/validate-evidence.sh /tmp/task-1-no-btf.json",
+      "expected_exit_code": 1,
+      "actual_exit_code": 1,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "validate-evidence.sh: /tmp/task-1-no-btf.json: /environment/kernel_btf_sha256: missing required property\nvalidate-evidence.sh: 1 file(s) failed validation\n"
+    },
+    {
+      "name": "qa_failure_validates_stderr_only",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && ./scripts/validate-evidence.sh /tmp/task-1-no-btf.json 2>&1 1>/dev/null",
+      "expected_exit_code": 1,
+      "actual_exit_code": 1,
+      "stdout_excerpt": "validate-evidence.sh: /tmp/task-1-no-btf.json: /environment/kernel_btf_sha256: missing required property\nvalidate-evidence.sh: 1 file(s) failed validation\n",
+      "stderr_excerpt": ""
+    },
+    {
+      "name": "verify_invalid_dir",
+      "cmd": "cd /home/mei/projects/kernels/kernel-v1 && ./scripts/validate-evidence.sh tests/fixtures/evidence/invalid",
+      "expected_exit_code": 1,
+      "actual_exit_code": 1,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "validate-evidence.sh: tests/fixtures/evidence/invalid/compat-matrix-mismatch.json: /cells/1/ok: expected const True\nvalidate-evidence.sh: tests/fixtures/evidence/invalid/task-bad-verdict.json: /verdict: value 'maybe' not in enum ['confirmed', 'false-positive', 'needs-fix', 'needs-human-review', 'inconclusive']\nvalidate-evidence.sh: tests/fixtures/evidence/invalid/benchmark-run-missing-frozen-agent.json: /anti_limiter_demonstrated: missing required property\nvalidate-evidence.sh: tests/fixtures/evidence/invalid/sensor-event-bad-boot-id.json: /boot_id: string does not satisfy format 'uuid'\nvalidate-evidence.sh: 4 file(s) failed validation\n"
+    }
+  ],
+  "assertions": [
+    "before_commit: exit 0 matches expected 0",
+    "after_commit: exit 0 matches expected 0",
+    "after_commit_short: exit 0 matches expected 0",
+    "branch: exit 0 matches expected 0",
+    "commit_subject: exit 0 matches expected 0",
+    "commit_hash_short: exit 0 matches expected 0",
+    "files_changed: exit 0 matches expected 0",
+    "diff_stat: exit 0 matches expected 0",
+    "git_status: exit 0 matches expected 0",
+    "acceptance_valid_dir: exit 0 matches expected 0",
+    "acceptance_invalid_task-bad-verdict.json: exit 1 matches expected 1",
+    "acceptance_invalid_sensor-event-bad-boot-id.json: exit 1 matches expected 1"
+  ],
+  "environment": {
+    "kernel_version": "7.1.3-2-cachyos",
+    "arch": "x86_64",
+    "os_release": "CachyOS",
+    "kernel_btf_sha256": "cc7203f0a684790db88f0710bdf0eb61b4bb91def5784fa6197eb1d091a2ec37",
+    "cachix_devenv_version": "devenv v2.1.2 (pinned in devenv.lock rev ea3d94ac9d6b)",
+    "libbpf_soname": "libbpf.so.1",
+    "bpftool_version": "bpftool v7.8.0",
+    "clang_version": "clang version 22.1.8",
+    "rustc_version": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+    "sqlcipher_version": "unavailable",
+    "bpf_lsm_active": true,
+    "unprivileged_bpf_disabled": 2
+  },
+  "artifacts": [
+    {
+      "path": ".omo/plans/ebpf-runtime-security-observability.md",
+      "sha256": "adf554d7b8672889f7dff91edcf940b2f56a1ac61a369b7786203a0c5eeb1917",
+      "size": 137927,
+      "kind": "md"
+    }
+  ],
+  "commit": "39179584e47b45a482a14877f73841d6c6ebdff0"
+}

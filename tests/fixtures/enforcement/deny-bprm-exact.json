@@ -1,0 +1,21 @@
+{
+  "name": "deny-bprm-exact",
+  "description": "Deny-mode binary-exec (bprm_check_security) policy with an exact match on bprm->filename. Returns -13 and records an own-denial.",
+  "input": {
+    "hook_family": "bprm_check_security",
+    "prior_ret": 0,
+    "selector": "/usr/bin/nc",
+    "selector_valid": true,
+    "ring_full": false,
+    "policy": { "present": true, "mode": "deny", "hook_family": "bprm_check_security", "version": 1, "generation": 5, "selector": "/usr/bin/nc", "deny_errno": -13 },
+    "kill_switch": { "deny_disabled": false }
+  },
+  "expect": {
+    "returned": -13,
+    "decision": "deny",
+    "deny_source": "own_lsm",
+    "own_denial_recorded": true,
+    "result_changed": true,
+    "event_kind": 15
+  }
+}

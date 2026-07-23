@@ -1,0 +1,19 @@
+{
+  "name": "truncate-passwd",
+  "description": "FileTruncate on /etc/passwd triggers the write-intent alert. Truncation modifies file content and is write-intent.",
+  "event": {
+    "fields": {
+      "file.path": "/etc/passwd",
+      "file.kind": "FileTruncate",
+      "process.exec_path": "/usr/bin/truncate",
+      "process.pid": 3456,
+      "process.uid": 0
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": true,
+    "rule_id": "sensitive-file-write-intent",
+    "action": "alert"
+  }
+}

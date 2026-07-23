@@ -1,0 +1,17 @@
+{
+  "name": "malformed-schema-headers",
+  "description": "Records with malformed or missing schema headers are rejected. A missing schema_major header, a non-u32 schema_major value, or a schema major mismatch all trigger DLQ routing. The rejection reason is recorded in the DLQ metadata headers.",
+  "supported_schema_major": 1,
+  "cases": [
+    {"name": "missing-major", "headers": [{"key": "schema_minor", "value_u32": 0}], "expect": "rejected", "reason_contains": "missing schema_major"},
+    {"name": "invalid-u32", "headers": [{"key": "schema_major", "value_str": "not-a-number"}], "expect": "rejected", "reason_contains": "not a valid u32"},
+    {"name": "major-mismatch", "headers": [{"key": "schema_major", "value_u32": 99}], "expect": "rejected", "reason_contains": "schema major mismatch"},
+    {"name": "valid", "headers": [{"key": "schema_major", "value_u32": 1}, {"key": "schema_minor", "value_u32": 0}], "expect": "accepted"}
+  ],
+  "expect": {
+    "rejected_count": 3,
+    "accepted_count": 1,
+    "all_rejected_routed_to_dlq": true,
+    "no_hidden_loss": true
+  }
+}

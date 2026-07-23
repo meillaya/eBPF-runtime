@@ -1,0 +1,66 @@
+{
+  "description": "Malformed messages that must route to DLQ with topic/partition/offset metadata. Consumer continues after each DLQ routing.",
+  "malformed_messages": [
+    {
+      "name": "invalid-json",
+      "kafka_partition": 0,
+      "kafka_offset": 500,
+      "raw_payload": "{invalid json here",
+      "raw_key": "agent/prod/node-1",
+      "expected_dlq_reason_prefix": "malformed_payload",
+      "consumer_continues": true
+    },
+    {
+      "name": "schema-major-2",
+      "kafka_partition": 1,
+      "kafka_offset": 600,
+      "schema_major": 2,
+      "schema_minor": 0,
+      "event_id": "evt-schema-2",
+      "batch_id": "batch-schema-2",
+      "event_kind": "EVENT_KIND_FILE_OPEN",
+      "raw_payload": "{\"event_id\":\"evt-schema-2\",\"schema_major\":2}",
+      "raw_key": "agent/prod/node-2",
+      "expected_dlq_reason_prefix": "schema_major_unsupported",
+      "consumer_continues": true
+    },
+    {
+      "name": "schema-major-99",
+      "kafka_partition": 2,
+      "kafka_offset": 700,
+      "schema_major": 99,
+      "schema_minor": 0,
+      "event_id": "evt-schema-99",
+      "batch_id": "batch-schema-99",
+      "event_kind": "EVENT_KIND_DNS_PACKET",
+      "raw_payload": "{\"event_id\":\"evt-schema-99\",\"schema_major\":99}",
+      "raw_key": "agent/prod/node-3",
+      "expected_dlq_reason_prefix": "schema_major_unsupported",
+      "consumer_continues": true
+    },
+    {
+      "name": "unknown-event-kind",
+      "kafka_partition": 0,
+      "kafka_offset": 800,
+      "schema_major": 1,
+      "schema_minor": 0,
+      "event_id": "evt-unknown-kind",
+      "event_kind": "EVENT_KIND_BOGUS",
+      "raw_payload": "{\"event_id\":\"evt-unknown-kind\",\"event_kind\":\"EVENT_KIND_BOGUS\"}",
+      "raw_key": "agent/prod/node-1",
+      "expected_dlq_reason_prefix": "unknown_event_kind",
+      "consumer_continues": true
+    },
+    {
+      "name": "empty-payload",
+      "kafka_partition": 3,
+      "kafka_offset": 900,
+      "raw_payload": "",
+      "raw_key": "",
+      "expected_dlq_reason_prefix": "malformed_payload",
+      "consumer_continues": true
+    }
+  ],
+  "expected_total_dlq_records": 5,
+  "expected_consumer_survives": true
+}

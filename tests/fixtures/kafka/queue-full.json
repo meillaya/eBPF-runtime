@@ -1,0 +1,13 @@
+{
+  "name": "queue-full-backpressure",
+  "description": "When the local producer queue is full (in-flight >= max_in_flight), new batches are rejected with QueueFull. The batch remains in the outbox for retry after backpressure relief. No ACK is sent. No batch is lost.",
+  "max_in_flight": 5,
+  "in_flight_at_rejection": 5,
+  "expect": {
+    "error_type": "QueueFull",
+    "batch_stays_in_outbox": true,
+    "no_ack_sent": true,
+    "no_hidden_loss": true,
+    "metrics_queue_full_count": 1
+  }
+}

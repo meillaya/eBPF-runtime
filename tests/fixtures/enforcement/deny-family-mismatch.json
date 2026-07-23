@@ -1,0 +1,21 @@
+{
+  "name": "deny-family-mismatch",
+  "description": "Policy present but its hook_family does not match the invoked hook (a file_open policy consulted on socket_connect). Treated as no applicable policy: fail-open allow, no own-denial.",
+  "input": {
+    "hook_family": "socket_connect",
+    "prior_ret": 0,
+    "selector": "connect:10.0.0.5:4444",
+    "selector_valid": true,
+    "ring_full": false,
+    "policy": { "present": true, "mode": "deny", "hook_family": "file_open", "version": 3, "generation": 42, "selector": "connect:10.0.0.5:4444", "deny_errno": -13 },
+    "kill_switch": { "deny_disabled": false }
+  },
+  "expect": {
+    "returned": 0,
+    "decision": "allow",
+    "deny_source": "none",
+    "own_denial_recorded": false,
+    "result_changed": false,
+    "event_kind": 15
+  }
+}

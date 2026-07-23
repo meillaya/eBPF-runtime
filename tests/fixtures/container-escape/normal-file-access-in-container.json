@@ -1,0 +1,27 @@
+{
+  "name": "normal-file-access-in-container",
+  "description": "FileOpen on /etc/resolv.conf from a process inside a container. This is a completely normal file access (DNS configuration read) that does not match any container-escape indicator. enrichment.container_id is resolved (container context present) but the file path is not a runtime socket, /proc/1/root, or dangerous device. No rule condition matches. Expect no match.",
+  "event": {
+    "fields": {
+      "file.path": "/etc/resolv.conf",
+      "file.kind": "FileOpen",
+      "process.exec_path": "/usr/bin/python3",
+      "process.pid": 8844,
+      "process.uid": 1000,
+      "identity.cgroup_id": 4823,
+      "identity.ns_mnt": 4026532560,
+      "identity.ns_pid": 4026532561,
+      "identity.ns_net": 4026532562,
+      "identity.ns_user": 4026531837,
+      "enrichment.container_id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "enrichment.pod_name": "web-frontend-7d9f8b6c5-x2k4m",
+      "enrichment.namespace": "production"
+    },
+    "null_fields": []
+  },
+  "expect": {
+    "match": false,
+    "rule_id": null,
+    "action": null
+  }
+}

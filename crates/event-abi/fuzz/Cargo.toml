@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
+# cargo-fuzz harness crate for the event-abi ABI decode boundary.
+# This is a SEPARATE workspace (the empty `[workspace]` table detaches it
+# from the parent kernel-v1 workspace) so `cargo test --workspace` and the
+# main `Cargo.lock` are never affected by the fuzzer build. Run via
+# `cargo fuzz` from this directory (see README.md / top-level FUZZING.md).
+
+[package]
+name = "event-abi-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+event-abi = { path = ".." }
+
+# Detach from the parent workspace.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "parse"
+path = "fuzz_targets/parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_stability"
+path = "fuzz_targets/parse_stability.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decode_report"
+path = "fuzz_targets/decode_report.rs"
+test = false
+doc = false
+bench = false

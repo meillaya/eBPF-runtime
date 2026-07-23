@@ -1,0 +1,49 @@
+{
+  "$schema": "https://kernel-v1.local/schemas/base-images/v1.json",
+  "schema_version": 1,
+  "description": "Pinned base-image digests for the kernel-v1 OCI bake. Every image is pinned by digest (never mutable tag). Resolve fresh digests with: docker buildx imagetools inspect <image>:<tag>. Updated 2026-07-22.",
+  "images": {
+    "rust-builder": {
+      "description": "Rust 1.95 slim builder image for compiling agent and control-plane binaries. Used only in builder stages; never shipped in runtime images.",
+      "repository": "docker.io/library/rust",
+      "tag": "1.95-slim",
+      "amd64": "docker.io/library/rust:1.95-slim@sha256:28846ec5a6bcfcddb93f403ba7071bd579787852b2f2ac3839965620e8bd9456",
+      "arm64": "docker.io/library/rust:1.95-slim@sha256:039d198bab66a591902cafa2133bf7dce22dc51606fb200d7eac51e112d3c5da"
+    },
+    "agent-runtime": {
+      "description": "Distroless cc (glibc + libgcc) runtime for the kernel-v1 agent. Holds /usr/local/bin/kernel-v1-agent and /opt/kernel-v1/bpf/*.bpf.o. No shell, no package manager, no compiler.",
+      "repository": "gcr.io/distroless/cc-debian12",
+      "tag": "latest",
+      "amd64": "gcr.io/distroless/cc-debian12@sha256:edadc10b499999450d604293efc91f592e7521a4746d910702fbfe2efbe6db4f",
+      "arm64": "gcr.io/distroless/cc-debian12@sha256:d13e394443887d968fa82b77b2dc39beb7918812ab21c33f1e989994fb7f6723"
+    },
+    "control-plane-runtime": {
+      "description": "Distroless cc (glibc + libgcc) runtime for the kernel-v1 control-plane. Holds /usr/local/bin/kernel-v1-control-plane and /opt/kernel-v1/migrations/. No shell, no package manager, no compiler.",
+      "repository": "gcr.io/distroless/cc-debian12",
+      "tag": "latest",
+      "amd64": "gcr.io/distroless/cc-debian12@sha256:edadc10b499999450d604293efc91f592e7521a4746d910702fbfe2efbe6db4f",
+      "arm64": "gcr.io/distroless/cc-debian12@sha256:d13e394443887d968fa82b77b2dc39beb7918812ab21c33f1e989994fb7f6723"
+    },
+    "postgres": {
+      "description": "PostgreSQL 16 Alpine for the control-plane database in production compose.",
+      "repository": "docker.io/library/postgres",
+      "tag": "16-alpine",
+      "amd64": "docker.io/library/postgres:16-alpine@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382",
+      "arm64": "docker.io/library/postgres:16-alpine@sha256:6e36af48388c88cff5260d39860a16fe68099658c412e900aa874a5629b12ce6"
+    },
+    "kafka": {
+      "description": "Confluent Platform Kafka 7.7.0 (KRaft mode) for the production event bus.",
+      "repository": "docker.io/confluentinc/cp-kafka",
+      "tag": "7.7.0",
+      "amd64": "docker.io/confluentinc/cp-kafka:7.7.0@sha256:76288746f518b38eb30496f5b8a9f157fedb0418bcca3648af903d03fc16d2d3",
+      "arm64": "docker.io/confluentinc/cp-kafka:7.7.0@sha256:e773a52e3cf3f3c8ca76362740481140e4b9d402cfd03e79611646b267e47b98"
+    },
+    "clickhouse": {
+      "description": "ClickHouse 24.8 server for the production analytics/event store.",
+      "repository": "docker.io/clickhouse/clickhouse-server",
+      "tag": "24.8",
+      "amd64": "docker.io/clickhouse/clickhouse-server:24.8@sha256:d7f76cd5ed162bf496af581a4d50498fef7d91dcedb1f55e4eab58cc9f22281b",
+      "arm64": "docker.io/clickhouse/clickhouse-server:24.8@sha256:ae7eea6602398611a8d34ed6cbee659cf355de907304a44e105cf8a97cfadd5a"
+    }
+  }
+}

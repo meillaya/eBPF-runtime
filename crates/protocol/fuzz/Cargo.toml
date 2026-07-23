@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
+# cargo-fuzz harness crate for the protocol (protobuf-shaped) deserialization
+# boundary (Batch/Event serde JSON mirror + MessageBounds validation). Separate
+# workspace (empty `[workspace]` detaches it from the parent kernel-v1
+# workspace) so `cargo test --workspace` and the main lock are unaffected.
+# Run via `cargo fuzz` (see README.md / top-level FUZZING.md).
+
+[package]
+name = "protocol-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+protocol = { path = ".." }
+serde_json = "1"
+
+# Detach from the parent workspace.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "deserialize_batch"
+path = "fuzz_targets/deserialize_batch.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "deserialize_event"
+path = "fuzz_targets/deserialize_event.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bounds_validate"
+path = "fuzz_targets/bounds_validate.rs"
+test = false
+doc = false
+bench = false

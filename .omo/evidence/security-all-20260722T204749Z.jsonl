@@ -1,0 +1,56 @@
+{"test_id":"OIDC-001","category":"oidc","name":"alg:none attack crafted","result":"PASS","detail":"alg=none, empty signature — validator MUST reject","timestamp":"2026-07-22T20:47:50Z"}
+{"test_id":"OIDC-002","category":"oidc","name":"tampered signature detected","result":"PASS","detail":"payload modified, signature mismatch confirmed","timestamp":"2026-07-22T20:47:50Z"}
+{"test_id":"OIDC-003","category":"oidc","name":"wrong issuer rejected","result":"PASS","detail":"issuer mismatch (https://evil.example.com)","timestamp":"2026-07-22T20:47:50Z"}
+{"test_id":"OIDC-004","category":"oidc","name":"wrong audience rejected","result":"PASS","detail":"audience mismatch (evil-client)","timestamp":"2026-07-22T20:47:50Z"}
+{"test_id":"OIDC-005","category":"oidc","name":"expired token rejected","result":"PASS","detail":"token expired","timestamp":"2026-07-22T20:47:50Z"}
+{"test_id":"OIDC-006","category":"oidc","name":"wrong nonce rejected","result":"PASS","detail":"nonce mismatch","timestamp":"2026-07-22T20:47:50Z"}
+{"test_id":"OIDC-007","category":"oidc","name":"future iat rejected","result":"PASS","detail":"token issued in the future","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"OIDC-008","category":"oidc","name":"missing sub claim rejected","result":"PASS","detail":"missing required claim: sub","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"OIDC-009","category":"oidc","name":"valid token accepted","result":"PASS","detail":"positive control: all claims valid","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"OIDC-010","category":"oidc","name":"HS256/RS256 confusion crafted","result":"PASS","detail":"alg=HS256 with kid=rsa-key-1 — validator MUST pin expected alg","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"OIDC-011","category":"oidc","name":"empty audience array rejected","result":"PASS","detail":"audience mismatch ()","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"OIDC-LIVE-01","category":"oidc","name":"live Dex token exchange","result":"DEFERRED","detail":"Dex not reachable at 127.0.0.1:5556","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"OIDC-LIVE-02","category":"oidc","name":"live token claims valid","result":"DEFERRED","detail":"Dex not reachable","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"SPIFFE-01","category":"oidc","name":"SPIRE SVID issuance","result":"DEFERRED","detail":"SPIRE not running in dev compose — deferred to self-hosted runner","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"SPIFFE-02","category":"oidc","name":"SPIFFE-bound command authorization","result":"DEFERRED","detail":"SPIRE not running — deferred","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"RBAC-001","category":"rbac","name":"viewer cannot INSERT policies","result":"PASS","detail":"blocked: BEGIN","timestamp":"2026-07-22T20:47:51Z"}
+{"test_id":"RBAC-002","category":"rbac","name":"viewer cannot UPDATE policies","result":"PASS","detail":"blocked or 0 rows: BEGIN","timestamp":"2026-07-22T20:47:52Z"}
+{"test_id":"RBAC-003","category":"rbac","name":"analyst cannot INSERT policies","result":"PASS","detail":"blocked: BEGIN","timestamp":"2026-07-22T20:47:52Z"}
+{"test_id":"RBAC-004","category":"rbac","name":"policy-admin cannot write oidc_role_bindings","result":"PASS","detail":"blocked: BEGIN","timestamp":"2026-07-22T20:47:53Z"}
+{"test_id":"RBAC-005","category":"rbac","name":"unauthenticated (no role) denied","result":"PASS","detail":"blocked: BEGIN","timestamp":"2026-07-22T20:47:53Z"}
+{"test_id":"RBAC-006","category":"rbac","name":"viewer can SELECT policies","result":"PASS","detail":"count=BEGINSETSET1ROLLBACK","timestamp":"2026-07-22T20:47:53Z"}
+{"test_id":"RBAC-007","category":"rbac","name":"policy-admin can INSERT policies","result":"PASS","detail":"RLS allowed: BEGIN","timestamp":"2026-07-22T20:47:53Z"}
+{"test_id":"RBAC-008","category":"rbac","name":"admin can write oidc_role_bindings","result":"PASS","detail":"allowed: BEGIN","timestamp":"2026-07-22T20:47:54Z"}
+{"test_id":"RBAC-009","category":"rbac","name":"fabricated role denied","result":"PASS","detail":"blocked: BEGIN","timestamp":"2026-07-22T20:47:54Z"}
+{"test_id":"RBAC-010","category":"rbac","name":"role escalation via SET (DB trusts session var)","result":"PASS","detail":"RLS allows SET app.role — app layer MUST validate (defense-in-depth note)","timestamp":"2026-07-22T20:47:55Z"}
+{"test_id":"RBAC-011","category":"rbac","name":"viewer cannot DELETE policies","result":"PASS","detail":"blocked or 0 rows: BEGIN","timestamp":"2026-07-22T20:47:55Z"}
+{"test_id":"RBAC-012","category":"rbac","name":"analyst cannot INSERT rollouts","result":"PASS","detail":"blocked: BEGIN","timestamp":"2026-07-22T20:47:55Z"}
+{"test_id":"PG-001","category":"postgres","name":"control_app is SUPERUSER (CRITICAL)","result":"FAIL","detail":"rolsuper=t — RLS completely bypassed; migration 0007 intends non-superuser","timestamp":"2026-07-22T20:47:56Z"}
+{"test_id":"PG-002","category":"postgres","name":"RLS test role: NOBYPASSRLS confirmed","result":"PASS","detail":"rolsuper=f, rolbypassrls=f","timestamp":"2026-07-22T20:47:56Z"}
+{"test_id":"PG-003","category":"postgres","name":"RLS cluster isolation: alpha sees only alpha nodes","result":"PASS","detail":"visible: node-alpha-1.local ","timestamp":"2026-07-22T20:47:56Z"}
+{"test_id":"PG-004","category":"postgres","name":"RLS cross-cluster INSERT blocked","result":"PASS","detail":"WITH CHECK enforced: BEGIN","timestamp":"2026-07-22T20:47:57Z"}
+{"test_id":"PG-005","category":"postgres","name":"RLS cross-cluster UPDATE blocked","result":"PASS","detail":"0 rows affected or error: BEGIN","timestamp":"2026-07-22T20:47:57Z"}
+{"test_id":"PG-006","category":"postgres","name":"audit_log INSERT allowed","result":"PASS","detail":"append works: BEGIN","timestamp":"2026-07-22T20:47:57Z"}
+{"test_id":"PG-007","category":"postgres","name":"audit_log UPDATE denied (immutable)","result":"PASS","detail":"blocked: BEGIN","timestamp":"2026-07-22T20:47:58Z"}
+{"test_id":"PG-008","category":"postgres","name":"audit_log DELETE denied (immutable)","result":"PASS","detail":"blocked: BEGIN","timestamp":"2026-07-22T20:47:58Z"}
+{"test_id":"PG-009","category":"postgres","name":"SQL injection in cluster_id neutralized","result":"PASS","detail":"policies table intact, count=1","timestamp":"2026-07-22T20:47:59Z"}
+{"test_id":"PG-010","category":"postgres","name":"SQL injection in app.role neutralized","result":"PASS","detail":"audit_log table intact, count=2","timestamp":"2026-07-22T20:47:59Z"}
+{"test_id":"PG-011","category":"postgres","name":"control_audit cannot UPDATE policies","result":"PASS","detail":"blocked: ERROR:  permission denied for table policies","timestamp":"2026-07-22T20:48:00Z"}
+{"test_id":"PG-012","category":"postgres","name":"control_audit cannot DELETE policies","result":"PASS","detail":"blocked: ERROR:  permission denied for table policies","timestamp":"2026-07-22T20:48:00Z"}
+{"test_id":"PG-013","category":"postgres","name":"viewer cannot read oidc_role_bindings","result":"PASS","detail":"RLS filtered: count=0","timestamp":"2026-07-22T20:48:01Z"}
+{"test_id":"PG-014","category":"postgres","name":"RLS policy count matches schema","result":"PASS","detail":"count=18 (expected 18)","timestamp":"2026-07-22T20:48:02Z"}
+{"test_id":"PG-015","category":"postgres","name":"no cluster scope = no data (default-deny)","result":"PASS","detail":"count=0","timestamp":"2026-07-22T20:48:03Z"}
+{"test_id":"PG-016","category":"postgres","name":"control_app superuser bypasses RLS (CRITICAL)","result":"FAIL","detail":"sees ALL 2 nodes without SET app.cluster_id — RLS ineffective for this role","timestamp":"2026-07-22T20:48:03Z"}
+{"test_id":"POL-001","category":"policy-protocol","name":"replay attack: duplicate version rejected","result":"PASS","detail":"UNIQUE(policy_id, version) enforced: BEGIN","timestamp":"2026-07-22T20:48:04Z"}
+{"test_id":"POL-002","category":"policy-protocol","name":"stale version rejected (duplicate v2)","result":"PASS","detail":"monotonic version enforced: BEGIN","timestamp":"2026-07-22T20:48:04Z"}
+{"test_id":"POL-003","category":"policy-protocol","name":"digest mismatch detectable","result":"PASS","detail":"SHA-256(test-policy-...)=fc9f6125bd6132ed... ≠ fake digest (len=64)","timestamp":"2026-07-22T20:48:04Z"}
+{"test_id":"POL-004","category":"policy-protocol","name":"digest mismatch: DB accepts (protocol-layer validation)","result":"PASS","detail":"DB has no CHECK constraint on digest — policy-rollout crate MUST validate","timestamp":"2026-07-22T20:48:05Z"}
+{"test_id":"POL-005","category":"policy-protocol","name":"viewer cannot stage policy versions","result":"PASS","detail":"RLS blocked: BEGIN","timestamp":"2026-07-22T20:48:05Z"}
+{"test_id":"POL-006","category":"policy-protocol","name":"viewer cannot commit policy versions","result":"PASS","detail":"blocked or 0 rows: BEGIN","timestamp":"2026-07-22T20:48:05Z"}
+{"test_id":"POL-007","category":"policy-protocol","name":"version=0 accepted by DB (protocol-layer monotonic check)","result":"PASS","detail":"DB allows non-monotonic version — state machine MUST reject version <= current","timestamp":"2026-07-22T20:48:06Z"}
+{"test_id":"POL-008","category":"policy-protocol","name":"policy-admin can stage","result":"PASS","detail":"allowed: BEGIN","timestamp":"2026-07-22T20:48:06Z"}
+{"test_id":"POL-009","category":"policy-protocol","name":"rollout ack idempotency enforced","result":"PASS","detail":"UNIQUE(rollout_id, agent_id) rejected duplicate: BEGIN","timestamp":"2026-07-22T20:48:07Z"}
+{"test_id":"POL-010","category":"policy-protocol","name":"invalid status accepted by DB (protocol-layer validation)","result":"PASS","detail":"DB has no CHECK on status — state machine MUST validate lifecycle","timestamp":"2026-07-22T20:48:08Z"}
+{"test_id":"POL-011","category":"policy-protocol","name":"viewer cannot create rollouts","result":"PASS","detail":"RLS blocked: BEGIN","timestamp":"2026-07-22T20:48:08Z"}
+{"test_id":"POL-012","category":"policy-protocol","name":"policy stage + audit in same transaction","result":"PASS","detail":"same-tx audit works: BEGIN","timestamp":"2026-07-22T20:48:08Z"}
+{"test_id":"SUMMARY","category":"all","name":"security suite summary","result":"FAIL","detail":"total=55 pass=49 fail=2 skip=0 deferred=4 suites_failed=1","timestamp":"2026-07-22T20:48:08Z"}

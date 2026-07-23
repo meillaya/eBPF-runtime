@@ -1,0 +1,21 @@
+{
+  "name": "deny-prefix-match",
+  "description": "Deny-mode policy whose selector is a path PREFIX of the observed selector (/etc/ matches /etc/shadow). The authoritative selector match is a prefix match, so this denies and records an own-denial.",
+  "input": {
+    "hook_family": "file_open",
+    "prior_ret": 0,
+    "selector": "/etc/shadow",
+    "selector_valid": true,
+    "ring_full": false,
+    "policy": { "present": true, "mode": "deny", "hook_family": "file_open", "version": 2, "generation": 8, "selector": "/etc/", "deny_errno": -13 },
+    "kill_switch": { "deny_disabled": false }
+  },
+  "expect": {
+    "returned": -13,
+    "decision": "deny",
+    "deny_source": "own_lsm",
+    "own_denial_recorded": true,
+    "result_changed": true,
+    "event_kind": 15
+  }
+}

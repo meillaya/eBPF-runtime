@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kernel-v1/schemas/rule-v1.schema.json",
+  "title": "kernel-v1 native YAML rule set (schema v1)",
+  "description": "Structural contract for the kernel-v1 native YAML rule format. This is a purpose-built, versioned rule DSL. It is NOT Falco-compatible and makes no Falco rule-syntax compatibility claim. The JSON Schema enforces structural shape (required keys, enums, no unknown fields, version/engine typing, and a character-length pre-bound on regex patterns). Deeper semantic bounds that JSON Schema cannot express -- regex byte length (<= 1024 bytes), regex capture-group count (<= 64), absence of unbounded/nested quantifiers, event-field catalog membership, operator/field-type compatibility, unique rule/list/sequence identifiers, engine-version compatibility, condition nesting depth, list recursion, and the deny-only-on-kernel-observable-field rule -- are enforced by the compiled semantic validator in the `rules` crate (parse_ruleset). Both layers together form the rule schema.",
+  "type": "object",
+  "required": ["schema_version", "engine_version", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "description": "Rule schema version. The structural type is integer here; the semantic validator enforces the exact value 1 and rejects any other version with a path-aware SchemaVersionMismatch diagnostic."
+    },
+    "engine_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Engine version this rule set is compatible with (semver, e.g. \"1.0.0\"). The semantic validator enforces compatibility with the running engine and rejects stale or newer-major versions with an EngineVersionMismatch diagnostic."
+    },
+    "rules": {
+      "type": "array",
+      "description": "The rules in this rule set. May be empty (an empty rule set is valid).",
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": ["id", "version", "severity", "source", "description", "condition", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique rule identifier (e.g. \"sensitive-file-write\"). Must be unique across the rule set."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Rule version. Must be >= 1."
+        },
+        "severity": {
+          "enum": ["critical", "high", "medium", "low", "info"],
+          "description": "Rule severity."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional free-form tags (e.g. [\"file\", \"sensitive\", \"write\"])."
+        },
+        "source": {
+          "enum": ["process", "file", "network", "dns", "syscall", "identity"],
+          "description": "Event source this rule applies to."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable description of what the rule detects. Must be non-empty."
+        },
+        "condition": {
+          "$ref": "#/$defs/condition",
+          "description": "The match condition. A condition is exactly one of: a leaf field match, an AND combinator, an OR combinator, or a NOT combinator."
+        },
+        "action": {
+          "enum": ["alert", "audit", "deny"],
+          "description": "Action taken on a match. `deny` is only permitted when the condition references kernel-observable fields (enforced semantically); deny on heuristic-only/enrichment data is rejected."
+        },
+        "exceptions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/exception" },
+          "description": "Optional scoped exceptions that suppress a match."
+        },
+        "lists": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/list" },
+          "description": "Optional reusable, immutable string lists. List names must be unique and lists must not reference each other cyclically."
+        },
+        "sequences": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sequence" },
+          "description": "Optional ordered temporal sequences. Sequence names must be unique."
+        }
+      }
+    },
+    "condition": {
+      "description": "A condition is exactly one variant (mutually exclusive): a leaf field match, an AND combinator, an OR combinator, or a NOT combinator. This maps onto the canonical Condition AST (Field | And | Or | Not).",
+      "oneOf": [
+        { "$ref": "#/$defs/condition_leaf" },
+        { "$ref": "#/$defs/condition_and" },
+        { "$ref": "#/$defs/condition_or" },
+        { "$ref": "#/$defs/condition_not" }
+      ]
+    },
+    "condition_leaf": {
+      "type": "object",
+      "required": ["field", "operator", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Event field to match (e.g. \"file.path\", \"process.exec_path\", \"network.dst_ip\"). Must be a member of the event field catalog (enforced semantically)."
+        },
+        "operator": { "$ref": "#/$defs/condition_operator" },
+        "value": { "$ref": "#/$defs/value" }
+      },
+      "if": {
+        "properties": { "operator": { "enum": ["regex", "not_regex"] } },
+        "required": ["operator"]
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "Regex pattern. Character-length pre-bound (<= 1024 chars). The semantic validator additionally enforces <= 1024 BYTES, <= 64 capture groups, successful compilation, and no unbounded/nested quantifiers."
+          }
+        }
+      }
+    },
+    "condition_and": {
+      "type": "object",
+      "required": ["and"],
+      "additionalProperties": false,
+      "properties": {
+        "and": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/condition" },
+          "description": "All child conditions must match."
+        }
+      }
+    },
+    "condition_or": {
+      "type": "object",
+      "required": ["or"],
+      "additionalProperties": false,
+      "properties": {
+        "or": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/condition" },
+          "description": "At least one child condition must match."
+        }
+      }
+    },
+    "condition_not": {
+      "type": "object",
+      "required": ["not"],
+      "additionalProperties": false,
+      "properties": {
+        "not": {
+          "$ref": "#/$defs/condition",
+          "description": "The negated condition."
+        }
+      }
+    },
+    "condition_operator": {
+      "enum": [
+        "eq", "ne", "gt", "lt", "gte", "lte",
+        "in", "not_in",
+        "contains", "not_contains", "starts_with", "ends_with",
+        "regex", "not_regex"
+      ],
+      "description": "Full operator set for leaf conditions. The semantic validator further restricts operators by field type (e.g. ordering operators only on numeric fields)."
+    },
+    "scoped_operator": {
+      "enum": [
+        "eq", "ne",
+        "in", "not_in",
+        "contains", "not_contains", "starts_with", "ends_with",
+        "regex", "not_regex"
+      ],
+      "description": "Operator subset allowed in exceptions and sequence steps (ordering operators gt/lt/gte/lte are not permitted in these scoped positions)."
+    },
+    "value": {
+      "type": ["string", "integer", "number", "boolean", "array"],
+      "description": "The match value. Type depends on the operator and field type (enforced semantically). `in`/`not_in` require an array value."
+    },
+    "exception": {
+      "type": "object",
+      "required": ["field", "operator", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "operator": { "$ref": "#/$defs/scoped_operator" },
+        "value": { "$ref": "#/$defs/value" }
+      },
+      "if": {
+        "properties": { "operator": { "enum": ["regex", "not_regex"] } },
+        "required": ["operator"]
+      },
+      "then": {
+        "properties": { "value": { "type": "string", "maxLength": 1024 } }
+      }
+    },
+    "list": {
+      "type": "object",
+      "required": ["name", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique list name (e.g. \"sensitive_paths\")."
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "List items. Must be non-empty. An item must not name another list (recursion guard, enforced semantically)."
+        }
+      }
+    },
+    "sequence": {
+      "type": "object",
+      "required": ["name", "steps", "window_seconds"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique sequence name (e.g. \"exec_then_connect\")."
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" },
+          "description": "Ordered sequence steps. Must be non-empty."
+        },
+        "window_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Correlation time window in seconds. Must be >= 1."
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["field", "operator", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "operator": { "$ref": "#/$defs/scoped_operator" },
+        "value": { "$ref": "#/$defs/value" }
+      },
+      "if": {
+        "properties": { "operator": { "enum": ["regex", "not_regex"] } },
+        "required": ["operator"]
+      },
+      "then": {
+        "properties": { "value": { "type": "string", "maxLength": 1024 } }
+      }
+    }
+  }
+}

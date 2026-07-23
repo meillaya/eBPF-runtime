@@ -1,0 +1,12 @@
+{
+  "name": "illegal-transition",
+  "description": "Failure: COMMIT before READY (from Staged), expect InvalidTransition.",
+  "steps": [
+    { "action": "stage", "version": 1, "content_digest": "digest-v1", "expect_state": "Staged" },
+    { "action": "commit", "version": 1, "expect_error": "InvalidTransition", "expect_from": "Staged", "expect_action": "commit" }
+  ],
+  "expect": {
+    "final_state": "Staged",
+    "error": "InvalidTransition"
+  }
+}

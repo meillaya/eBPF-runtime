@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "kernel-v1 strict TS baseline (eBPF Runtime Security & Observability)",
+  "_comment": [
+    "tsconfig.base.json — kernel-v1 (eBPF Runtime Security & Observability)",
+    "",
+    "Strict TypeScript baseline consumed by web/tsconfig.json (task 44+) and",
+    "by any future generated TS client (task 6 proto-gen + task 35 typed RPC).",
+    "",
+    "The flags below are non-negotiable for the plan (task 4 / wave 5):",
+    "",
+    "  * strict + noImplicitAny     — no production any (matches biome rule)",
+    "  * noUncheckedIndexedAccess  — every arr[i]/map[k] is T | undefined",
+    "  * exactOptionalPropertyTypes — undefined vs missing are not the same",
+    "  * noFallthroughCasesInSwitch — explicit break/return at every case",
+    "  * noPropertyAccessFromIndexSignature — must use ['key'] for index sigs",
+    "  * strictBindCallApply        — bind/call/apply honour their arg types",
+    "  * noImplicitOverride         — `override` keyword is required",
+    "  * isolatedModules            — every file is independently transpilable",
+    "",
+    "The `quality:web` task in devenv.nix runs `bunx tsc -p web/tsconfig.json --noEmit`",
+    "against the per-app tsconfig.json that extends this file."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+
+    "strict": true,
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "strictBindCallApply": true,
+    "noImplicitOverride": true,
+    "isolatedModules": true,
+
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+
+    "noEmit": true
+  },
+  "exclude": ["node_modules", "dist", "build", "**/generated/**"]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "ack-ordering-receipt-only-rejected",
+  "description": "A receipt-only ACK (no Kafka acceptance) is rejected; the batch remains in the outbox",
+  "batches": [
+    {"batch_id": "b-0", "seq": 0, "event_count": 10, "size_bytes": 1024}
+  ],
+  "receipt_only_ack": {"batch_id": "b-0", "seq": 0, "durable": false},
+  "expect": {
+    "error": "ReceiptOnlyAck",
+    "outbox_deleted": [],
+    "outbox_remaining": ["b-0"],
+    "final_state": "AwaitingKafkaAcceptance"
+  }
+}

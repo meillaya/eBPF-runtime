@@ -1,0 +1,1282 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
+# api/openapi.yaml — kernel-v1 dashboard API
+#
+# OpenAPI 3.1.0 contract for the versioned REST + WebSocket surface
+# the React/TypeScript dashboard consumes. This file is the
+# authoritative shape; every route documented here MUST have a
+# matching implementation in the backend (later task). Raw C
+# structs, raw BPF event streams, and privileged loader RPCs are
+# deliberately NOT exposed to the browser — they are reachable only
+# over the SPIFFE-authenticated gRPC control stream at
+# proto/kernel/v1/control/v1/control.proto, not over this REST API.
+#
+# Auth policy:
+#   * /health, /compatibility, /events/stream (WebSocket) are
+#     unauthenticated. The dashboard dev mode (loopback only) is
+#     expected to call these; in fleet mode, the same routes are
+#     fronted by an authenticating reverse proxy that issues a
+#     loopback bearer to the local browser.
+#   * Every other route requires Bearer auth. The control-plane
+#     fleet API issues short-lived OIDC tokens; the backend
+#     enforces RBAC. Authentication / authorization implementation
+#     lands in tasks 36/37/42; this contract simply records the
+#     surface requirement.
+#
+# Pagination and streaming:
+#   * GET /events uses cursor pagination; cursors are opaque
+#     server-issued strings. The cap is 1000 per page.
+#   * GET /events/stream upgrades to a WebSocket with
+#     Sec-WebSocket-Protocol: kernel-v1.event-stream.v1. The server
+#     back-pressures with HTTP 429 + Retry-After when the agent
+#     stream saturates; the WebSocket subprotocol itself has no
+#     back-pressure concept, so 429 is the only honest signal.
+#
+# Acceptance:
+#   The proto:check task in devenv.nix validates this file with
+#   `openapi-spec-validator` (uvx) and falls back to a stdlib-only
+#   structural check when the validator is unavailable.
+#
+
+openapi: 3.1.0
+info:
+  title: kernel-v1 dashboard API
+  version: 1.0.0
+  description: |
+    Versioned REST + WebSocket contract for the kernel-v1 eBPF
+    runtime security & observability dashboard. The contract is
+    authoritative; clients MUST NOT reach into the control-plane
+    gRPC surface (proto/kernel/v1/control/v1/control.proto) or the
+    agent REST surface for any data this API exposes. Raw BPF
+    event bytes, raw C structs, and privileged loader RPCs are
+    explicitly out of scope.
+  contact:
+    name: kernel-v1 maintainers
+  license:
+    name: Apache-2.0 OR MIT
+    identifier: Apache-2.0-or-MIT
+
+servers:
+  - url: "http://127.0.0.1:9464"
+    description: "loopback dev mode (dashboard connects unauthenticated over loopback only)"
+  - url: "https://api.kernel-v1.local"
+    description: "authenticated fleet mode (OIDC bearer; reverse proxy fronted)"
+
+tags:
+  - name: meta
+    description: Unauthenticated meta endpoints used by both dev and fleet modes.
+  - name: events
+    description: Versioned event browse + stream surface. Cursor-paginated; WebSocket upgrade documented.
+  - name: alerts
+    description: Alert feed produced by the rule engine.
+  - name: rules
+    description: Rule browse, fetch, validate, and dry-run-test surface.
+  - name: policies
+    description: Policy lifecycle (list, stage, commit, rollback, acks).
+  - name: agents
+    description: Agent inventory and last-seen health.
+  - name: ops
+    description: "Operational counters: drops, sequence gaps, supported-load envelope."
+
+# Components — every schema referenced from paths/components lives here.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        OIDC-issued short-lived bearer token. Required for every
+        endpoint that is not explicitly marked as `security: []`.
+
+  schemas:
+    # -------------------------------------------------------------------
+    # Health + Compatibility (mirror proto fields exactly)
+    # -------------------------------------------------------------------
+    Health:
+      type: object
+      additionalProperties: false
+      required:
+        - agent_id
+        - node_name
+        - cluster
+        - epoch_unix_sec
+        - loaded_sensors
+        - degraded_sensors
+        - blocked_sensors
+        - events_emitted_total
+        - events_dropped_total
+        - supported_load_rate
+      properties:
+        agent_id:
+          type: string
+          description: SPIFFE SVID principal (or the agent's local fallback id in dev mode).
+        node_name:
+          type: string
+        cluster:
+          type: string
+        epoch_unix_sec:
+          type: integer
+          format: int64
+          minimum: 0
+        loaded_sensors:
+          type: array
+          items:
+            type: string
+        degraded_sensors:
+          type: array
+          items:
+            type: string
+        blocked_sensors:
+          type: array
+          items:
+            type: string
+        events_emitted_total:
+          type: integer
+          format: int64
+          minimum: 0
+        events_dropped_total:
+          type: integer
+          format: int64
+          minimum: 0
+        supported_load_rate:
+          type: integer
+          format: int64
+          minimum: 0
+
+    Compatibility:
+      type: object
+      additionalProperties: false
+      required:
+        - kernel_release
+        - bpf_lsm_active
+        - bpf_token_active
+        - cgroup_mode
+        - bpf_program_type_allowlist
+      properties:
+        kernel_release:
+          type: string
+        bpf_lsm_active:
+          type: boolean
+        bpf_token_active:
+          type: boolean
+        cgroup_mode:
+          type: string
+          enum: [UNIFIED, HYBRID, LEGACY, UNKNOWN]
+        bpf_program_type_allowlist:
+          type: array
+          items:
+            type: string
+
+    # -------------------------------------------------------------------
+    # Event surface (oneOf across every payload kind)
+    # -------------------------------------------------------------------
+    EventBatch:
+      type: object
+      additionalProperties: false
+      required: [events]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+
+    Identity:
+      type: object
+      additionalProperties: false
+      required: [pid_tgid]
+      properties:
+        pid_tgid:
+          type: integer
+          format: int64
+        task_start_time_ns:
+          type: integer
+          format: int64
+        cgroup_id:
+          type: integer
+          format: int64
+        mount_ns_id:
+          type: integer
+          format: int64
+        pid_ns_id:
+          type: integer
+          format: int64
+        net_ns_id:
+          type: integer
+          format: int64
+        user_ns_id:
+          type: integer
+          format: int64
+        uts_ns_id:
+          type: integer
+          format: int64
+        ipc_ns_id:
+          type: integer
+          format: int64
+        time_ns_id:
+          type: integer
+          format: int64
+        uid:
+          type: integer
+          format: int64
+        gid:
+          type: integer
+          format: int64
+        loginuid:
+          type: integer
+          format: int64
+        parent_pid_tgid:
+          type: integer
+          format: int64
+        valids:
+          type: object
+          additionalProperties:
+            type: boolean
+
+    Event:
+      type: object
+      additionalProperties: false
+      required: [event_id, seq, ts_monotonic_ns, sensor, event_kind]
+      properties:
+        event_id:
+          type: string
+        seq:
+          type: integer
+          format: int64
+        ts_monotonic_ns:
+          type: integer
+          format: int64
+        ts_wall:
+          type: string
+          format: date-time
+        sensor:
+          type: string
+        event_kind:
+          type: string
+          enum:
+            - EVENT_KIND_UNSPECIFIED
+            - EVENT_KIND_PROCESS_FORK
+            - EVENT_KIND_PROCESS_EXEC_RESULT
+            - EVENT_KIND_PROCESS_EXIT
+            - EVENT_KIND_FILE_OPEN
+            - EVENT_KIND_FILE_CREATE
+            - EVENT_KIND_FILE_UNLINK
+            - EVENT_KIND_FILE_RENAME
+            - EVENT_KIND_NETWORK_CONNECT
+            - EVENT_KIND_NETWORK_ACCEPT
+            - EVENT_KIND_NETWORK_STATE
+            - EVENT_KIND_DNS_PACKET
+            - EVENT_KIND_SYSCALL_ENTER
+            - EVENT_KIND_SYSCALL_EXIT
+            - EVENT_KIND_LSM_DENY_OWN
+            - EVENT_KIND_IDENTITY
+        valids:
+          type: object
+          additionalProperties:
+            type: boolean
+        kfuncs_used:
+          type: array
+          items:
+            type: string
+        # Payload — exactly one of these is set per event.
+        process_exec_result:
+          $ref: "#/components/schemas/ProcessExecResult"
+        process_fork:
+          $ref: "#/components/schemas/ProcessFork"
+        process_exit:
+          $ref: "#/components/schemas/ProcessExit"
+        file_open:
+          $ref: "#/components/schemas/FileOpen"
+        file_create:
+          $ref: "#/components/schemas/FileCreate"
+        file_unlink:
+          $ref: "#/components/schemas/FileUnlink"
+        file_rename:
+          $ref: "#/components/schemas/FileRename"
+        network_connect:
+          $ref: "#/components/schemas/NetworkConnect"
+        network_accept:
+          $ref: "#/components/schemas/NetworkAccept"
+        network_state:
+          $ref: "#/components/schemas/NetworkState"
+        dns_packet:
+          $ref: "#/components/schemas/DnsPacket"
+        syscall_enter:
+          $ref: "#/components/schemas/SyscallEnter"
+        syscall_exit:
+          $ref: "#/components/schemas/SyscallExit"
+        lsm_deny:
+          $ref: "#/components/schemas/LsmDeny"
+        identity:
+          $ref: "#/components/schemas/Identity"
+
+    ProcessExecResult:
+      type: object
+      additionalProperties: false
+      required: [task, binary_path, succeeded, errno_value, argv_truncated]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        binary_path:
+          type: string
+        argv_bytes:
+          type: string
+          format: byte
+        succeeded:
+          type: boolean
+        errno_value:
+          type: integer
+        argv_truncated:
+          type: boolean
+
+    ProcessFork:
+      type: object
+      additionalProperties: false
+      required: [child, is_thread]
+      properties:
+        child:
+          $ref: "#/components/schemas/Identity"
+        is_thread:
+          type: boolean
+
+    ProcessExit:
+      type: object
+      additionalProperties: false
+      required: [task, exit_code, exit_group, group_dead_observed]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        exit_code:
+          type: integer
+        exit_group:
+          type: boolean
+        group_dead_observed:
+          type: boolean
+
+    FileOpen:
+      type: object
+      additionalProperties: false
+      required: [task, path, flags, succeeded, errno_value, from_lsm]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        path:
+          type: string
+        flags:
+          type: integer
+          format: int64
+        succeeded:
+          type: boolean
+        errno_value:
+          type: integer
+        from_lsm:
+          type: boolean
+
+    FileCreate:
+      type: object
+      additionalProperties: false
+      required: [task, path, flags, mode, succeeded, errno_value, from_lsm]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        path:
+          type: string
+        flags:
+          type: integer
+          format: int64
+        mode:
+          type: integer
+          format: int64
+        succeeded:
+          type: boolean
+        errno_value:
+          type: integer
+        from_lsm:
+          type: boolean
+
+    FileUnlink:
+      type: object
+      additionalProperties: false
+      required: [task, path, is_dir, succeeded, errno_value, from_lsm]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        path:
+          type: string
+        is_dir:
+          type: boolean
+        succeeded:
+          type: boolean
+        errno_value:
+          type: integer
+        from_lsm:
+          type: boolean
+
+    FileRename:
+      type: object
+      additionalProperties: false
+      required: [task, source_path, dest_path, succeeded, errno_value, from_lsm]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        source_path:
+          type: string
+        dest_path:
+          type: string
+        succeeded:
+          type: boolean
+        errno_value:
+          type: integer
+        from_lsm:
+          type: boolean
+
+    NetworkConnect:
+      type: object
+      additionalProperties: false
+      required: [task, socket_cookie, family, is_result, established, errno_value, from_cgroup]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        socket_cookie:
+          type: integer
+          format: int64
+        family:
+          type: integer
+        local_addr:
+          type: string
+          format: byte
+        remote_addr:
+          type: string
+          format: byte
+        local_port:
+          type: integer
+        remote_port:
+          type: integer
+        is_result:
+          type: boolean
+        established:
+          type: boolean
+        errno_value:
+          type: integer
+        from_cgroup:
+          type: boolean
+
+    NetworkAccept:
+      type: object
+      additionalProperties: false
+      required: [task, socket_cookie, family, returned_fd, succeeded, errno_value]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        socket_cookie:
+          type: integer
+          format: int64
+        family:
+          type: integer
+        local_addr:
+          type: string
+          format: byte
+        remote_addr:
+          type: string
+          format: byte
+        local_port:
+          type: integer
+        remote_port:
+          type: integer
+        returned_fd:
+          type: integer
+        succeeded:
+          type: boolean
+        errno_value:
+          type: integer
+
+    NetworkState:
+      type: object
+      additionalProperties: false
+      required: [task, socket_cookie, old_state, new_state]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        socket_cookie:
+          type: integer
+          format: int64
+        old_state:
+          type: integer
+        new_state:
+          type: integer
+
+    DnsPacket:
+      type: object
+      additionalProperties: false
+      required: [task, is_query, transport, packet_bytes, truncated, is_egress]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        is_query:
+          type: boolean
+        transport:
+          type: integer
+        packet_bytes:
+          type: string
+          format: byte
+        truncated:
+          type: boolean
+        is_egress:
+          type: boolean
+
+    SyscallEnter:
+      type: object
+      additionalProperties: false
+      required: [task, syscall_nr, ts_monotonic_ns]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        syscall_nr:
+          type: integer
+        ts_monotonic_ns:
+          type: integer
+          format: int64
+        compat_syscall_nr:
+          type: integer
+
+    SyscallExit:
+      type: object
+      additionalProperties: false
+      required: [task, syscall_nr, ts_monotonic_ns, elapsed_ns, no_return, errno_value]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        syscall_nr:
+          type: integer
+        ts_monotonic_ns:
+          type: integer
+          format: int64
+        elapsed_ns:
+          type: integer
+          format: int64
+        compat_syscall_nr:
+          type: integer
+        no_return:
+          type: boolean
+        errno_value:
+          type: integer
+
+    LsmDeny:
+      type: object
+      additionalProperties: false
+      required: [task, hook, subject, own_deny, policy_version]
+      properties:
+        task:
+          $ref: "#/components/schemas/Identity"
+        hook:
+          type: string
+        subject:
+          type: string
+        own_deny:
+          type: boolean
+        policy_version:
+          type: string
+        policy_digest:
+          type: string
+          format: byte
+
+    # -------------------------------------------------------------------
+    # Alerts / Rules / Policies / Agents / Drops
+    # -------------------------------------------------------------------
+    Alert:
+      type: object
+      additionalProperties: false
+      required: [id, rule_id, event_id, fired_at, severity, status, rule_digest, explanation]
+      properties:
+        id:
+          type: string
+        rule_id:
+          type: string
+        event_id:
+          type: string
+        fired_at:
+          type: string
+          format: date-time
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        status:
+          type: string
+          enum: [OPEN, ACKNOWLEDGED, RESOLVED, SUPPRESSED]
+        rule_digest:
+          type: string
+          format: byte
+        explanation:
+          type: string
+
+    Rule:
+      type: object
+      additionalProperties: false
+      required: [id, name, severity, status, body]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, RETIRED]
+        body:
+          type: object
+          additionalProperties: true
+        tags:
+          type: array
+          items:
+            type: string
+
+    RuleValidationResult:
+      type: object
+      additionalProperties: false
+      required: [valid, errors]
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+
+    RuleTestResult:
+      type: object
+      additionalProperties: false
+      required: [matched, score]
+      properties:
+        matched:
+          type: boolean
+        score:
+          type: number
+        field_matches:
+          type: object
+          additionalProperties: true
+
+    Policy:
+      type: object
+      additionalProperties: false
+      required: [version, status, digest, created_at]
+      properties:
+        version:
+          type: string
+        status:
+          type: string
+          enum: [STAGED, READY, COMMITTED, APPLIED, REJECTED, STALE]
+        digest:
+          type: string
+          format: byte
+        created_at:
+          type: string
+          format: date-time
+        author:
+          type: string
+        notes:
+          type: string
+
+    PolicyAck:
+      type: object
+      additionalProperties: false
+      required: [agent_id, policy_version, accepted]
+      properties:
+        agent_id:
+          type: string
+        policy_version:
+          type: string
+        digest:
+          type: string
+          format: byte
+        hash_of_active:
+          type: string
+          format: byte
+        accepted:
+          type: boolean
+        rejected_reasons:
+          type: array
+          items:
+            type: string
+        acked_at:
+          type: string
+          format: date-time
+
+    PolicyCommitResponse:
+      type: object
+      additionalProperties: false
+      required: [committed_count, ack_count, rejected_count]
+      properties:
+        committed_count:
+          type: integer
+          minimum: 0
+        ack_count:
+          type: integer
+          minimum: 0
+        rejected_count:
+          type: integer
+          minimum: 0
+
+    AgentInventory:
+      type: object
+      additionalProperties: false
+      required: [agent_id, node_name, last_seen_epoch]
+      properties:
+        agent_id:
+          type: string
+        node_name:
+          type: string
+        cluster:
+          type: string
+        last_seen_epoch:
+          type: integer
+          format: int64
+        policy_version:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: string
+    TooManyRequests:
+      description: "Backpressure: the agent stream saturated; client should retry after Retry-After seconds."
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: string
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: string
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque server-issued pagination cursor.
+      required: false
+      schema:
+        type: string
+    SinceMonotonic:
+      name: since_ts_monotonic_ns
+      in: query
+      description: Lower bound on the event timestamp, in monotonic nanoseconds.
+      required: false
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    Sensor:
+      name: sensor
+      in: query
+      description: Filter to a single logical sensor (e.g. process, file, network).
+      required: false
+      schema:
+        type: string
+    EventKind:
+      name: event_kind
+      in: query
+      description: Filter to a single event kind.
+      required: false
+      schema:
+        type: string
+        enum:
+          - EVENT_KIND_PROCESS_FORK
+          - EVENT_KIND_PROCESS_EXEC_RESULT
+          - EVENT_KIND_PROCESS_EXIT
+          - EVENT_KIND_FILE_OPEN
+          - EVENT_KIND_FILE_CREATE
+          - EVENT_KIND_FILE_UNLINK
+          - EVENT_KIND_FILE_RENAME
+          - EVENT_KIND_NETWORK_CONNECT
+          - EVENT_KIND_NETWORK_ACCEPT
+          - EVENT_KIND_NETWORK_STATE
+          - EVENT_KIND_DNS_PACKET
+          - EVENT_KIND_SYSCALL_ENTER
+          - EVENT_KIND_SYSCALL_EXIT
+          - EVENT_KIND_LSM_DENY_OWN
+          - EVENT_KIND_IDENTITY
+    Limit:
+      name: limit
+      in: query
+      description: Page size (capped server-side at 1000).
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
+    RuleIdPath:
+      name: rule_id
+      in: path
+      required: true
+      schema:
+        type: string
+    PolicyVersionPath:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: string
+
+# Per-endpoint security defaults. The top-level `security` is the
+# default (bearer required); the dev-mode / unauthenticated endpoints
+# override with `security: []` so the dashboard loopback can call them
+# without a token. The reverse proxy in fleet mode issues a loopback
+# bearer for the same routes.
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [meta]
+      summary: Latest health snapshot (unauthenticated; loopback-only in dev mode).
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Health snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "500":
+          $ref: "#/components/responses/BadRequest"
+
+  /compatibility:
+    get:
+      tags: [meta]
+      summary: Compatibility snapshot (unauthenticated; loopback-only in dev mode).
+      operationId: getCompatibility
+      security: []
+      responses:
+        "200":
+          description: Compatibility snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Compatibility"
+        "500":
+          $ref: "#/components/responses/BadRequest"
+
+  /events:
+    get:
+      tags: [events]
+      summary: Cursor-paginated event browse.
+      operationId: listEvents
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/SinceMonotonic"
+        - $ref: "#/components/parameters/Sensor"
+        - $ref: "#/components/parameters/EventKind"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventBatch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /events/stream:
+    get:
+      tags: [events]
+      summary: WebSocket upgrade to the event stream (unauthenticated in dev mode).
+      description: |
+        Client upgrades to a WebSocket. The negotiated
+        subprotocol MUST be `kernel-v1.event-stream.v1`. The server
+        back-pressures with HTTP 429 + Retry-After when the agent
+        stream saturates; the WebSocket subprotocol itself has no
+        back-pressure concept.
+      operationId: streamEvents
+      security: []
+      parameters:
+        - name: since_ts_monotonic_ns
+          in: query
+          description: Lower bound on the event timestamp, in monotonic nanoseconds.
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: sensor
+          in: query
+          description: Filter to a single logical sensor.
+          required: false
+          schema:
+            type: string
+      responses:
+        "101":
+          description: Switching Protocols; client negotiates the kernel-v1.event-stream.v1 subprotocol.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /alerts:
+    get:
+      tags: [alerts]
+      summary: Alert feed produced by the rule engine.
+      operationId: listAlerts
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of alerts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [alerts]
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Alert"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /rules:
+    get:
+      tags: [rules]
+      summary: List rules.
+      operationId: listRules
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of rules.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rules]
+                properties:
+                  rules:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Rule"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /rules/{rule_id}:
+    get:
+      tags: [rules]
+      summary: Fetch a single rule.
+      operationId: getRule
+      parameters:
+        - $ref: "#/components/parameters/RuleIdPath"
+      responses:
+        "200":
+          description: The rule.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "404":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /rules/validate:
+    post:
+      tags: [rules]
+      summary: Validate a candidate rule body without persisting it.
+      operationId: validateRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Rule"
+      responses:
+        "200":
+          description: Validation result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleValidationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /rules/test:
+    post:
+      tags: [rules]
+      summary: Dry-run a rule against a recorded event.
+      operationId: testRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rule, event]
+              properties:
+                rule:
+                  $ref: "#/components/schemas/Rule"
+                event:
+                  $ref: "#/components/schemas/Event"
+      responses:
+        "200":
+          description: Test result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleTestResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /policies:
+    get:
+      tags: [policies]
+      summary: List policies.
+      operationId: listPolicies
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of policies.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [policies]
+                properties:
+                  policies:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Policy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /policies/{version}:
+    get:
+      tags: [policies]
+      summary: Fetch a single policy by version.
+      operationId: getPolicy
+      parameters:
+        - $ref: "#/components/parameters/PolicyVersionPath"
+      responses:
+        "200":
+          description: The policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Policy"
+        "404":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /policies/stage:
+    post:
+      tags: [policies]
+      summary: Stage a new policy on a target set of agents.
+      operationId: stagePolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, digest, inactive_pbf_bytes]
+              properties:
+                version:
+                  type: string
+                digest:
+                  type: string
+                  format: byte
+                inactive_pbf_bytes:
+                  type: string
+                  format: byte
+                target_agent_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "202":
+          description: Staged; per-agent results are surfaced over the gRPC stream.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyCommitResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /policies/{version}/acks:
+    get:
+      tags: [policies]
+      summary: List per-agent ACKs for a given policy version.
+      operationId: listPolicyAcks
+      parameters:
+        - $ref: "#/components/parameters/PolicyVersionPath"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of ACKs.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [acks]
+                properties:
+                  acks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PolicyAck"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /policies/commit:
+    post:
+      tags: [policies]
+      summary: Commit a staged policy across the cluster.
+      operationId: commitPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, digest, threshold_percent]
+              properties:
+                version:
+                  type: string
+                digest:
+                  type: string
+                  format: byte
+                threshold_percent:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+      responses:
+        "202":
+          description: Commit issued; per-agent results are surfaced over the gRPC stream.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyCommitResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /policies/{version}/rollback:
+    post:
+      tags: [policies]
+      summary: Roll back to the named (or LKG) policy.
+      operationId: rollbackPolicy
+      parameters:
+        - $ref: "#/components/parameters/PolicyVersionPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                digest:
+                  type: string
+                  format: byte
+      responses:
+        "202":
+          description: Rollback issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyCommitResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /agents:
+    get:
+      tags: [agents]
+      summary: List agents with last-seen epoch.
+      operationId: listAgents
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of agents.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [agents]
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AgentInventory"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /drops:
+    get:
+      tags: [ops]
+      summary: Per-sensor drop events, sequence gaps, supported-load envelope state.
+      operationId: listDrops
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/SinceMonotonic"
+        - $ref: "#/components/parameters/Sensor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of drop counter records.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [drops]
+                properties:
+                  drops:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"

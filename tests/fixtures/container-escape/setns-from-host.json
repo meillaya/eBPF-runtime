@@ -1,0 +1,23 @@
+{
+  "name": "setns-from-host",
+  "description": "setns(2) invoked by a host process (no container context). enrichment.container_id is null because the process runs on the host, not inside a container. This is normal host administration (e.g. ip netns exec). The predicate evaluator treats null enrichment.container_id as non-match, so no rule fires. Expect no match.",
+  "event": {
+    "fields": {
+      "syscall.nr": 258,
+      "process.exec_path": "/usr/sbin/ip",
+      "process.pid": 1500,
+      "process.uid": 0,
+      "identity.cgroup_id": 1,
+      "identity.ns_mnt": 4026531840,
+      "identity.ns_pid": 4026531836,
+      "identity.ns_net": 4026531992,
+      "identity.ns_user": 4026531837
+    },
+    "null_fields": ["enrichment.container_id", "enrichment.pod_name", "enrichment.namespace"]
+  },
+  "expect": {
+    "match": false,
+    "rule_id": null,
+    "action": null
+  }
+}

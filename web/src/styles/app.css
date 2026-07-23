@@ -1,0 +1,154 @@
+/* SPDX-License-Identifier: Apache-2.0 OR MIT */
+/* PANOPTES global surface — canvas, shell layout, motion, a11y helpers. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font: var(--text-body);
+  color: var(--text-primary);
+  background-color: var(--bg-void);
+  /* Layered ambient canvas: blueprint grid + dual radial tint wells. */
+  background-image:
+    radial-gradient(1100px 520px at 12% -8%, rgba(89, 194, 255, 0.055), transparent 62%),
+    radial-gradient(900px 640px at 96% 108%, rgba(38, 72, 138, 0.16), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(233, 239, 248, 0.022) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(90deg, rgba(233, 239, 248, 0.022) 0 1px, transparent 1px 32px);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- keyboard focus is always visible (DESIGN.md §9) ---- */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--glow-focus);
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--accent-info-line);
+  color: var(--text-primary);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+a {
+  color: var(--accent-info);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* ---- skip link ---- */
+.skip-link {
+  position: absolute;
+  left: var(--space-3);
+  top: -48px;
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  background: var(--accent-info);
+  color: var(--text-inverse);
+  font: var(--text-caption);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  transition: top var(--dur-base) var(--ease-out);
+}
+.skip-link:focus-visible {
+  top: var(--space-3);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- living elements ---- */
+@keyframes sheen {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+@keyframes led-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 6px currentColor;
+  }
+  50% {
+    opacity: 0.45;
+    box-shadow: 0 0 1px currentColor;
+  }
+}
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--bg-raised) 25%,
+    var(--line-faint) 50%,
+    var(--bg-raised) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* zero the duration tokens so every transition dies at the source */
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+  .topbar::after,
+  .skeleton,
+  .led--pulse,
+  .spinner svg {
+    animation: none;
+  }
+}

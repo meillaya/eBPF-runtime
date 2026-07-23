@@ -1,0 +1,21 @@
+{
+  "name": "unknown-mode-fails-open",
+  "description": "Policy entry has an unrecognised mode value (neither audit nor deny). The engine fails open rather than deny on an unknown policy encoding: returned 0, decision fail_open_unknown, no own-denial.",
+  "input": {
+    "hook_family": "file_open",
+    "prior_ret": 0,
+    "selector": "/etc/shadow",
+    "selector_valid": true,
+    "ring_full": false,
+    "policy": { "present": true, "mode": "unknown", "hook_family": "file_open", "version": 3, "generation": 42, "selector": "/etc/shadow", "deny_errno": -13 },
+    "kill_switch": { "deny_disabled": false }
+  },
+  "expect": {
+    "returned": 0,
+    "decision": "fail_open_unknown",
+    "deny_source": "none",
+    "own_denial_recorded": false,
+    "result_changed": false,
+    "event_kind": 15
+  }
+}

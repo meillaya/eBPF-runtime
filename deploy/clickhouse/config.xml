@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 OR MIT -->
+<!--
+  ClickHouse server configuration for events_v1 ingestion.
+
+  Cluster-compatible replication config. This file defines:
+  1. Macros for ReplicatedReplacingMergeTree (cluster/shard/replica)
+  2. Kafka engine defaults
+  3. TTL configuration (30d events, 90d DLQ)
+  4. Merge tree settings for deduplication
+
+  BLOCKER: No live ClickHouse cluster on this host. This config
+  defines the schema for deployment; live operation re-opens on
+  the declared self-hosted runner.
+
+  Usage:
+    Single-node: use as-is (macros default to single-shard/single-replica).
+    Cluster: override macros per-node via /etc/clickhouse-server/config.d/.
+-->
+<clickhouse>
+    <!-- Cluster macros for ReplicatedReplacingMergeTree.
+         Single-node defaults; override per-node in cluster deployments. -->
+    <macros>
+        <cluster>events_cluster</cluster>
+        <shard>01</shard>
+        <replica>replica01</replica>
+    </macros>
+
+    <!-- Kafka engine defaults.
+         These are server-level defaults; per-table SETTINGS override. -->
+    <kafka>
+        <!-- Broker list: override per-environment. -->
+        <broker_list>localhost:9092</broker_list>
+        <!-- Consumer group: shared across all ClickHouse consumers
+             for the events.v1 topic. -->
+        <consumer_group>clickhouse-events-v1</consumer_group>
+    </kafka>
+
+    <!-- MergeTree settings for deduplication.
+         These control how aggressively ReplacingMergeTree collapses
+         duplicate rows. The defaults are conservative to avoid
+         excessive merge overhead. -->
+    <merge_tree>
+        <!-- Minimum bytes for a background merge to trigger. -->
+        <max_bytes_to_merge_at_max_space_in_pool>161061273600</max_bytes_to_merge_at_max_space_in_pool>
+        <!-- Number of background merge threads. -->
+        <number_of_free_entries_in_pool_to_lower_max_size_of_merge>8</number_of_free_entries_in_pool_to_lower_max_size_of_merge>
+        <!-- Replicated deduplication window (for ReplicatedRMT).
+             Prevents duplicate inserts from Kafka re-delivery. -->
+        <replicated_deduplication_window>1000</replicated_deduplication_window>
+        <replicated_deduplication_window_seconds>604800</replicated_deduplication_window_seconds>
+    </merge_tree>
+
+    <!-- TTL configuration.
+         events_v1: 30 days (configurable via {events_ttl_days} macro).
+         events_dlq_v1: 90 days (configurable via {dlq_ttl_days} macro).
+         These are enforced by the table-level TTL clause in the
+         migration SQL, not by server config. The macros are passed
+         at migration time via clickhouse-client -\-param. -->
+
+    <!-- Query-level settings for exact queries.
+         These are recommendations, not enforced server-wide.
+         Consumers should set these per-query via SETTINGS clause. -->
+    <profiles>
+        <default>
+            <!-- Allow FINAL queries (merge-on-read). -->
+            <allow_experimental_analyzer>1</allow_experimental_analyzer>
+            <!-- Maximum memory for GROUP BY (argMax dedup). -->
+            <max_memory_usage>10000000000</max_memory_usage>
+        </default>
+    </profiles>
+
+    <!-- Remote servers: cluster topology definition.
+         Single-node: empty (no remote_servers needed).
+         Cluster: define shards/replicas here or in config.d/. -->
+    <!--
+    <remote_servers>
+        <events_cluster>
+            <shard>
+                <replica>
+                    <host>clickhouse-01</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>clickhouse-02</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </events_cluster>
+    </remote_servers>
+    -->
+
+    <!-- ZooKeeper / ClickHouse Keeper for ReplicatedRMT.
+         Required for cluster deployments. Single-node uses plain RMT. -->
+    <!--
+    <zookeeper>
+        <node>
+            <host>zookeeper-01</host>
+            <port>2181</port>
+        </node>
+    </zookeeper>
+    -->
+</clickhouse>

@@ -1,0 +1,15 @@
+{
+  "name": "backoff-no-redial-storm",
+  "description": "Exponential backoff with jitter caps at max_ms; circuit breaker opens after max_attempts",
+  "backoff_base_ms": 100,
+  "backoff_max_ms": 1000,
+  "backoff_multiplier": 2.0,
+  "max_reconnect_attempts": 5,
+  "failures": 6,
+  "expect": {
+    "delay_sequence_computed_ms": [100, 200, 400, 800, 1000],
+    "circuit_breaker_opens_at_attempt": 5,
+    "final_error": "ReconnectExhausted",
+    "max_delay_capped": true
+  }
+}

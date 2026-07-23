@@ -1,0 +1,25 @@
+{
+  "name": "rollback-to-previous",
+  "description": "After v2 completes, rollback reverts all applied agents to v1 (last-known-good).",
+  "steps": [
+    {"action": "stage", "version": 1, "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "ready", "agent": "spiffe://kernel-v1.test/agent/prod/node-1", "digest_match": true},
+    {"action": "commit", "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "applied", "agent": "spiffe://kernel-v1.test/agent/prod/node-1"},
+    {"action": "stage", "version": 2, "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "ready", "agent": "spiffe://kernel-v1.test/agent/prod/node-1", "digest_match": true},
+    {"action": "commit", "actor": "spiffe://kernel-v1.test/operator/admin"},
+    {"action": "applied", "agent": "spiffe://kernel-v1.test/agent/prod/node-1"},
+    {"action": "rollback", "rollout_id": 2, "actor": "spiffe://kernel-v1.test/operator/admin"}
+  ],
+  "expect": {
+    "phase": "RolledBack",
+    "active_version": 1,
+    "agent_states": {
+      "spiffe://kernel-v1.test/agent/prod/node-1": "Rejected"
+    },
+    "last_known_good": {
+      "spiffe://kernel-v1.test/agent/prod/node-1": {"version": 1}
+    }
+  }
+}

@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
+[package]
+name = "observability"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+description = "Structured health, compatibility, loss, and low-cardinality Prometheus metrics for the eBPF runtime security agent."
+publish = false
+
+[lib]
+name = "observability"
+path = "src/lib.rs"
+
+[[bin]]
+name = "observability-cli"
+path = "src/bin/observability-cli.rs"
+
+[dependencies]
+event-abi = { path = "../event-abi" }
+agent-core = { path = "../agent-core" }
+enrichment = { path = "../enrichment" }
+privacy = { path = "../privacy" }
+storage-local = { path = "../storage-local" }
+prometheus = "0.13"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+parking_lot = "0.12"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "signal", "net"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+
+[dev-dependencies]
+proptest = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }
+reqwest = { version = "0.12", features = ["json"] }

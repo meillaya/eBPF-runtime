@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "lock_kernel": "6.6.0",
+  "expected": {
+    "x86_64": {
+      "btf": "capable",
+      "lsm": "capable",
+      "cgroup": "capable",
+      "tc": "capable",
+      "runtime": "capable"
+    },
+    "arm64": {
+      "btf": "capable",
+      "lsm": "degraded",
+      "cgroup": "capable",
+      "tc": "degraded",
+      "runtime": "capable"
+    }
+  },
+  "actual": {
+    "x86_64": {
+      "btf": "capable",
+      "lsm": "blocked",
+      "cgroup": "capable",
+      "tc": "capable",
+      "runtime": "capable"
+    },
+    "arm64": {
+      "btf": "capable",
+      "lsm": "degraded",
+      "cgroup": "capable",
+      "tc": "degraded",
+      "runtime": "capable"
+    }
+  },
+  "cells": [
+    { "cell": "x86_64/btf",     "expected": "capable", "actual": "capable", "ok": true },
+    { "cell": "x86_64/lsm",     "expected": "capable", "actual": "blocked", "ok": false },
+    { "cell": "x86_64/cgroup",  "expected": "capable", "actual": "capable", "ok": true },
+    { "cell": "x86_64/tc",      "expected": "capable", "actual": "capable", "ok": true },
+    { "cell": "x86_64/runtime", "expected": "capable", "actual": "capable", "ok": true },
+    { "cell": "arm64/btf",      "expected": "capable", "actual": "capable", "ok": true },
+    { "cell": "arm64/lsm",      "expected": "degraded", "actual": "degraded", "ok": true },
+    { "cell": "arm64/cgroup",   "expected": "capable", "actual": "capable", "ok": true },
+    { "cell": "arm64/tc",       "expected": "degraded", "actual": "degraded", "ok": true },
+    { "cell": "arm64/runtime",  "expected": "capable", "actual": "capable", "ok": true }
+  ],
+  "pass_fail": true
+}

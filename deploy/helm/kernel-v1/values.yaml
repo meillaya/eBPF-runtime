@@ -1,0 +1,304 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# kernel-v1 Helm chart — default values.
+#
+# ALL external services (PostgreSQL, Kafka, ClickHouse, SPIRE, OIDC)
+# are configured via the `external.*` section. This chart NEVER embeds
+# databases or brokers.
+#
+# Image references support digest pinning for production (digest takes
+# precedence over tag). Set `image.digest` to a sha256 digest; `image.tag`
+# is the dev fallback. NEVER use `latest` as the default tag.
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the full release name.
+fullnameOverride: ""
+
+# -- Image pull secrets for private registries.
+# Example: [{name: my-registry-secret}]
+imagePullSecrets: []
+
+# ---------------------------------------------------------------------------
+# Agent DaemonSet
+# ---------------------------------------------------------------------------
+agent:
+  # -- Deploy the agent DaemonSet.
+  enabled: true
+
+  image:
+    repository: ghcr.io/kernel-v1/agent
+    # -- Pin by digest in production (takes precedence over tag).
+    digest: ""
+    # -- Tag fallback for dev. NEVER set to "latest".
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  # -- Agent listen address (must be loopback).
+  listen: "127.0.0.1:9464"
+  # -- Log level filter.
+  logLevel: info
+  # -- Path to the SQLite database file inside the container.
+  dbPath: /var/lib/kernel-v1/outbox.db
+  # -- Path to the 32-byte SQLCipher storage key file (mounted from Secret).
+  keyPath: /etc/kernel-v1/storage-key
+
+  # -- Host paths mounted into the agent container.
+  # The agent reads /proc via a read-only hostPath mount (NOT hostPID).
+  # Only specific kernel filesystems are mounted read-write.
+  hostPaths:
+    # /proc mounted read-only for process enrichment.
+    proc: /proc
+    # bpffs for BPF map pinning (read-write).
+    bpffs: /sys/fs/bpf
+    # tracefs for tracepoint/kprobe attachment (read-write).
+    tracefs: /sys/kernel/debug/tracing
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+  # -- Liveness probe.
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 9464
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # -- Readiness probe.
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 9464
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+
+  # -- Node selector for the agent DaemonSet.
+  nodeSelector: {}
+  # -- Tolerations for the agent DaemonSet.
+  tolerations: []
+  # -- Affinity rules for the agent DaemonSet.
+  affinity: {}
+
+# ---------------------------------------------------------------------------
+# Control-plane Deployment
+# ---------------------------------------------------------------------------
+controlPlane:
+  # -- Deploy the control-plane Deployment.
+  enabled: true
+
+  # -- Number of replicas.
+  replicas: 2
+
+  image:
+    repository: ghcr.io/kernel-v1/control-plane
+    # -- Pin by digest in production (takes precedence over tag).
+    digest: ""
+    # -- Tag fallback for dev. NEVER set to "latest".
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  # -- Bind address (0.0.0.0 for pod networking).
+  bindAddr: "0.0.0.0"
+  # -- Bind port.
+  bindPort: 8080
+  # -- Log level filter.
+  logLevel: info
+  # -- Default cluster scope (empty = multi-cluster mode).
+  defaultCluster: ""
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
+  # -- Liveness probe.
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # -- Readiness probe.
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # -- Topology spread constraints for HA across nodes/zones.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels: {}
+
+  # -- PodDisruptionBudget for the control-plane.
+  pdb:
+    enabled: true
+    # -- Minimum available pods during disruption.
+    minAvailable: 1
+
+  service:
+    # -- Service type.
+    type: ClusterIP
+    # -- Service port.
+    port: 8080
+    # -- Additional service annotations.
+    annotations: {}
+
+  # -- Node selector for the control-plane Deployment.
+  nodeSelector: {}
+  # -- Tolerations for the control-plane Deployment.
+  tolerations: []
+  # -- Affinity rules for the control-plane Deployment.
+  affinity: {}
+
+# ---------------------------------------------------------------------------
+# Migration Job (Helm hooks: pre-install, pre-upgrade)
+# ---------------------------------------------------------------------------
+migrations:
+  # -- Run database migrations as a Helm hook job.
+  enabled: true
+
+  image:
+    repository: ghcr.io/kernel-v1/control-plane
+    # -- Pin by digest in production (takes precedence over tag).
+    digest: ""
+    # -- Tag fallback for dev. NEVER set to "latest".
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  # -- Command to run migrations.
+  command: ["kernel-v1-control-plane"]
+  args: ["migrate", "run"]
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  # -- Backoff limit for the migration job.
+  backoffLimit: 3
+  # -- TTL seconds after job completion before cleanup.
+  ttlSecondsAfterFinished: 300
+
+# ---------------------------------------------------------------------------
+# External services (ALL external — none embedded)
+# ---------------------------------------------------------------------------
+external:
+  postgresql:
+    # -- PostgreSQL host.
+    host: ""
+    # -- PostgreSQL port.
+    port: 5432
+    # -- PostgreSQL database name.
+    database: kernel_v1
+
+  kafka:
+    # -- Comma-separated Kafka broker list.
+    brokers: ""
+
+  clickhouse:
+    # -- ClickHouse host.
+    host: ""
+    # -- ClickHouse HTTP port.
+    port: 8123
+
+  spire:
+    # -- SPIRE server address (host:port).
+    serverAddress: ""
+
+  oidc:
+    # -- OIDC issuer URL.
+    issuer: ""
+    # -- OIDC client ID.
+    clientId: ""
+
+# ---------------------------------------------------------------------------
+# Secret references (NEVER inline credentials)
+# ---------------------------------------------------------------------------
+# All credentials are read from pre-existing Kubernetes Secrets.
+# Create the Secrets before installing the chart:
+#
+#   kubectl create secret generic kernel-v1-postgresql \
+#     --from-literal=username=control_app \
+#     --from-literal=password=<password>
+#
+#   kubectl create secret generic kernel-v1-oidc \
+#     --from-literal=clientSecret=<secret>
+#
+#   kubectl create secret generic kernel-v1-agent-key \
+#     --from-file=storage-key=/path/to/32-byte-key
+secrets:
+  postgresql:
+    # -- Name of the existing Secret with PostgreSQL credentials.
+    name: ""
+    usernameKey: username
+    passwordKey: password
+
+  kafka:
+    # -- Name of the existing Secret with Kafka credentials (optional).
+    name: ""
+    usernameKey: username
+    passwordKey: password
+
+  clickhouse:
+    # -- Name of the existing Secret with ClickHouse credentials (optional).
+    name: ""
+    usernameKey: username
+    passwordKey: password
+
+  oidc:
+    # -- Name of the existing Secret with the OIDC client secret.
+    name: ""
+    clientSecretKey: clientSecret
+
+  agentStorageKey:
+    # -- Name of the existing Secret with the 32-byte SQLCipher key.
+    name: ""
+    key: storage-key
+
+# ---------------------------------------------------------------------------
+# RBAC
+# ---------------------------------------------------------------------------
+rbac:
+  # -- Create ClusterRole and ClusterRoleBinding for node/pod read.
+  create: true
+
+# ---------------------------------------------------------------------------
+# ServiceAccount
+# ---------------------------------------------------------------------------
+serviceAccount:
+  # -- Create a ServiceAccount.
+  create: true
+  # -- Override the ServiceAccount name.
+  name: ""
+  # -- Annotations for the ServiceAccount.
+  annotations: {}
