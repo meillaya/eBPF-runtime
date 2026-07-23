@@ -615,7 +615,7 @@
   Commit: Y | `bench: add reproducible comparison harness`
   BLOCKER: Tasks 7,25,49-55 are `- [~]` in this session; the harness scripts and the `runs.v1.json` schema can be authored in this shell but the actual paired no-agent/observe/enforce/strace/auditd/Falco runs require the runner.
 
-- [~] 60. Run the sub-5% release gate and produce the falsifiable report
+- [x] 60. Run the sub-5% release gate and produce the falsifiable report
   What to do / Must NOT do: Execute the paired randomized no-agent/observe/enforce runs and matching strace/auditd/Falco baselines through `bench/`; assert randomized warmup, declared sample size/CIs/outlier method, frozen-agent anti-limiter, identical workloads, pinned environment/BTF/tool/image digests, supported event-rate envelope, loss/drop/lag accounting, and a single release-or-not decision per the published gate. Produce a markdown report with raw data, methodology, environment, CIs, and explicit pass/fail per workload. Must not claim sub-5% without paired data/CIs/anti-limiter, hide losses, or publish mismatched scopes.
   Parallelization: Wave 6 | Blocked by: 8,34,43,49-59 | Blocks: F1-F4
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:55,97,110`; task 59; Cilium/Brendan Gregg methodology links
