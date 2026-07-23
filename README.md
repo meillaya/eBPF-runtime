@@ -131,7 +131,7 @@ sg docker -c "docker run --rm --privileged \
     bpftool prog load /tmp/process.bpf.o /sys/fs/bpf/process'"
 ```
 
-## Directory Layout
+<!--## Directory Layout
 
 | Path | Purpose |
 |------|---------|
@@ -171,7 +171,7 @@ sg docker -c "docker run --rm --privileged \
 | `event-bus-kafka` | Idempotent Kafka publisher (acks=all, at-least-once) |
 | `analytics-clickhouse` | ReplacingMergeTree dedup, DLQ routing, exact queries |
 | `control-plane` | Authenticated query API, live-stream fanout, policy rollout |
-| `policy-rollout` | Two-phase STAGE→READY→COMMIT→APPLIED fleet coordination |
+| `policy-rollout` | Two-phase STAGE→READY→COMMIT→APPLIED fleet coordination |-->
 
 ## BPF Sensors
 
