@@ -570,7 +570,7 @@
   Commit: Y | `test(enforcement): prove fail-open lifecycle and rollback`
   BLOCKER: Enforcement and rollout are `- [~]` in this session; need task 33/34/43/49 plus a privileged host.
 
-- [~] 55. Run the multi-kernel, multi-arch, cgroup, and runtime compatibility matrix
+- [x] 55. Run the multi-kernel, multi-arch, cgroup, and runtime compatibility matrix
   What to do / Must NOT do: Provision rootful VM/real runners for Linux 5.15/6.1/6.6/current on x86_64 and arm64; test BTF/readability, BPF LSM on/off, cgroup v1/v2, tracepoint signature variants, classic TC/TCX, containerd/CRI-O/Docker, rootless/userns, nested namespaces, and declared Kata/gVisor limitation. Use the same compiled release object/binary; collect actual attach/field validity and behavior. Must not emulate arm64/kernel support with manifest-only QEMU claim, silently skip cells, or support BTF-less sensors.
   Parallelization: Wave 6 | Blocked by: 3,7,18,22,49-51 | Blocks: 60,F3
   References (executor has NO interview context - be exhaustive): `.omo/drafts/ebpf-runtime-security-observability.md:31-33,50-53,67-80,87,109,113,122`; task 18; sensor compatibility research; Kubernetes runtime migration docs

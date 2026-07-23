@@ -1,0 +1,342 @@
+{
+  "schema_version": 1,
+  "$id": "https://kernel-v1.local/schemas/compat-matrix/v1.json",
+  "title": "kernel-v1 compatibility matrix expected status (v1)",
+  "description": "Source of truth for the multi-kernel, multi-arch, cgroup, and runtime compatibility matrix (task 55). Each cell declares the expected feature status for a (kernel, arch) pair. The compat-matrix.sh harness probes the current kernel and compares against these expectations; untested cells are marked requires_vm. No matrix cell may aggregate PASS without actual probe evidence.",
+  "type": "object",
+  "required": ["kernels", "arches", "features", "matrix"],
+  "properties": {
+    "kernels": {
+      "type": "array",
+      "description": "Kernel versions in the matrix. The last entry is the current host kernel pinned at plan-lock time.",
+      "items": { "type": "string" },
+      "default": ["5.15.0", "6.1.0", "6.6.0", "7.1.3"]
+    },
+    "arches": {
+      "type": "array",
+      "description": "CPU architectures in the matrix.",
+      "items": { "type": "string", "enum": ["x86_64", "arm64"] },
+      "default": ["x86_64", "arm64"]
+    },
+    "features": {
+      "type": "object",
+      "description": "Feature definitions. Each key is a feature identifier; value describes the probe method and expected availability.",
+      "properties": {
+        "btf_readable": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "BTF vmlinux readable via /sys/kernel/btf/vmlinux" },
+            "probe": { "type": "string", "default": "test -f /sys/kernel/btf/vmlinux && bpftool btf dump file /sys/kernel/btf/vmlinux format c | head -1" },
+            "min_kernel": { "type": "string", "default": "5.2.0" }
+          }
+        },
+        "bpf_lsm_active": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "BPF LSM enabled in /sys/kernel/security/lsm" },
+            "probe": { "type": "string", "default": "grep -q bpf /sys/kernel/security/lsm" },
+            "min_kernel": { "type": "string", "default": "5.7.0" }
+          }
+        },
+        "cgroup_v2": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "Unified cgroup v2 hierarchy (cgroup2fs)" },
+            "probe": { "type": "string", "default": "stat -fc %T /sys/fs/cgroup/ | grep -q cgroup2fs" },
+            "min_kernel": { "type": "string", "default": "4.15.0" },
+            "note": { "type": "string", "default": "Kernel supports v2 from 4.15 but distro must mount unified; 5.15 may be hybrid" }
+          }
+        },
+        "tcx": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "TCX (TC eXpress) link type available" },
+            "probe": { "type": "string", "default": "bpftool feature probe | grep -q tcx" },
+            "min_kernel": { "type": "string", "default": "6.6.0" },
+            "degraded": { "type": "string", "default": "classic TC clsact qdisc attach (BPF_PROG_TYPE_SCHED_CLS)" }
+          }
+        },
+        "ring_buffer": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "BPF ring buffer map type available" },
+            "probe": { "type": "string", "default": "bpftool feature probe | grep -q ringbuf" },
+            "min_kernel": { "type": "string", "default": "5.8.0" }
+          }
+        },
+        "bpf_lsm_hooks": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "BPF_PROG_TYPE_LSM attachable to security hooks" },
+            "probe": { "type": "string", "default": "bpftool feature probe | grep -q 'lsm'" },
+            "min_kernel": { "type": "string", "default": "5.7.0" }
+          }
+        },
+        "prog_raw_tracepoint": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "BPF_PROG_TYPE_RAW_TRACEPOINT available" },
+            "probe": { "type": "string", "default": "bpftool feature probe | grep -q raw_tracepoint" },
+            "min_kernel": { "type": "string", "default": "4.17.0" }
+          }
+        },
+        "prog_kprobe": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "BPF_PROG_TYPE_KPROBE available" },
+            "probe": { "type": "string", "default": "bpftool feature probe | grep -q kprobe" },
+            "min_kernel": { "type": "string", "default": "4.1.0" }
+          }
+        },
+        "prog_cgroup_skb": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "BPF_PROG_TYPE_CGROUP_SKB available" },
+            "probe": { "type": "string", "default": "bpftool feature probe | grep -q cgroup_skb" },
+            "min_kernel": { "type": "string", "default": "4.10.0" }
+          }
+        },
+        "helper_ringbuf_output": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "bpf_ringbuf_output helper available" },
+            "probe": { "type": "string", "default": "bpftool feature probe | grep -q ringbuf_output" },
+            "min_kernel": { "type": "string", "default": "5.8.0" }
+          }
+        },
+        "helper_probe_read_kernel": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string", "default": "bpf_probe_read_kernel helper available" },
+            "probe": { "type": "string", "default": "bpftool feature probe | grep -q probe_read_kernel" },
+            "min_kernel": { "type": "string", "default": "5.5.0" }
+          }
+        }
+      }
+    },
+    "matrix": {
+      "type": "array",
+      "description": "Expected status for each (kernel, arch) cell. Status values: supported (all features pass), degraded (some features unavailable, named), requires_vm (not yet probed, expected status from min_kernel analysis).",
+      "items": {
+        "type": "object",
+        "required": ["kernel", "arch", "status", "features"],
+        "properties": {
+          "kernel": { "type": "string" },
+          "arch": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["supported", "degraded", "requires_vm", "unsupported"]
+          },
+          "features": {
+            "type": "object",
+            "description": "Map of feature_id -> expected boolean availability",
+            "additionalProperties": { "type": "boolean" }
+          },
+          "degraded_coverage": {
+            "type": "array",
+            "description": "Named degraded features with fallback behavior",
+            "items": {
+              "type": "object",
+              "properties": {
+                "feature": { "type": "string" },
+                "reason": { "type": "string" },
+                "fallback": { "type": "string" }
+              }
+            }
+          },
+          "probe_method": {
+            "type": "string",
+            "enum": ["host", "privileged_container", "vm", "not_tested"],
+            "default": "not_tested"
+          }
+        }
+      },
+      "default": [
+        {
+          "kernel": "5.15.0",
+          "arch": "x86_64",
+          "status": "requires_vm",
+          "features": {
+            "btf_readable": true,
+            "bpf_lsm_active": true,
+            "cgroup_v2": true,
+            "tcx": false,
+            "ring_buffer": true,
+            "bpf_lsm_hooks": true,
+            "prog_raw_tracepoint": true,
+            "prog_kprobe": true,
+            "prog_cgroup_skb": true,
+            "helper_ringbuf_output": true,
+            "helper_probe_read_kernel": true
+          },
+          "degraded_coverage": [
+            {
+              "feature": "tcx",
+              "reason": "TCX introduced in 6.6; not available on 5.15",
+              "fallback": "classic TC clsact qdisc (BPF_PROG_TYPE_SCHED_CLS)"
+            }
+          ],
+          "probe_method": "not_tested"
+        },
+        {
+          "kernel": "5.15.0",
+          "arch": "arm64",
+          "status": "requires_vm",
+          "features": {
+            "btf_readable": true,
+            "bpf_lsm_active": true,
+            "cgroup_v2": true,
+            "tcx": false,
+            "ring_buffer": true,
+            "bpf_lsm_hooks": true,
+            "prog_raw_tracepoint": true,
+            "prog_kprobe": true,
+            "prog_cgroup_skb": true,
+            "helper_ringbuf_output": true,
+            "helper_probe_read_kernel": true
+          },
+          "degraded_coverage": [
+            {
+              "feature": "tcx",
+              "reason": "TCX introduced in 6.6; not available on 5.15",
+              "fallback": "classic TC clsact qdisc (BPF_PROG_TYPE_SCHED_CLS)"
+            }
+          ],
+          "probe_method": "not_tested"
+        },
+        {
+          "kernel": "6.1.0",
+          "arch": "x86_64",
+          "status": "requires_vm",
+          "features": {
+            "btf_readable": true,
+            "bpf_lsm_active": true,
+            "cgroup_v2": true,
+            "tcx": false,
+            "ring_buffer": true,
+            "bpf_lsm_hooks": true,
+            "prog_raw_tracepoint": true,
+            "prog_kprobe": true,
+            "prog_cgroup_skb": true,
+            "helper_ringbuf_output": true,
+            "helper_probe_read_kernel": true
+          },
+          "degraded_coverage": [
+            {
+              "feature": "tcx",
+              "reason": "TCX introduced in 6.6; not available on 6.1",
+              "fallback": "classic TC clsact qdisc (BPF_PROG_TYPE_SCHED_CLS)"
+            }
+          ],
+          "probe_method": "not_tested"
+        },
+        {
+          "kernel": "6.1.0",
+          "arch": "arm64",
+          "status": "requires_vm",
+          "features": {
+            "btf_readable": true,
+            "bpf_lsm_active": true,
+            "cgroup_v2": true,
+            "tcx": false,
+            "ring_buffer": true,
+            "bpf_lsm_hooks": true,
+            "prog_raw_tracepoint": true,
+            "prog_kprobe": true,
+            "prog_cgroup_skb": true,
+            "helper_ringbuf_output": true,
+            "helper_probe_read_kernel": true
+          },
+          "degraded_coverage": [
+            {
+              "feature": "tcx",
+              "reason": "TCX introduced in 6.6; not available on 6.1",
+              "fallback": "classic TC clsact qdisc (BPF_PROG_TYPE_SCHED_CLS)"
+            }
+          ],
+          "probe_method": "not_tested"
+        },
+        {
+          "kernel": "6.6.0",
+          "arch": "x86_64",
+          "status": "requires_vm",
+          "features": {
+            "btf_readable": true,
+            "bpf_lsm_active": true,
+            "cgroup_v2": true,
+            "tcx": true,
+            "ring_buffer": true,
+            "bpf_lsm_hooks": true,
+            "prog_raw_tracepoint": true,
+            "prog_kprobe": true,
+            "prog_cgroup_skb": true,
+            "helper_ringbuf_output": true,
+            "helper_probe_read_kernel": true
+          },
+          "degraded_coverage": [],
+          "probe_method": "not_tested"
+        },
+        {
+          "kernel": "6.6.0",
+          "arch": "arm64",
+          "status": "requires_vm",
+          "features": {
+            "btf_readable": true,
+            "bpf_lsm_active": true,
+            "cgroup_v2": true,
+            "tcx": true,
+            "ring_buffer": true,
+            "bpf_lsm_hooks": true,
+            "prog_raw_tracepoint": true,
+            "prog_kprobe": true,
+            "prog_cgroup_skb": true,
+            "helper_ringbuf_output": true,
+            "helper_probe_read_kernel": true
+          },
+          "degraded_coverage": [],
+          "probe_method": "not_tested"
+        },
+        {
+          "kernel": "7.1.3",
+          "arch": "x86_64",
+          "status": "supported",
+          "features": {
+            "btf_readable": true,
+            "bpf_lsm_active": true,
+            "cgroup_v2": true,
+            "tcx": true,
+            "ring_buffer": true,
+            "bpf_lsm_hooks": true,
+            "prog_raw_tracepoint": true,
+            "prog_kprobe": true,
+            "prog_cgroup_skb": true,
+            "helper_ringbuf_output": true,
+            "helper_probe_read_kernel": true
+          },
+          "degraded_coverage": [],
+          "probe_method": "host"
+        },
+        {
+          "kernel": "7.1.3",
+          "arch": "arm64",
+          "status": "requires_vm",
+          "features": {
+            "btf_readable": true,
+            "bpf_lsm_active": true,
+            "cgroup_v2": true,
+            "tcx": true,
+            "ring_buffer": true,
+            "bpf_lsm_hooks": true,
+            "prog_raw_tracepoint": true,
+            "prog_kprobe": true,
+            "prog_cgroup_skb": true,
+            "helper_ringbuf_output": true,
+            "helper_probe_read_kernel": true
+          },
+          "degraded_coverage": [],
+          "probe_method": "not_tested"
+        }
+      ]
+    }
+  }
+}
