@@ -105,11 +105,11 @@ function qs(params: Record<string, string | number | undefined>): string {
 }
 
 export interface EventQuery {
-  cursor?: string;
-  since_ts_monotonic_ns?: number;
-  sensor?: string;
-  event_kind?: EventKind;
-  limit?: number;
+  cursor?: string | undefined;
+  since_ts_monotonic_ns?: number | undefined;
+  sensor?: string | undefined;
+  event_kind?: EventKind | undefined;
+  limit?: number | undefined;
 }
 
 export const api = {
