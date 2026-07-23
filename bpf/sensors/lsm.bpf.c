@@ -392,22 +392,21 @@ emit_decision(__u8 hook_family,
     ev->payload._pad0[1]     = 0;
     ev->payload._pad0[2]     = 0;
 
-    __builtin_memset(ev->payload.selector, 0,
-                     sizeof(ev->payload.selector));
-    if (sel_valid && bounded_len > 0) {
-        /* sel_buf is the caller's KERNEL_V1_LSM_SELECTOR_MAX stack
-         * buffer; ev->payload.selector lives in ring-buffer memory
-         * (NOT the BPF stack). Copy the meaningful prefix directly
-         * into the reservation -- a stack temp here would push the
-         * inlined frame past the 512-byte BPF stack limit. The
-         * constant-bound loop keeps the verifier's bounds analysis
-         * trivial. */
-        for (__u32 i = 0; i < KERNEL_V1_LSM_SELECTOR_MAX; ++i) {
-            if (i < bounded_len) {
-                ev->payload.selector[i] = sel_buf[i];
-            }
-        }
-    }
+    /* sel_buf is the caller's KERNEL_V1_LSM_SELECTOR_MAX stack buffer,
+     * always zero-initialised by the caller; ev->payload.selector lives
+     * in ring-buffer memory (NOT the BPF stack). A fixed-size
+     * __builtin_memcpy copies the meaningful prefix AND the zero tail in
+     * one straight-line sequence (clang lowers it to ~32 load/store
+     * pairs for 256 bytes). This is semantically identical to the
+     * previous memset + conditional byte-loop but eliminates the
+     * 256-iteration branch tree that exploded the verifier's state
+     * count on kernel 7.1.3 (each conditional iteration doubled the
+     * explored states). When sel_valid is false sel_buf is all zeros,
+     * so the copy produces the same all-zero selector the old memset
+     * did; selector_len and the TRUNC flag (set above) still tell the
+     * consumer exactly how many bytes are meaningful. */
+    __builtin_memcpy(ev->payload.selector, sel_buf,
+                     KERNEL_V1_LSM_SELECTOR_MAX);
     __builtin_memset(ev->payload._pad1, 0, sizeof(ev->payload._pad1));
 
     bpf_ringbuf_submit(ev, 0);
@@ -474,7 +473,13 @@ lsm_decide(__u8 hook_family,
                       (__s32)prior_ret, (__s32)prior_ret,
                       obs_buf, obs_len, obs_valid,
                       (__u8)KERNEL_V1_LSM_RESULT_HAS_ERRNO);
-        return prior_ret;  /* unchanged */
+        /* The verifier requires LSM returns in [-4095, 0]. Valid prior
+         * denials are always in [-4095, -1]; clamp the pathological
+         * case so the verifier can prove the bound. */
+        if (prior_ret < -4095) {
+            prior_ret = -4095;
+        }
+        return prior_ret;  /* unchanged for all valid denials */
     }
 
     /* (2) Fail-open on unknown/unsupported context. */
@@ -556,7 +561,7 @@ lsm_decide(__u8 hook_family,
          *      policy errno. This is the ONLY path that sets
          *      deny_source == OWN_LSM and the OWN_LSM result bit. */
         __s32 err = pol->deny_errno;
-        if (err >= 0) {
+        if (err >= 0 || err < -4095) {
             err = -13;  /* defensive: a deny must be a negative errno (EACCES) */
         }
         emit_decision(hook_family,
@@ -660,14 +665,18 @@ int BPF_PROG(lsm_socket_connect, struct socket *sock,
     __u32 sel_len = 0;
 
     if (address && addrlen > 0) {
-        __u32 want = (__u32)addrlen;
-        if (want > KERNEL_V1_LSM_SELECTOR_MAX) {
-            want = KERNEL_V1_LSM_SELECTOR_MAX;
-        }
-        long n = bpf_probe_read_kernel(sel_buf, want, address);
-        if (n == 0) {
-            sel_valid = true;
-            sel_len = want;
+        /* Power-of-2 mask: the verifier tracks bitwise AND natively
+         * (0..255), unlike the if-clamp pattern which loses the bound
+         * across branches. sockaddr_storage is 128 bytes; no real
+         * sockaddr family reaches 255, so the mask is semantically
+         * equivalent to the prior min(addrlen, 256) clamp. */
+        __u32 want = (__u32)addrlen & (KERNEL_V1_LSM_SELECTOR_MAX - 1);
+        if (want > 0) {
+            long n = bpf_probe_read_kernel(sel_buf, want, address);
+            if (n == 0) {
+                sel_valid = true;
+                sel_len = want;
+            }
         }
     }
 
