@@ -68,3 +68,21 @@ test("admin completes the Dex authorization-code flow and sees audit rows", asyn
     fullPage: true,
   });
 });
+
+test("viewer sees read-only policy surfaces and no audit navigation", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.locator('input[name="login"]').fill("vera");
+  await page.locator('input[name="password"]').fill("vera-password");
+  await page.locator('button[type="submit"]').click();
+
+  await expect(page.getByRole("heading", { name: "eBPF fleet" })).toBeVisible();
+  await expect(page.locator(".user-chip")).toContainText("Viewer");
+  await expect(page.getByRole("button", { name: "audit" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "policies" }).click();
+  await expect(page.getByText("read-only role")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stage policy" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Commit", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Roll out", exact: true })).toHaveCount(0);
+});

@@ -72,6 +72,7 @@ pub fn router(state: HttpState) -> Router {
         .route("/healthz", get(health))
         .route("/readyz", get(ready))
         .route("/metrics", get(metrics))
+        .route("/api/v1/meta", get(meta))
         .route("/api/v1/events", get(events))
         .route("/api/v1/alerts", get(alerts))
         .route("/api/v1/agents", get(agents))
@@ -143,6 +144,18 @@ async fn authenticate(
 #[derive(Debug, Deserialize)]
 struct EventQuery {
     limit: Option<usize>,
+}
+
+async fn meta(State(state): State<HttpState>, headers: HeaderMap) -> Response {
+    if let Err(response) = authenticate(&state, &headers, Role::Viewer).await {
+        return response;
+    }
+    Json(json!({
+        "cluster_name": state.cluster_name,
+        "version": env!("CARGO_PKG_VERSION"),
+        "analytics": state.clickhouse.is_some(),
+    }))
+    .into_response()
 }
 
 async fn events(

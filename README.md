@@ -118,11 +118,36 @@ pending. The API is `POST /api/v1/policies/{version}/rollout`;
 `ebpfctl rollout` and `ebpfctl rollout-status` are the command-line path.
 The dashboard shows the latest rollout status per policy version.
 
-The dashboard lists recent events, alerts, agents, policies, rollouts, and
-audit rows. It loads a snapshot from the API; the WebSocket feed is the
-agent-local endpoint, not a control-plane push feed. Staging is available
-through the API and `ebpfctl`; the dashboard commits an existing staged
-version and displays rollout status.
+## Dashboard
+
+The control plane serves a single-page dashboard at its HTTP port. It is a
+snapshot client: it polls the API on a configurable interval instead of
+pretending to have a push stream. The agent-local WebSocket remains an agent
+endpoint, not a control-plane feed.
+
+![Fleet dashboard](docs/verification/dashboard-rootful.png)
+
+- **Overview** shows fleet KPIs from ClickHouse analytics, a recent event
+  activity chart, event-mix and alert-severity breakdowns, recent alerts,
+  agent health, recent events, control-plane/database health, and the latest
+  policy/rollout state. The analytics window is selectable.
+- **Events** has full-text filtering, kind filtering, JSON/CSV export, and a
+  detail drawer with the raw event and any related alerts.
+- **Alerts** filters by severity and search, and opens a detail drawer with
+  the rule, node, explanation, and raw JSON.
+- **Agents** shows online/offline state, last heartbeat, SPIFFE identity,
+  generation, and reported sensors, with a detail drawer.
+- **Policies** is a working surface: hydrate the canonical default pack or
+  load a YAML file, validate with the agent parser, stage, commit, start a
+  thresholded rollout, inspect acknowledgements, and read the stored YAML.
+- **Audit** is visible only to admins and filters success/failure rows.
+
+The controls follow the token role: viewers get read-only surfaces, analysts
+can validate YAML, policy admins can stage/commit/roll out, and admins also
+get audit. The dashboard reads `/api/v1/meta` for the cluster name, build
+version, and whether ClickHouse analytics is configured. The topbar exposes a manual refresh, the sidebar exposes the
+auto-refresh interval, and the dashboard sign-in flow uses the same Dex
+issuer as the control plane.
 
 ## Deployment
 
@@ -220,7 +245,8 @@ authenticated `/api/v1` routes. Its HTTP port also serves the dashboard.
 - `ebpfctl login` stores a pasted token. It does not run an OAuth device
   flow.
 - Container and Kubernetes enrichment are not included.
-- The dashboard stages no policy YAML and has no user administration page.
+- The dashboard has no user administration page. It reads roles from the
+  token's group claim and relies on the API for enforcement.
 
 ## Build and test
 

@@ -14,6 +14,10 @@ ENV VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY web/ ./
+# The policy editor can load the canonical default pack. The source import
+# resolves to /rules inside this stage, matching the relative path used by
+# the local Vite build.
+COPY rules /rules
 RUN bun run build
 
 FROM archlinux:latest AS build

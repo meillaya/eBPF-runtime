@@ -51,7 +51,9 @@ Playwright passed the Dex authorization-code flow as `alice`, then checked
 the policies and audit tabs. It also staged and committed version 2,
 started a one-agent rollout with `min_ratio = 1.0`, waited for `promoted`,
 and found the rollout in the dashboard and the
-`policy.rollout.promoted` audit row. Screenshot:
+`policy.rollout.promoted` audit row. A second browser context signed in as
+`vera` and confirmed the viewer gets the read-only policy surface: no audit
+navigation, no stage control, and no commit or rollout buttons. Screenshot:
 [`oidc-dashboard.png`](oidc-dashboard.png).
 
 This is the live end-to-end proof that:

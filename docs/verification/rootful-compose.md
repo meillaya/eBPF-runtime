@@ -47,8 +47,14 @@ relay     projected batch lines, no fatal errors
 The final rebuilt image was verified again after the rollout and rotation changes:
 ClickHouse count rose from `117852` to `119123` over five seconds. The
 analytics endpoint returned per-kind counts and alert counts from
-ClickHouse. The dashboard screenshot is
-[`dashboard-rootful.png`](dashboard-rootful.png).
+ClickHouse. The final dashboard screenshot is
+[`dashboard-rootful.png`](dashboard-rootful.png). It shows the overview,
+analytics mix, severity breakdown, agent health, and recent activity from the
+same rootful stack. The event explorer, alerts, agents, policies, and audit
+surfaces were exercised separately with Playwright. The final interaction
+smoke test validated the canonical default rule pack, opened the stored YAML
+and acknowledgement drawers, and opened the agent detail drawer with no
+browser console errors.
 
 ## Notes
 

@@ -54,6 +54,8 @@ pub struct AgentRecord {
     pub agent_generation: String,
     /// Last seen epoch seconds.
     pub last_seen_epoch: i64,
+    /// Sensor names reported at registration.
+    pub sensors: Vec<String>,
 }
 
 /// Result of accepting a batch.
@@ -119,7 +121,7 @@ pub async fn register_agent(
            sensors = EXCLUDED.sensors,
            last_seen = now()
          RETURNING id, cluster_id, spiffe_id, node_name, agent_generation,
-                   extract(epoch FROM last_seen)::bigint AS last_seen_epoch",
+                   sensors, extract(epoch FROM last_seen)::bigint AS last_seen_epoch",
     )
     .bind(cluster_id)
     .bind(agent_key)
@@ -139,6 +141,7 @@ pub async fn register_agent(
         node_name: row.get("node_name"),
         agent_generation: row.get("agent_generation"),
         last_seen_epoch: row.get("last_seen_epoch"),
+        sensors: serde_json::from_value(row.get("sensors")).unwrap_or_default(),
     })
 }
 
@@ -1020,7 +1023,7 @@ pub async fn projection_depth(pool: &PgPool) -> Result<i64, DbError> {
 /// List agents in a cluster.
 pub async fn list_agents(pool: &PgPool, cluster_id: Uuid) -> Result<Vec<AgentRecord>, DbError> {
     let rows = sqlx::query(
-        "SELECT id, cluster_id, spiffe_id, node_name, agent_generation,
+        "SELECT id, cluster_id, spiffe_id, node_name, agent_generation, sensors,
                 extract(epoch FROM last_seen)::bigint AS last_seen_epoch
          FROM agents WHERE cluster_id = $1 ORDER BY node_name",
     )
@@ -1036,6 +1039,7 @@ pub async fn list_agents(pool: &PgPool, cluster_id: Uuid) -> Result<Vec<AgentRec
             node_name: row.get("node_name"),
             agent_generation: row.get("agent_generation"),
             last_seen_epoch: row.get("last_seen_epoch"),
+            sensors: serde_json::from_value(row.get("sensors")).unwrap_or_default(),
         })
         .collect())
 }
