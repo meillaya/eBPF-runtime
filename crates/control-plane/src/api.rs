@@ -79,6 +79,11 @@ pub fn router(state: HttpState) -> Router {
         .route("/api/v1/policies/stage", post(stage))
         .route("/api/v1/policies/commit", post(commit))
         .route("/api/v1/policies/{version}/acks", get(acks))
+        .route(
+            "/api/v1/policies/{version}/rollout",
+            post(start_rollout).get(rollout_status),
+        )
+        .route("/api/v1/rollouts", get(rollouts))
         .route("/api/v1/rules/validate", post(validate))
         .route("/api/v1/analytics/summary", get(analytics))
         .route("/api/v1/audit", get(audit))
@@ -263,8 +268,15 @@ async fn commit(
         Ok(None) => return not_found("policy version not found"),
         Err(error) => return internal(error.to_string()),
     };
+    match control_db::pending_rollout(&state.pool, state.cluster_id).await {
+        Ok(Some(_)) => {
+            return conflict("a policy rollout is pending; wait for it to finish before committing")
+        }
+        Ok(None) => {}
+        Err(error) => return internal(error.to_string()),
+    }
     if let Err(error) =
-        control_db::set_policy_status(&state.pool, request.version, "committed").await
+        control_db::set_policy_status_by_id(&state.pool, policy.id, "committed").await
     {
         return internal(error.to_string());
     }
@@ -300,6 +312,131 @@ async fn acks(
     }
     match control_db::list_policy_acks(&state.pool, version).await {
         Ok(acks) => Json(json!({"acks": acks, "next_cursor": null})).into_response(),
+        Err(error) => internal(error.to_string()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct StartRolloutRequest {
+    #[serde(default = "default_min_ratio")]
+    min_ratio: f64,
+    #[serde(default = "default_timeout_secs")]
+    timeout_secs: i32,
+    #[serde(default)]
+    force: bool,
+}
+
+fn default_min_ratio() -> f64 {
+    0.95
+}
+
+fn default_timeout_secs() -> i32 {
+    600
+}
+
+async fn start_rollout(
+    State(state): State<HttpState>,
+    headers: HeaderMap,
+    Path(version): Path<i64>,
+    Json(request): Json<StartRolloutRequest>,
+) -> Response {
+    let context = match authenticate(&state, &headers, Role::PolicyAdmin).await {
+        Ok(context) => context,
+        Err(response) => return response,
+    };
+    if !request.min_ratio.is_finite() || request.min_ratio <= 0.0 || request.min_ratio > 1.0 {
+        return bad_request("min_ratio must be greater than 0 and at most 1");
+    }
+    if request.timeout_secs < 1 || request.timeout_secs > 86_400 {
+        return bad_request("timeout_secs must be in 1..=86400");
+    }
+    let policy = match control_db::get_policy(&state.pool, state.cluster_id, version).await {
+        Ok(Some(policy)) => policy,
+        Ok(None) => return not_found("policy version not found"),
+        Err(error) => return internal(error.to_string()),
+    };
+    if policy.status != "committed" {
+        return conflict(format!(
+            "policy version {version} is {}; commit it before starting a rollout",
+            policy.status
+        ));
+    }
+    let rollout = match control_db::create_rollout(
+        &state.pool,
+        state.cluster_id,
+        version,
+        &context.sub,
+        request.min_ratio,
+        request.timeout_secs,
+        request.force,
+    )
+    .await
+    {
+        Ok(rollout) => rollout,
+        Err(control_db::DbError::Conflict(message)) => return conflict(message),
+        Err(control_db::DbError::NotFound(message)) => return not_found(message),
+        Err(error) => return internal(error.to_string()),
+    };
+
+    let command = ControlCommand {
+        command: Some(protocol::v1::control_command::Command::Policy(
+            PolicySnapshot {
+                version: policy.version.to_string(),
+                digest: policy.digest.clone(),
+                yaml: policy.content.into_bytes(),
+            },
+        )),
+    };
+    let _ = state.control.send(command);
+    let _ = control_db::audit(
+        &state.pool,
+        &context.sub,
+        "policy.rollout",
+        &format!("{}@{}", policy.name, policy.version),
+        true,
+        json!({
+            "min_ratio": request.min_ratio,
+            "timeout_secs": request.timeout_secs,
+            "force": request.force,
+            "expected_agents": rollout.expected_agents,
+            "previous_version": rollout.previous_version,
+        }),
+    )
+    .await;
+    Json(json!({"rollout": rollout})).into_response()
+}
+
+async fn rollout_status(
+    State(state): State<HttpState>,
+    headers: HeaderMap,
+    Path(version): Path<i64>,
+) -> Response {
+    if let Err(response) = authenticate(&state, &headers, Role::Viewer).await {
+        return response;
+    }
+    match control_db::latest_rollout(&state.pool, state.cluster_id, version).await {
+        Ok(Some(rollout)) => Json(json!({"rollout": rollout})).into_response(),
+        Ok(None) => not_found("no rollout for that policy version"),
+        Err(error) => internal(error.to_string()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RolloutListQuery {
+    limit: Option<usize>,
+}
+
+async fn rollouts(
+    State(state): State<HttpState>,
+    headers: HeaderMap,
+    Query(query): Query<RolloutListQuery>,
+) -> Response {
+    if let Err(response) = authenticate(&state, &headers, Role::Viewer).await {
+        return response;
+    }
+    let limit = query.limit.unwrap_or(50).clamp(1, 200);
+    match control_db::list_rollouts(&state.pool, state.cluster_id, limit).await {
+        Ok(rollouts) => Json(json!({"rollouts": rollouts})).into_response(),
         Err(error) => internal(error.to_string()),
     }
 }
@@ -410,4 +547,8 @@ fn not_found(message: impl Into<String>) -> Response {
         Json(json!({"error": message.into()})),
     )
         .into_response()
+}
+
+fn conflict(message: impl Into<String>) -> Response {
+    (StatusCode::CONFLICT, Json(json!({"error": message.into()}))).into_response()
 }

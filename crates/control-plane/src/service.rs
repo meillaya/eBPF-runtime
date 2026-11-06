@@ -10,7 +10,7 @@ use observability::Metrics;
 use protocol::v1::agent_service_server::AgentService;
 use protocol::v1::{
     BatchAck, BatchRequest, ControlCommand, ControlRequest, HealthAck, HealthReport, PolicyAck,
-    PolicyAckResponse, RegisterRequest, RegisterResponse,
+    PolicyAckResponse, PolicySnapshot, RegisterRequest, RegisterResponse,
 };
 use sqlx::PgPool;
 use tokio::sync::broadcast;
@@ -145,12 +145,32 @@ impl AgentService for AgentServiceImpl {
         if agent_key.is_empty() {
             return Err(Status::invalid_argument("agent id is required"));
         }
+        let initial = match control_db::current_policy(&self.pool, self.cluster_id).await {
+            Ok(Some(policy)) => Some(ControlCommand {
+                command: Some(protocol::v1::control_command::Command::Policy(
+                    PolicySnapshot {
+                        version: policy.version.to_string(),
+                        digest: policy.digest,
+                        yaml: policy.content.into_bytes(),
+                    },
+                )),
+            }),
+            Ok(None) => None,
+            Err(error) => {
+                tracing::warn!(%error, "cannot read current policy for control stream");
+                None
+            }
+        };
         let receiver = self.control.subscribe();
-        let stream = BroadcastStream::new(receiver).filter_map(|message| match message {
+        let updates = BroadcastStream::new(receiver).filter_map(|message| match message {
             Ok(command) => Some(Ok(command)),
             Err(_) => Some(Err(Status::unavailable("control stream lagged"))),
         });
-        Ok(Response::new(Box::pin(stream)))
+        let stream: Self::WatchControlStream = match initial {
+            Some(command) => Box::pin(tokio_stream::once(Ok(command)).chain(updates)),
+            None => Box::pin(updates),
+        };
+        Ok(Response::new(stream))
     }
 
     async fn report_health(

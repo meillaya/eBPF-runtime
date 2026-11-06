@@ -14,7 +14,7 @@ retention_secs = 3600
 dev = true
 
 [transport]
-endpoint = "http://control-plane:9443"
+endpoint = "http://127.0.0.1:9443"
 domain_name = "control-plane"
 ca_path = ""
 cert_path = ""

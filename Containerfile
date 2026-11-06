@@ -5,6 +5,12 @@
 
 FROM oven/bun:1 AS web
 WORKDIR /web
+# The dashboard reads these at build time. Empty keeps the dev-auth badge;
+# the OIDC test profile passes its Dex issuer and public client id.
+ARG VITE_OIDC_ISSUER=""
+ARG VITE_OIDC_CLIENT_ID=""
+ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER
+ENV VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY web/ ./

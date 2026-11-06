@@ -21,6 +21,7 @@ data:
     flush_ms = {{ .Values.agent.flushMs }}
     retention_secs = {{ .Values.agent.retentionSecs }}
     dev = false
+    tls_reload_poll_secs = {{ .Values.agent.tlsReloadPollSecs | default 10 }}
     {{- if .Values.agent.transport.enabled }}
     [transport]
     endpoint = {{ .Values.agent.transport.endpoint | quote }}

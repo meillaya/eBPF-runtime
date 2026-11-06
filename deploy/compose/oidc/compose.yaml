@@ -1,0 +1,167 @@
+name: ebpf-fleet-oidc
+
+# Live OIDC + LDAP + mTLS test profile.
+#
+# The control plane, agent, and Dex use host networking so
+# https://127.0.0.1:5556/dex is the same URL for the browser, the control
+# plane's JWKS client, and the issuer claim. This profile is for a disposable
+# test VM only.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ebpf
+      POSTGRES_PASSWORD: ebpf
+      POSTGRES_DB: control
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ebpf -d control"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  kafka:
+    image: apache/kafka:4.3.1
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    environment:
+      CLICKHOUSE_DB: ebpf
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' >/dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:8124:8123"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse-users.xml:/etc/clickhouse-server/users.d/ebpf.xml:ro,z
+
+  ldap:
+    image: osixia/openldap:1.5.0
+    environment:
+      LDAP_ORGANISATION: Example
+      LDAP_DOMAIN: example.org
+      LDAP_ADMIN_PASSWORD: admin
+      LDAP_CONFIG_PASSWORD: config
+    command: ["--copy-service"]
+    ports:
+      - "127.0.0.1:1389:389"
+    volumes:
+      - ./ldap/bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-bootstrap.ldif:ro,z
+
+  dex:
+    image: ghcr.io/dexidp/dex:v2.41.1
+    user: "0:0"
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    network_mode: host
+    depends_on:
+      ldap:
+        condition: service_started
+    volumes:
+      - ./dex/config.yaml:/etc/dex/config.yaml:ro,z
+      - ../../../target/oidc/certs:/etc/dex/tls:ro,z
+
+  proxy:
+    image: caddy:2.8-alpine
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      control-plane:
+        condition: service_started
+      dex:
+        condition: service_started
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
+
+  control-plane:
+    image: localhost/ebpf-fleet-oidc:test
+    build:
+      context: ../../..
+      target: runtime
+      args:
+        VITE_OIDC_ISSUER: http://127.0.0.1:8081/dex
+        VITE_OIDC_CLIENT_ID: ebpf-dashboard
+    entrypoint: ["/usr/local/bin/ebpf-control-plane"]
+    command: ["serve", "--config", "/etc/ebpf-control-plane/control.toml"]
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      dex:
+        condition: service_started
+    volumes:
+      - ./control.toml:/etc/ebpf-control-plane/control.toml:ro,z
+      - ../../../target/oidc/certs:/etc/ebpf-control-plane/tls:ro,z
+
+  relay:
+    image: localhost/ebpf-fleet-oidc:test
+    entrypoint: ["/usr/local/bin/ebpf-relay"]
+    command: ["--config", "/etc/ebpf-relay/relay.toml"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      control-plane:
+        condition: service_started
+    volumes:
+      - ./relay.toml:/etc/ebpf-relay/relay.toml:ro,z
+
+  agent:
+    image: localhost/ebpf-fleet-oidc:test
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        /usr/local/bin/ebpf-agent init --config /etc/ebpf-agent/agent.toml &&
+        exec /usr/local/bin/ebpf-agent run --config /etc/ebpf-agent/agent.toml
+    pid: host
+    privileged: true
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      control-plane:
+        condition: service_started
+    volumes:
+      - ./agent.toml:/etc/ebpf-agent/agent.toml:ro,z
+      - ../../../target/oidc/certs:/etc/ebpf-agent/tls:ro,z
+      - agent-data:/var/lib/ebpf-agent
+      - /sys/kernel/btf:/sys/kernel/btf:ro
+      - /sys/kernel/debug:/sys/kernel/debug
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /proc:/proc
+
+volumes:
+  postgres-data:
+  clickhouse-data:
+  agent-data:

@@ -35,6 +35,19 @@ pub struct PolicyUpdate {
     pub yaml: String,
 }
 
+/// Result of attempting to swap the rule engine in the sensor thread.
+#[derive(Debug, Clone)]
+pub struct PolicyApplyEvent {
+    /// Version.
+    pub version: String,
+    /// Digest.
+    pub digest: String,
+    /// applied or rejected.
+    pub status: String,
+    /// Error detail for a rejection.
+    pub message: String,
+}
+
 /// A decoded event and the alerts it produced.
 pub struct AgentRecord {
     /// Event.
@@ -74,6 +87,21 @@ pub enum AgentError {
 /// Run the agent until `shutdown` becomes true.
 pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result<(), AgentError> {
     init_logging();
+    // The external shutdown receiver is bridged to an internal one so the
+    // TLS rotation watcher can request the same clean teardown path.
+    let (internal_stop_tx, internal_stop_rx) = watch::channel(*shutdown.borrow());
+    {
+        let mut external = shutdown;
+        let bridge = internal_stop_tx.clone();
+        tokio::spawn(async move {
+            while external.changed().await.is_ok() {
+                if *external.borrow() {
+                    let _ = bridge.send(true);
+                    break;
+                }
+            }
+        });
+    }
     let agent_id = if config.agent_id.is_empty() {
         derive_agent_id()
     } else {
@@ -111,6 +139,7 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
         })
     });
     let (policy_tx, policy_rx) = watch::channel(initial_policy);
+    let (policy_ack_tx, policy_ack_rx) = mpsc::unbounded_channel::<PolicyApplyEvent>();
 
     let (live, _) = broadcast::channel(1024);
     let coverage = Arc::new(RwLock::new(None::<serde_json::Value>));
@@ -146,12 +175,28 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
         }
     });
 
+    let mut tls_watch = None;
+    if !config.dev {
+        if let Some(transport) = config.transport.as_ref() {
+            if config.tls_reload_poll_secs > 0
+                && !transport.cert_path.as_os_str().is_empty()
+                && !transport.key_path.as_os_str().is_empty()
+            {
+                tls_watch = Some(tokio::spawn(watch_tls_material(
+                    transport.clone(),
+                    config.tls_reload_poll_secs,
+                    internal_stop_tx.clone(),
+                )));
+            }
+        }
+    }
+
     let mut otlp_handle = None;
     if let Some(otlp_config) = config.otlp.clone() {
         otlp_handle = Some(tokio::spawn(otlp::run(
             otlp_config,
             metrics.clone(),
-            shutdown.clone(),
+            internal_stop_rx.clone(),
         )));
     }
 
@@ -172,6 +217,7 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
             node_name: config.node_name.clone(),
             sensors,
             policy_tx,
+            policy_ack_rx,
             metrics,
         })));
     }
@@ -185,13 +231,14 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
             &thread_config,
             &policy_yaml,
             policy_rx,
+            policy_ack_tx,
             sender,
             coverage_tx,
             thread_stop_poll,
         );
     });
 
-    let mut shutdown_rx = shutdown.clone();
+    let mut shutdown_rx = internal_stop_rx.clone();
     let mut builder = batching::BatchBuilder::new(config.batch_max_events, config.batch_max_bytes);
     let mut ticker = tokio::time::interval(Duration::from_millis(config.flush_ms));
     let mut maintenance = tokio::time::interval(Duration::from_secs(60));
@@ -252,6 +299,10 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
         }
     }
 
+    // Close the sensor channel before joining. The poll thread may be blocked
+    // in blocking_send when the receiver is full; dropping it makes that send
+    // fail and lets the thread observe the stop flag.
+    drop(receiver);
     thread_stop.store(true, Ordering::SeqCst);
     sensor_handle.join().map_err(|_| AgentError::SensorThread)?;
     flush(&storage, &mut builder, &agent_id, &config, &generation)?;
@@ -264,6 +315,9 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
         handle.abort();
     }
     let _ = tokio::time::timeout(Duration::from_secs(2), api_handle).await;
+    if let Some(handle) = tls_watch {
+        handle.abort();
+    }
     if sensor_failed {
         return Err(AgentError::SensorThread);
     }
@@ -274,6 +328,7 @@ fn poll_sensors(
     config: &AgentConfig,
     policy_yaml: &Option<String>,
     mut policy_rx: watch::Receiver<Option<PolicyUpdate>>,
+    policy_ack_tx: mpsc::UnboundedSender<PolicyApplyEvent>,
     sender: mpsc::Sender<AgentMessage>,
     coverage_tx: watch::Sender<Option<serde_json::Value>>,
     shutdown: Arc<AtomicBool>,
@@ -332,13 +387,7 @@ fn poll_sensors(
         if policy_rx.has_changed().unwrap_or(false) {
             let update = policy_rx.borrow_and_update().clone();
             if let Some(update) = update {
-                match Engine::from_yaml(&update.yaml) {
-                    Ok(next) => {
-                        engine = next;
-                        tracing::info!(version = %update.version, "policy applied");
-                    }
-                    Err(error) => tracing::warn!(%error, "policy rejected at apply time"),
-                }
+                update_engine(&mut engine, &update, &policy_ack_tx);
             }
         }
         if let Err(error) = ring.poll(Duration::from_millis(200)) {
@@ -379,6 +428,98 @@ fn poll_sensors(
             {
                 return;
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FileStamp {
+    len: u64,
+    modified_secs: u64,
+    modified_nanos: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TlsFingerprint {
+    ca: Option<FileStamp>,
+    cert: Option<FileStamp>,
+    key: Option<FileStamp>,
+}
+
+fn file_stamp(path: &std::path::Path) -> Option<FileStamp> {
+    let metadata = std::fs::metadata(path).ok()?;
+    let modified = metadata.modified().ok()?;
+    let since = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
+    Some(FileStamp {
+        len: metadata.len(),
+        modified_secs: since.as_secs(),
+        modified_nanos: since.subsec_nanos(),
+    })
+}
+
+fn tls_fingerprint(transport: &transport::TransportConfig) -> TlsFingerprint {
+    TlsFingerprint {
+        ca: file_stamp(&transport.ca_path),
+        cert: file_stamp(&transport.cert_path),
+        key: file_stamp(&transport.key_path),
+    }
+}
+
+/// Watch certificate, key, and CA files for replacement.
+///
+/// A changed file requests a clean agent shutdown. systemd
+/// (`Restart=always`) or Kubernetes restarts the process and the new client
+/// reads the rotated material. This is the first-version rotation behavior;
+/// it deliberately does not try to swap a live TLS connection.
+async fn watch_tls_material(
+    transport: transport::TransportConfig,
+    poll_secs: u64,
+    stop: watch::Sender<bool>,
+) {
+    let mut last = tls_fingerprint(&transport);
+    let mut ticker = tokio::time::interval(Duration::from_secs(poll_secs.max(1)));
+    ticker.tick().await;
+    loop {
+        ticker.tick().await;
+        let current = tls_fingerprint(&transport);
+        if current != last {
+            tracing::warn!("TLS material changed; restarting agent");
+            let _ = stop.send(true);
+            return;
+        }
+        last = current;
+    }
+}
+
+/// Parse and install a policy update, then report the result.
+///
+/// The acknowledgement is sent only after the new engine is active. The
+/// control-plane rollout threshold therefore measures engine activation, not
+/// just persistence of the pack.
+fn update_engine(
+    engine: &mut Engine,
+    update: &PolicyUpdate,
+    ack_tx: &mpsc::UnboundedSender<PolicyApplyEvent>,
+) {
+    match Engine::from_yaml(&update.yaml) {
+        Ok(next) => {
+            *engine = next;
+            let _ = ack_tx.send(PolicyApplyEvent {
+                version: update.version.clone(),
+                digest: update.digest.clone(),
+                status: "applied".to_string(),
+                message: String::new(),
+            });
+            tracing::info!(version = %update.version, "policy applied");
+        }
+        Err(error) => {
+            let _ = ack_tx.send(PolicyApplyEvent {
+                version: update.version.clone(),
+                digest: update.digest.clone(),
+                status: "rejected".to_string(),
+                message: error.to_string(),
+            });
+            tracing::warn!(%error, "policy rejected at apply time");
         }
     }
 }
@@ -436,5 +577,55 @@ mod tests {
     #[test]
     fn derive_agent_id_is_not_empty() {
         assert!(!derive_agent_id().is_empty());
+    }
+
+    #[test]
+    fn tls_fingerprint_changes_when_material_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let ca_path = dir.path().join("ca.crt");
+        let cert_path = dir.path().join("tls.crt");
+        let key_path = dir.path().join("tls.key");
+        std::fs::write(&ca_path, b"ca-one").unwrap();
+        std::fs::write(&cert_path, b"cert-one").unwrap();
+        std::fs::write(&key_path, b"key-one").unwrap();
+        let config = transport::TransportConfig {
+            endpoint: "https://127.0.0.1:9443".to_string(),
+            domain_name: "control-plane".to_string(),
+            ca_path,
+            cert_path,
+            key_path,
+            timeout_secs: 5,
+        };
+        let first = tls_fingerprint(&config);
+        assert_eq!(first, tls_fingerprint(&config));
+        std::thread::sleep(Duration::from_millis(10));
+        std::fs::write(&config.cert_path, b"cert-two").unwrap();
+        assert_ne!(first, tls_fingerprint(&config));
+    }
+
+    #[test]
+    fn update_engine_acks_after_swap_and_rejects_bad_yaml() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut engine = Engine::empty();
+        let update = PolicyUpdate {
+            version: "9".to_string(),
+            digest: "digest".to_string(),
+            yaml: "schema_version: 1\nengine_version: \"1.0.0\"\nrules:\n  - id: t\n    version: 1\n    severity: low\n    source: file\n    description: t\n    condition:\n      field: file.path\n      operator: eq\n      value: /tmp/t\n    action: alert\n".to_string(),
+        };
+        update_engine(&mut engine, &update, &tx);
+        assert_eq!(engine.rule_count(), 1);
+        let ack = rx.try_recv().expect("applied ack");
+        assert_eq!(ack.status, "applied");
+        assert_eq!(ack.version, "9");
+
+        let bad = PolicyUpdate {
+            version: "10".to_string(),
+            digest: "digest2".to_string(),
+            yaml: "not a ruleset".to_string(),
+        };
+        update_engine(&mut engine, &bad, &tx);
+        assert_eq!(engine.rule_count(), 1);
+        let ack = rx.try_recv().expect("rejected ack");
+        assert_eq!(ack.status, "rejected");
     }
 }

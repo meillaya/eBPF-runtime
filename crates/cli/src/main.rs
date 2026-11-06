@@ -54,6 +54,27 @@ enum Command {
         /// Policy version.
         version: i64,
     },
+    /// Start a thresholded policy rollout.
+    Rollout {
+        /// Policy version.
+        version: i64,
+        /// Minimum fraction of expected agents that must report applied.
+        #[arg(long, default_value_t = 0.95)]
+        min_ratio: f64,
+        /// Rollout timeout in seconds.
+        #[arg(long, default_value_t = 600)]
+        timeout_secs: i32,
+        /// Include offline agents in the denominator.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Show the latest rollout for a policy version.
+    RolloutStatus {
+        /// Policy version.
+        version: i64,
+    },
+    /// List recent rollouts.
+    Rollouts,
     /// List audit rows.
     Audit,
 }
@@ -116,6 +137,27 @@ async fn run(command: Command, client: Client) -> ExitCode {
                 .await
         }
         Command::Acks { version } => client.get(&format!("/policies/{version}/acks")).await,
+        Command::Rollout {
+            version,
+            min_ratio,
+            timeout_secs,
+            force,
+        } => {
+            client
+                .post(
+                    &format!("/policies/{version}/rollout"),
+                    serde_json::json!({
+                        "min_ratio": min_ratio,
+                        "timeout_secs": timeout_secs,
+                        "force": force,
+                    }),
+                )
+                .await
+        }
+        Command::RolloutStatus { version } => {
+            client.get(&format!("/policies/{version}/rollout")).await
+        }
+        Command::Rollouts => client.get("/rollouts").await,
         Command::Audit => client.get("/audit").await,
     };
     match result {

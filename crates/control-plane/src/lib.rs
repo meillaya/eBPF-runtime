@@ -5,6 +5,7 @@
 
 pub mod api;
 pub mod config;
+pub mod rollout;
 pub mod service;
 
 use std::sync::Arc;
@@ -50,16 +51,38 @@ pub async fn serve(config: ControlConfig) -> Result<(), ControlError> {
             Some(auth::Role::Admin),
         )
     } else {
-        auth::AuthService::new(
+        let verifier = if config.oidc_ca.as_os_str().is_empty() {
             auth::JwtVerifier::new(
                 config.oidc_issuer.clone(),
                 config.oidc_audience.clone(),
                 config.oidc_jwks_url.clone(),
-            ),
-            None,
-        )
+            )
+        } else {
+            let ca = std::fs::read(&config.oidc_ca).map_err(|error| {
+                ControlError::Config(config::ConfigError::Read {
+                    path: config.oidc_ca.clone(),
+                    detail: error.to_string(),
+                })
+            })?;
+            auth::JwtVerifier::new_with_ca(
+                config.oidc_issuer.clone(),
+                config.oidc_audience.clone(),
+                config.oidc_jwks_url.clone(),
+                &ca,
+            )
+            .map_err(|error| {
+                ControlError::Config(config::ConfigError::Invalid(error.to_string()))
+            })?
+        };
+        auth::AuthService::new(verifier, None)
     };
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let _rollout = tokio::spawn(rollout::run(
+        pool.clone(),
+        cluster_id,
+        control.clone(),
+        shutdown_rx.clone(),
+    ));
 
     let service = service::AgentServiceImpl {
         pool: pool.clone(),

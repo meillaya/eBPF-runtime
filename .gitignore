@@ -10,6 +10,8 @@
 # Web build output
 /web/node_modules/
 /web/dist/
+web/playwright-report/
+web/test-results/
 
 # Development shell state
 .devenv/

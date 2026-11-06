@@ -77,6 +77,7 @@ async fn delivery_acks_and_clears_outbox() {
     };
     let metrics = Arc::new(Metrics::new().unwrap());
     let (policy_tx, _policy_rx) = tokio::sync::watch::channel(None);
+    let (_policy_ack_tx, policy_ack_rx) = tokio::sync::mpsc::unbounded_channel();
     let handle = tokio::spawn(agent::delivery::run(agent::delivery::DeliveryConfig {
         storage: storage.clone(),
         transport,
@@ -87,6 +88,7 @@ async fn delivery_acks_and_clears_outbox() {
         node_name: "node-1".to_string(),
         sensors: vec!["file".to_string()],
         policy_tx,
+        policy_ack_rx,
         metrics,
     }));
 

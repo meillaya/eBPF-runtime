@@ -5,6 +5,7 @@ import type {
   AuditPage,
   EventPage,
   PolicyPage,
+  RolloutPage,
 } from "./types";
 
 const base = (import.meta.env.VITE_API_BASE ?? "/api/v1").replace(/\/$/, "");
@@ -36,6 +37,7 @@ export const api = {
   alerts: () => request<AlertPage>("/alerts"),
   agents: () => request<AgentPage>("/agents"),
   policies: () => request<PolicyPage>("/policies"),
+  rollouts: () => request<RolloutPage>("/rollouts?limit=50"),
   audit: () => request<AuditPage>("/audit"),
   stage: (version: number, content: string, name = "default") =>
     fetch(`${base}/policies/stage`, {

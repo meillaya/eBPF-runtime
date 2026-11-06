@@ -27,6 +27,11 @@ button.active {
   background: #2a3547;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .shell {
   max-width: 1200px;
   margin: 0 auto;

@@ -75,6 +75,9 @@ pub enum AuthError {
     /// JWKS fetch failed.
     #[error("jwks fetch failed: {0}")]
     Jwks(String),
+    /// TLS client setup failed.
+    #[error("tls setup failed: {0}")]
+    Tls(String),
     /// The key id is unknown after a refresh.
     #[error("unknown signing key {0}")]
     UnknownKey(String),
@@ -107,15 +110,47 @@ pub struct JwtVerifier {
 impl JwtVerifier {
     /// Build a verifier that fetches keys on first use.
     pub fn new(issuer: String, audience: String, jwks_url: String) -> Self {
-        Self {
+        Self::build(issuer, audience, jwks_url, None).expect("default HTTP client")
+    }
+
+    /// Build a verifier that trusts an additional PEM CA for the issuer.
+    ///
+    /// This is for private issuers such as a test Dex deployment. The CA is
+    /// used only by this process's JWKS client; it is not installed system
+    /// wide.
+    pub fn new_with_ca(
+        issuer: String,
+        audience: String,
+        jwks_url: String,
+        ca_pem: &[u8],
+    ) -> Result<Self, AuthError> {
+        let ca = reqwest::Certificate::from_pem(ca_pem)
+            .map_err(|error| AuthError::Tls(error.to_string()))?;
+        Self::build(issuer, audience, jwks_url, Some(ca))
+    }
+
+    fn build(
+        issuer: String,
+        audience: String,
+        jwks_url: String,
+        ca: Option<reqwest::Certificate>,
+    ) -> Result<Self, AuthError> {
+        let mut builder = reqwest::Client::builder();
+        if let Some(ca) = ca {
+            builder = builder.add_root_certificate(ca);
+        }
+        let client = builder
+            .build()
+            .map_err(|error| AuthError::Tls(error.to_string()))?;
+        Ok(Self {
             issuer,
             audience,
             jwks_url,
-            client: reqwest::Client::new(),
+            client,
             keys: RwLock::new(HashMap::new()),
             fetched_at: RwLock::new(None),
             max_age: Duration::from_secs(300),
-        }
+        })
     }
 
     /// Build a verifier from a pinned JWKS document. Used by tests and by
@@ -330,5 +365,80 @@ mod tests {
     fn highest_role_wins() {
         let groups = vec!["ebpf-viewers".to_string(), "ebpf-policy-admins".to_string()];
         assert_eq!(role_from_groups(&groups), Some(Role::PolicyAdmin));
+    }
+
+    fn token_with(groups: Vec<String>, exp: usize, key: &[u8], kid: &str) -> String {
+        let claims = Claims {
+            sub: "user-1".to_string(),
+            iss: "https://issuer.example".to_string(),
+            aud: "ebpf-control-plane".to_string(),
+            exp,
+            groups,
+            email: None,
+        };
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some(kid.to_string());
+        encode(&header, &claims, &EncodingKey::from_rsa_pem(key).unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn rejects_expired_token() {
+        let expired = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as usize
+            - 120;
+        let token = token_with(
+            vec!["ebpf-admins".to_string()],
+            expired,
+            include_bytes!("../tests/fixtures/test-key.pem"),
+            "test-key",
+        );
+        assert!(matches!(
+            verifier().verify(&token).await,
+            Err(AuthError::Invalid(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn rejects_wrong_signing_key() {
+        let token = token_with(
+            vec!["ebpf-admins".to_string()],
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as usize
+                + 300,
+            include_bytes!("../tests/fixtures/wrong-key.pem"),
+            "test-key",
+        );
+        assert!(matches!(
+            verifier().verify(&token).await,
+            Err(AuthError::Invalid(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn rejects_token_without_a_fleet_group() {
+        let token = token_with(
+            vec!["other-group".to_string()],
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as usize
+                + 300,
+            include_bytes!("../tests/fixtures/test-key.pem"),
+            "test-key",
+        );
+        assert!(matches!(
+            verifier().verify(&token).await,
+            Err(AuthError::NoRole)
+        ));
+    }
+
+    #[test]
+    fn wrong_key_fixture_is_valid_for_the_unsupported_key_test() {
+        let pem = include_bytes!("../tests/fixtures/wrong-key.pem");
+        assert!(EncodingKey::from_rsa_pem(pem).is_ok());
     }
 }

@@ -13,6 +13,9 @@ flush_ms = 1000
 retention_secs = 604800
 dev = false
 
+# Re-read certificate/key/CA metadata and restart on rotation. 0 disables.
+tls_reload_poll_secs = 10
+
 [redaction]
 path_prefixes = ["/home/"]
 secret_patterns = [

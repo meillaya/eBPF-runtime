@@ -28,6 +28,8 @@ pub struct DeliveryConfig {
     pub sensors: Vec<String>,
     /// Policy updates for the sensor thread.
     pub policy_tx: tokio::sync::watch::Sender<Option<crate::PolicyUpdate>>,
+    /// Engine-application results from the sensor thread.
+    pub policy_ack_rx: tokio::sync::mpsc::UnboundedReceiver<crate::PolicyApplyEvent>,
     /// Metrics.
     pub metrics: Arc<Metrics>,
 }
@@ -44,6 +46,7 @@ pub async fn run(config: DeliveryConfig) {
         node_name,
         sensors,
         policy_tx,
+        policy_ack_rx,
         metrics,
     } = config;
     let client = loop {
@@ -76,6 +79,7 @@ pub async fn run(config: DeliveryConfig) {
         }
     }
 
+    start_ack_reporter(client.clone(), policy_ack_rx, metrics.clone());
     start_control_watch(client.clone(), storage.clone(), policy_tx, metrics.clone());
 
     loop {
@@ -123,6 +127,36 @@ pub async fn run(config: DeliveryConfig) {
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
+}
+
+fn start_ack_reporter(
+    client: TransportClient,
+    mut ack_rx: tokio::sync::mpsc::UnboundedReceiver<crate::PolicyApplyEvent>,
+    metrics: Arc<Metrics>,
+) {
+    tokio::spawn(async move {
+        while let Some(event) = ack_rx.recv().await {
+            let mut delay = 1u64;
+            for attempt in 0..4 {
+                match client
+                    .report_policy_ack(&event.version, &event.digest, &event.status, &event.message)
+                    .await
+                {
+                    Ok(()) => break,
+                    Err(error) => {
+                        metrics.transport_retries_total.inc();
+                        if attempt == 3 {
+                            tracing::warn!(%error, version = %event.version, status = %event.status, "policy ack delivery failed");
+                            break;
+                        }
+                        tracing::warn!(%error, version = %event.version, status = %event.status, "policy ack failed; retrying");
+                        tokio::time::sleep(Duration::from_secs(delay)).await;
+                        delay = (delay * 2).min(8);
+                    }
+                }
+            }
+        }
+    });
 }
 
 fn start_control_watch(
@@ -229,14 +263,25 @@ async fn apply_policy(
             .await;
         return;
     }
-    let _ = policy_tx.send(Some(crate::PolicyUpdate {
-        version: snapshot.version.clone(),
-        digest: snapshot.digest.clone(),
-        yaml,
-    }));
-    let _ = client
-        .report_policy_ack(&snapshot.version, &digest, "applied", "")
-        .await;
+    if policy_tx
+        .send(Some(crate::PolicyUpdate {
+            version: snapshot.version.clone(),
+            digest: snapshot.digest.clone(),
+            yaml,
+        }))
+        .is_err()
+    {
+        let _ = client
+            .report_policy_ack(
+                &snapshot.version,
+                &digest,
+                "rejected",
+                "sensor thread is not running",
+            )
+            .await;
+    }
+    // The applied acknowledgement comes from the sensor thread after it has
+    // swapped the engine. See agent::update_engine.
 }
 
 fn boot_id_hex() -> String {

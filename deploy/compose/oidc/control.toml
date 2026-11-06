@@ -1,0 +1,16 @@
+grpc_listen = "127.0.0.1:9444"
+http_listen = "127.0.0.1:8082"
+database_url = "postgres://ebpf:ebpf@127.0.0.1:5433/control"
+cluster = "oidc-test"
+tls_ca = "/etc/ebpf-control-plane/tls/ca.crt"
+tls_cert = "/etc/ebpf-control-plane/tls/control.crt"
+tls_key = "/etc/ebpf-control-plane/tls/control.key"
+ui_dir = "/usr/share/ebpf/web"
+clickhouse_url = "http://127.0.0.1:8124"
+clickhouse_database = "ebpf"
+oidc_issuer = "http://127.0.0.1:8081/dex"
+oidc_audience = "ebpf-dashboard"
+oidc_jwks_url = "https://127.0.0.1:5556/dex/keys"
+oidc_ca = "/etc/ebpf-control-plane/tls/ca.crt"
+max_connections = 10
+dev = false

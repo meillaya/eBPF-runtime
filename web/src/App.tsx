@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, authEnabled, streamUrl } from "./api";
 import { initAuth, login, logout } from "./auth";
-import type { Agent, Alert, AuditRow, Event, Policy } from "./types";
+import type { Agent, Alert, AuditRow, Event, Policy, Rollout } from "./types";
 import "./styles.css";
 
 type Tab = "events" | "agents" | "policies" | "audit";
@@ -12,10 +12,12 @@ export default function App() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
+  const [rollouts, setRollouts] = useState<Rollout[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [live, setLive] = useState(false);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     initAuth().then(setAuthenticated).catch((reason) => setError(String(reason)));
@@ -25,16 +27,19 @@ export default function App() {
     const load = async () => {
       try {
         setError(null);
-        const [eventPage, alertPage, agentPage, policyPage] = await Promise.all([
-          api.events(),
-          api.alerts(),
-          api.agents(),
-          api.policies(),
-        ]);
+        const [eventPage, alertPage, agentPage, policyPage, rolloutPage] =
+          await Promise.all([
+            api.events(),
+            api.alerts(),
+            api.agents(),
+            api.policies(),
+            api.rollouts(),
+          ]);
         setEvents(eventPage.events);
         setAlerts(alertPage.alerts);
         setAgents(agentPage.agents);
         setPolicies(policyPage.policies);
+        setRollouts(rolloutPage.rollouts);
         if (tab === "audit") {
           setAudit((await api.audit()).audit);
         }
@@ -43,7 +48,7 @@ export default function App() {
       }
     };
     void load();
-  }, [tab]);
+  }, [tab, refresh]);
 
   useEffect(() => {
     if (tab !== "events") {
@@ -75,6 +80,16 @@ export default function App() {
       socket?.close();
     };
   }, [tab]);
+
+  const rolloutByVersion = useMemo(() => {
+    const byVersion = new Map<number, Rollout>();
+    for (const rollout of rollouts) {
+      if (!byVersion.has(rollout.version)) {
+        byVersion.set(rollout.version, rollout);
+      }
+    }
+    return byVersion;
+  }, [rollouts]);
 
   const counts = useMemo(() => {
     const byKind = new Map<string, number>();
@@ -188,31 +203,52 @@ export default function App() {
                 <th>name</th>
                 <th>version</th>
                 <th>status</th>
+                <th>rollout</th>
                 <th>digest</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {policies.map((policy) => (
-                <tr key={policy.id}>
-                  <td>{policy.name}</td>
-                  <td>{policy.version}</td>
-                  <td>{policy.status}</td>
-                  <td className="mono">{policy.digest.slice(0, 16)}</td>
-                  <td>
-                    <button
-                      onClick={() =>
-                        api
-                          .commit(policy.version)
-                          .then(() => setTab("policies"))
-                          .catch((reason) => setError(String(reason)))
+              {policies.map((policy) => {
+                const rollout = rolloutByVersion.get(policy.version);
+                return (
+                  <tr key={policy.id}>
+                    <td>{policy.name}</td>
+                    <td>{policy.version}</td>
+                    <td>{policy.status}</td>
+                    <td
+                      title={
+                        rollout
+                          ? `min ratio ${rollout.min_ratio}, timeout ${rollout.timeout_secs}s${rollout.reason ? `, ${rollout.reason}` : ""}`
+                          : undefined
                       }
                     >
-                      commit
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      {rollout
+                        ? `${rollout.status} ${rollout.applied_agents}/${rollout.expected_agents}`
+                        : "-"}
+                    </td>
+                    <td className="mono">{policy.digest.slice(0, 16)}</td>
+                    <td>
+                      <button
+                        disabled={rollout?.status === "pending"}
+                        title={
+                          rollout?.status === "pending"
+                            ? "a rollout is pending"
+                            : "commit this policy version"
+                        }
+                        onClick={() =>
+                          api
+                            .commit(policy.version)
+                            .then(() => setRefresh((value) => value + 1))
+                            .catch((reason) => setError(String(reason)))
+                        }
+                      >
+                        commit
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>

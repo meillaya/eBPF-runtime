@@ -17,6 +17,8 @@ controlPlane:
     issuer: https://dex.example.com
     audience: ebpf-control-plane
     jwksUrl: https://dex.example.com/keys
+    # Optional secret containing ca.crt for a private issuer.
+    caSecret: ""
   clickhouseUrl: http://clickhouse:8123
   clickhouseDatabase: ebpf
   resources:
@@ -61,6 +63,7 @@ agent:
   batchMaxBytes: 1048576
   flushMs: 1000
   retentionSecs: 604800
+  tlsReloadPollSecs: 10
   otlp:
     enabled: false
     endpoint: http://otel-collector:4318

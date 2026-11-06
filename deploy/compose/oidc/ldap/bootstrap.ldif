@@ -1,0 +1,41 @@
+dn: ou=people,dc=example,dc=org
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=alice,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: alice
+cn: Alice Admin
+sn: Admin
+mail: alice@example.org
+userPassword: alice-password
+
+dn: uid=vera,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: vera
+cn: Vera Viewer
+sn: Viewer
+mail: vera@example.org
+userPassword: vera-password
+
+dn: uid=mallory,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: mallory
+cn: Mallory NoGroup
+sn: NoGroup
+mail: mallory@example.org
+userPassword: mallory-password
+
+dn: cn=ebpf-admins,ou=groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: ebpf-admins
+member: uid=alice,ou=people,dc=example,dc=org
+
+dn: cn=ebpf-viewers,ou=groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: ebpf-viewers
+member: uid=vera,ou=people,dc=example,dc=org

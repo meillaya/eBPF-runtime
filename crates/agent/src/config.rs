@@ -41,6 +41,8 @@ pub struct AgentConfig {
     pub redaction: RedactionPolicy,
     /// Run without a control plane and use a test key when no key exists.
     pub dev: bool,
+    /// Poll interval for TLS material rotation. 0 disables the watcher.
+    pub tls_reload_poll_secs: u64,
     /// Remote sink. None keeps batches local.
     #[serde(default)]
     pub transport: Option<transport::TransportConfig>,
@@ -67,6 +69,7 @@ impl Default for AgentConfig {
             retention_secs: 7 * 24 * 60 * 60,
             redaction: RedactionPolicy::defaults(),
             dev: false,
+            tls_reload_poll_secs: 10,
             transport: None,
             otlp: None,
         }
@@ -132,6 +135,13 @@ impl AgentConfig {
         if let Ok(value) = std::env::var("EBPF_AGENT_DEV") {
             config.dev = matches!(value.as_str(), "1" | "true" | "yes");
         }
+        if let Ok(value) = std::env::var("EBPF_AGENT_TLS_RELOAD_POLL_SECS") {
+            config.tls_reload_poll_secs = value.parse().map_err(|_| {
+                ConfigError::Invalid(
+                    "EBPF_AGENT_TLS_RELOAD_POLL_SECS must be an integer".to_string(),
+                )
+            })?;
+        }
         if let Ok(value) = std::env::var("EBPF_AGENT_TRANSPORT_ENDPOINT") {
             match &mut config.transport {
                 Some(transport) => transport.endpoint = value,
@@ -194,6 +204,11 @@ impl AgentConfig {
                     "otlp.interval_secs must be in 1..=3600".to_string(),
                 ));
             }
+        }
+        if self.tls_reload_poll_secs > 3600 {
+            return Err(ConfigError::Invalid(
+                "tls_reload_poll_secs must be in 0..=3600".to_string(),
+            ));
         }
         if let Some(transport) = &self.transport {
             if transport.endpoint.is_empty() {

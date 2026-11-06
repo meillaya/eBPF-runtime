@@ -10,7 +10,7 @@ User=root
 Group=root
 ExecStartPre=/usr/local/bin/ebpf-agent init --config /etc/ebpf-agent/agent.toml
 ExecStart=/usr/local/bin/ebpf-agent run --config /etc/ebpf-agent/agent.toml
-Restart=on-failure
+Restart=always
 RestartSec=2s
 TimeoutStopSec=30s
 

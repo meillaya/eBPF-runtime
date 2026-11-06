@@ -38,6 +38,10 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.controlPlane.databaseUrlSecret.name }}
                   key: {{ .Values.controlPlane.databaseUrlSecret.key }}
+            {{- if .Values.controlPlane.oidc.caSecret }}
+            - name: OIDC_CA
+              value: /etc/ebpf-control-plane/oidc-ca/ca.crt
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /readyz
@@ -58,6 +62,11 @@ spec:
             - name: tls
               mountPath: /etc/ebpf-control-plane/tls
               readOnly: true
+            {{- if .Values.controlPlane.oidc.caSecret }}
+            - name: oidc-ca
+              mountPath: /etc/ebpf-control-plane/oidc-ca
+              readOnly: true
+            {{- end }}
       volumes:
         - name: config
           configMap:
@@ -65,3 +74,8 @@ spec:
         - name: tls
           secret:
             secretName: {{ .Values.controlPlane.tlsSecret }}
+        {{- if .Values.controlPlane.oidc.caSecret }}
+        - name: oidc-ca
+          secret:
+            secretName: {{ .Values.controlPlane.oidc.caSecret }}
+        {{- end }}

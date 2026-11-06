@@ -11,5 +11,7 @@ clickhouse_database = "ebpf"
 oidc_issuer = "https://dex.example.com"
 oidc_audience = "ebpf-control-plane"
 oidc_jwks_url = "https://dex.example.com/keys"
+# Optional PEM CA for a private issuer. OIDC_CA overrides it.
+# oidc_ca = "/etc/ebpf-control-plane/tls/oidc-ca.crt"
 max_connections = 10
 dev = false

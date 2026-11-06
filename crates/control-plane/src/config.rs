@@ -38,6 +38,8 @@ pub struct ControlConfig {
     pub oidc_audience: String,
     /// OIDC JWKS URL.
     pub oidc_jwks_url: String,
+    /// Optional PEM CA bundle for a private OIDC issuer's JWKS endpoint.
+    pub oidc_ca: PathBuf,
     /// Development mode binds loopback and skips TLS.
     pub dev: bool,
 }
@@ -59,6 +61,7 @@ impl Default for ControlConfig {
             oidc_issuer: String::new(),
             oidc_audience: "ebpf-control-plane".to_string(),
             oidc_jwks_url: String::new(),
+            oidc_ca: PathBuf::new(),
             dev: false,
         }
     }
@@ -126,6 +129,9 @@ impl ControlConfig {
         if let Ok(value) = std::env::var("OIDC_JWKS_URL") {
             config.oidc_jwks_url = value;
         }
+        if let Ok(value) = std::env::var("OIDC_CA") {
+            config.oidc_ca = PathBuf::from(value);
+        }
         if let Ok(value) = std::env::var("EBPF_CONTROL_DEV") {
             config.dev = matches!(value.as_str(), "1" | "true" | "yes");
         }
@@ -149,6 +155,12 @@ impl ControlConfig {
             return Err(ConfigError::Invalid(
                 "oidc_issuer and oidc_jwks_url are required outside dev mode".to_string(),
             ));
+        }
+        if !self.oidc_ca.as_os_str().is_empty() && !self.oidc_ca.is_file() {
+            return Err(ConfigError::Invalid(format!(
+                "oidc_ca {} is not a readable file",
+                self.oidc_ca.display()
+            )));
         }
         if self.dev {
             let grpc: std::net::SocketAddr = self

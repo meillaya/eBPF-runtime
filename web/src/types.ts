@@ -40,6 +40,29 @@ export interface Policy {
   created_at_epoch: number;
 }
 
+export interface Rollout {
+  id: string;
+  cluster_id: string;
+  policy_id: string;
+  name: string;
+  version: number;
+  previous_version: number | null;
+  requested_by: string;
+  min_ratio: number;
+  timeout_secs: number;
+  force: boolean;
+  status: string;
+  expected_agents: number;
+  applied_agents: number;
+  rejected_agents: number;
+  reason: string;
+  detail: unknown;
+  digest: string;
+  started_at_epoch: number;
+  deadline_epoch: number;
+  finished_at_epoch: number | null;
+}
+
 export interface AuditRow {
   actor: string;
   action: string;
@@ -70,4 +93,8 @@ export interface PolicyPage {
 
 export interface AuditPage {
   audit: AuditRow[];
+}
+
+export interface RolloutPage {
+  rollouts: Rollout[];
 }

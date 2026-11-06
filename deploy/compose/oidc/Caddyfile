@@ -1,0 +1,22 @@
+# Same-origin test proxy.
+#
+# The dashboard, API, OIDC discovery, and token endpoint all appear on
+# http://127.0.0.1:8081, so the browser never makes a cross-origin request to
+# Dex. Caddy terminates the browser's plain loopback HTTP and forwards the
+# Dex paths to Dex's internal HTTPS listener.
+{
+  auto_https off
+}
+
+:8081 {
+  handle /dex/* {
+    reverse_proxy https://127.0.0.1:5556 {
+      transport http {
+        tls_insecure_skip_verify
+      }
+    }
+  }
+  handle {
+    reverse_proxy 127.0.0.1:8082
+  }
+}

@@ -45,7 +45,17 @@ podman compose up --build
 The compose stack runs the control plane in its loopback development mode,
 without OIDC or TLS. It is for evaluation, not for an untrusted network.
 The agent container needs a rootful Podman or Docker daemon because it loads
-BPF programs and mounts host kernel paths.
+BPF programs and mounts host kernel paths. The development file uses host
+networking for the control plane and agent so the loopback-only development
+bind still works; PostgreSQL and ClickHouse publish loopback ports for those
+two containers. See [the rootful runbook](docs/runbooks/rootful-compose.md)
+for the VM preflight, build, verification, and common SELinux and compose
+provider failures.
+
+A separate profile exercises the real identity path: Dex with OpenLDAP
+groups, TLS, and per-node mTLS certificates. It is documented in
+[the OIDC runbook](docs/runbooks/oidc-dex-ldap.md) and is not part of the
+default development stack.
 
 ## How it fits together
 
@@ -93,12 +103,26 @@ group names:
 Policies are staged as YAML, validated by the same rule parser the agent
 uses, and committed with a SHA-256 digest. A commit broadcasts the policy
 on the agent control stream. Each agent checks the digest, writes the pack
-to its local store, swaps the rule engine, and reports an acknowledgement.
+to its local store, swaps the rule engine, and reports an acknowledgement
+only after the swap. An agent that reconnects receives the current policy
+as the first control command, so a rollback also reaches agents that were
+disconnected when it happened.
 
-The dashboard lists recent events, alerts, agents, policies, and audit
-rows. It also follows the agent event stream over WebSocket. Staging is
-available through the API and `ebpfctl`; the dashboard currently commits
-an existing staged version.
+A thresholded rollout is a separate step after commit. The control plane
+snapshots the online agent count, requires a previous committed version to
+roll back to, broadcasts the target, and counts applied acknowledgements
+after the rollout started. It promotes when the ratio is met and broadcasts
+the previous version on timeout or on any rejection. There is at most one
+pending rollout per cluster, and a new commit is refused while one is
+pending. The API is `POST /api/v1/policies/{version}/rollout`;
+`ebpfctl rollout` and `ebpfctl rollout-status` are the command-line path.
+The dashboard shows the latest rollout status per policy version.
+
+The dashboard lists recent events, alerts, agents, policies, rollouts, and
+audit rows. It loads a snapshot from the API; the WebSocket feed is the
+agent-local endpoint, not a control-plane push feed. Staging is available
+through the API and `ebpfctl`; the dashboard commits an existing staged
+version and displays rollout status.
 
 ## Deployment
 
@@ -109,7 +133,17 @@ development stack.
 For a host install, the systemd units run the agent as a privileged
 service with only the BPF capabilities it needs. The control plane and
 relay run as unprivileged users. Place `storage.key` and the mTLS
-certificate under `/etc/ebpf-agent` on each node.
+certificate under `/etc/ebpf-agent` on each node. Use one certificate per
+node; never share a client certificate across agents. The control plane
+maps the certificate's SPIFFE URI SAN to one agent row.
+
+The agent polls its certificate, key, and CA metadata. When the files are
+replaced it logs `TLS material changed; restarting agent` and exits; the
+systemd unit uses `Restart=always` and Kubernetes restarts the container.
+This is the first-version rotation behavior. It does not swap a live TLS
+connection. SPIRE is deliberately not deployed here; see
+[the identity decision](docs/decisions/0001-per-node-identity.md) for the
+criteria and the SPIRE path.
 
 The Helm chart deploys one control plane, one relay, and an agent
 DaemonSet. The agent mounts `/sys/kernel/btf`, `/sys/kernel/debug`,
@@ -139,7 +173,10 @@ Set `agent.transport.enabled=false` only for a local-only rollout.
 | `ebpf-control-plane migrate` | Apply PostgreSQL migrations. |
 | `ebpf-relay` | Project committed batches to Kafka and ClickHouse. |
 | `ebpf-bench` | Run the ingest gate. |
-| `ebpfctl` | Query agents, events, policies, and audit rows. |
+| `ebpfctl` | Query agents, events, policies, rollouts, and audit rows. |
+| `ebpfctl rollout VERSION` | Start a thresholded rollout (`--min-ratio`, `--timeout-secs`, `--force`). |
+| `ebpfctl rollout-status VERSION` | Show the latest rollout. |
+| `ebpfctl rollouts` | List recent rollouts. |
 
 The agent serves a loopback API on `127.0.0.1:9464`:
 
@@ -171,8 +208,15 @@ authenticated `/api/v1` routes. Its HTTP port also serves the dashboard.
 - Certificate issuance is outside the project. The control plane parses a
   SPIFFE URI SAN, but it does not run a SPIRE server or agent.
 - SQLCipher key rotation is not automated.
-- A policy commit is pushed to every agent at once. There is no canary or
-  acknowledgement threshold.
+- Rollouts assume one policy name per cluster; policy versions are treated
+  as cluster-unique. The rollout row keeps the policy id to avoid updating
+  the wrong version, but acknowledgements are keyed by version.
+- The rollout denominator is snapshotted when the rollout starts. An agent
+  that goes offline after that still counts, so the timeout is the safety
+  path; an agent that was offline at the start is excluded unless `--force`
+  is used.
+- Certificate rotation restarts the agent. A live TLS connection swap is
+  future work.
 - `ebpfctl login` stores a pasted token. It does not run an OAuth device
   flow.
 - Container and Kubernetes enrichment are not included.
@@ -192,7 +236,25 @@ The workspace tests include live paths when `DATABASE_URL` and
 `CLICKHOUSE_URL` are set. The gRPC test starts a development control plane,
 registers an agent, publishes a batch twice, and checks that the second
 reply is a duplicate. The agent test drains an outbox, commits a policy,
-and checks that the agent persists it.
+and checks that the agent persists it. The rollout tests cover promotion,
+timeout rollback, offline-agent exclusion, immediate rollback on a
+rejected acknowledgement, missing previous versions, and a second pending
+rollout.
+
+The live OIDC harness generates test certificates under `target/oidc`,
+starts Dex, OpenLDAP, PostgreSQL, ClickHouse, the control plane, relay, and
+a per-node mTLS agent, then runs the API assertions and the Playwright
+login flow:
+
+```bash
+scripts/gen-test-certs.sh
+podman compose -f deploy/compose/oidc/compose.yaml up -d --build
+scripts/oidc/api-tests.sh
+cd web && EBPF_WEB_URL=http://127.0.0.1:8081 bunx playwright test
+```
+
+The test CA is trusted only by the control plane's JWKS client and by the
+browser/test process. It is never installed system-wide.
 
 The benchmark gate sends synthetic batches to a control plane:
 
