@@ -1,0 +1,39 @@
+cluster = "prod"
+node_name = ""
+agent_id = ""
+listen = "127.0.0.1:9464"
+db_path = "/var/lib/ebpf-agent/outbox.db"
+key_path = "/etc/ebpf-agent/storage.key"
+rules_dir = "/etc/ebpf-runtime/rules/default"
+proc_root = "/proc"
+sensors = ["process", "file"]
+batch_max_events = 500
+batch_max_bytes = 1048576
+flush_ms = 1000
+retention_secs = 604800
+dev = false
+
+# Re-read certificate/key/CA metadata and restart on rotation. 0 disables.
+tls_reload_poll_secs = 10
+
+[redaction]
+path_prefixes = ["/home/"]
+secret_patterns = [
+  "(?i)bearer\\s+[A-Za-z0-9._~+/\\-=]+",
+  "(?i)(password|token|secret)\\s*[=:]\\s*\\S+",
+]
+max_argv_bytes = 4096
+
+[transport]
+endpoint = "https://control-plane.example.com:9443"
+domain_name = "control-plane"
+ca_path = "/etc/ebpf-agent/tls/ca.crt"
+cert_path = "/etc/ebpf-agent/tls/tls.crt"
+key_path = "/etc/ebpf-agent/tls/tls.key"
+timeout_secs = 10
+
+[otlp]
+endpoint = "http://127.0.0.1:4318"
+interval_secs = 15
+service_name = "ebpf-agent"
+headers = []

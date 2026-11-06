@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "observability"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Prometheus metrics for the agent and control plane."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "observability"
+path = "src/lib.rs"
+
+[dependencies]
+prometheus = "0.13"
+thiserror = "2"

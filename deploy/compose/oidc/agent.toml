@@ -1,0 +1,23 @@
+cluster = "oidc-test"
+node_name = "node-1"
+agent_id = ""
+listen = "127.0.0.1:9464"
+db_path = "/var/lib/ebpf-agent/outbox.db"
+key_path = "/var/lib/ebpf-agent/storage.key"
+rules_dir = "/etc/ebpf-runtime/rules/default"
+proc_root = "/proc"
+sensors = ["process", "file"]
+batch_max_events = 500
+batch_max_bytes = 1048576
+flush_ms = 500
+retention_secs = 3600
+dev = false
+tls_reload_poll_secs = 10
+
+[transport]
+endpoint = "https://127.0.0.1:9444"
+domain_name = "control-plane"
+ca_path = "/etc/ebpf-agent/tls/ca.crt"
+cert_path = "/etc/ebpf-agent/tls/agent.crt"
+key_path = "/etc/ebpf-agent/tls/agent.key"
+timeout_secs = 10

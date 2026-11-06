@@ -1,0 +1,33 @@
+[Unit]
+Description=eBPF Kafka and ClickHouse projection relay
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ebpf-relay
+Group=ebpf-relay
+EnvironmentFile=/etc/ebpf-relay/env
+ExecStart=/usr/local/bin/ebpf-relay --config /etc/ebpf-relay/relay.toml
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=30s
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/ebpf-relay
+
+[Install]
+WantedBy=multi-user.target

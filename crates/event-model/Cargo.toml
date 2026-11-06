@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "event-model"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Canonical fleet event, alert, and batch types with stable ids."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "event_model"
+path = "src/lib.rs"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+event-abi = { path = "../event-abi" }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+thiserror = "2"

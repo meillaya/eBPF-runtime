@@ -15,17 +15,27 @@
 
   packages = with pkgs; [
     bpftools
+    bun
+    nodejs
     git
     jq
     libbpf
+    openssl
+    rdkafka
     llvmPackages_19.clang
+    llvmPackages_19.clang-unwrapped
     llvmPackages_19.llvm
     pkg-config
   ];
 
   env = {
     RUST_BACKTRACE = "1";
-    CLANG = "${pkgs.llvmPackages_19.clang}/bin/clang";
+    # Nix's hardening flags add _FORTIFY_SOURCE without optimisation.
+    # libbpf-sys builds its vendored C dependencies with -Werror, so give
+    # the C compiler an optimisation level.
+    CFLAGS = "-O2";
+    CXXFLAGS = "-O2";
+    CLANG = "${pkgs.llvmPackages_19.clang-unwrapped}/bin/clang";
     BPFTOOL = "${pkgs.bpftools}/bin/bpftool";
   };
 

@@ -1,9 +1,25 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/agent",
+    "crates/analytics-clickhouse",
+    "crates/auth",
+    "crates/bench",
+    "crates/cli",
+    "crates/control-db",
+    "crates/control-plane",
     "crates/bpf-build",
     "crates/bpf-loader",
     "crates/event-abi",
+    "crates/event-bus-kafka",
+    "crates/event-model",
+    "crates/privacy",
+    "crates/protocol",
+    "crates/relay",
     "crates/rules",
+    "crates/storage-local",
+    "crates/transport",
+    "crates/observability",
+    "crates/otlp",
     "crates/runtime",
 ]

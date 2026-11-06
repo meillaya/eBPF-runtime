@@ -116,7 +116,9 @@ def text(x, y, width, height, value, font=FONT_NOTE, color=INK):
 
 def arrow(x1, y1, x2, y2, label=None, dashed=False):
     dx, dy = x2 - x1, y2 - y1
-    element = base("arrow", min(x1, x2), min(y1, y2), abs(dx), abs(dy), MUTED, "transparent")
+    # Keep the arrow origin at the start point. Negative dx or dy means the
+    # tip extends left or up from the element origin.
+    element = base("arrow", x1, y1, abs(dx), abs(dy), MUTED, "transparent")
     element.update(
         {
             "roundness": {"type": 2},
@@ -137,7 +139,7 @@ def arrow(x1, y1, x2, y2, label=None, dashed=False):
         label_width = max(60, len(label) * 11)
         if dx == 0:
             label_x = x1 + 10
-            label_y = mid_y - 12
+            label_y = mid_y - 4
         else:
             label_x = mid_x - label_width / 2
             label_y = mid_y - 30
@@ -225,6 +227,77 @@ def build_path():
     return scene("Build path: C source to embedded object", elements)
 
 
+
+def fleet_architecture():
+    elements = []
+    elements += [
+        text(40, 150, 360, 30, "Each node", FONT_BODY, INK),
+        text(560, 150, 340, 30, "One control plane", FONT_BODY, INK),
+        text(1100, 150, 320, 30, "Projections and people", FONT_BODY, INK),
+    ]
+
+    elements += box(40, 210, 180, 70, "input", "process sensor")
+    elements += box(240, 210, 180, 70, "input", "file sensor")
+    elements += box(40, 350, 380, 70, "runtime", "SQLCipher store\nevents at rest")
+    elements += box(40, 480, 380, 70, "runtime", "durable outbox\nretry on failure")
+
+    elements += box(560, 230, 300, 70, "runtime", "mTLS gRPC\nagent ingestion")
+    elements += box(560, 370, 300, 70, "analysis", "PostgreSQL truth\nbatches and policies")
+    elements += box(560, 530, 300, 70, "analysis", "OIDC and RBAC\nauthenticated API")
+    elements += box(560, 680, 300, 70, "analysis", "policy rollout\nstaged then pushed")
+
+    elements += box(1100, 230, 300, 70, "neutral", "Kafka\nprojection log")
+    elements += box(1100, 370, 300, 70, "neutral", "ClickHouse\nevent analytics")
+    elements += box(1100, 510, 300, 70, "model", "dashboard\nlive and history")
+
+    elements += arrow(130, 280, 130, 350, "events")
+    elements += arrow(330, 280, 330, 350, "events")
+    elements += arrow(230, 420, 230, 480, "flush")
+    elements += arrow(420, 515, 560, 265, "batches")
+    elements += arrow(790, 300, 790, 370, "commit")
+    elements += arrow(590, 530, 590, 440, "policy read")
+    elements += arrow(710, 600, 710, 680, "roll out")
+    elements += arrow(860, 405, 1100, 265, "relay")
+    elements += arrow(1250, 300, 1250, 370, "project")
+    elements += arrow(1250, 440, 1250, 510, "query")
+    elements += arrow(1100, 545, 860, 545, "commit policy", dashed=True)
+
+    elements.append(text(40, 620, 460, 100, "A failed send keeps the batch in the outbox.\nThe agent retries with backoff.", FONT_NOTE, MUTED))
+    elements.append(text(40, 730, 460, 100, "ACK means PostgreSQL commit.\nKafka and ClickHouse are projections.", FONT_NOTE, MUTED))
+    return scene("Fleet path: hooks to analytics", elements)
+
+def delivery_path():
+    elements = []
+    x = 500
+    width = 520
+    height = 60
+    ys = [140, 260, 380, 500, 620, 740, 860]
+    labels = [
+        ("input", "kernel event\nrecord bytes"),
+        ("runtime", "decoder and rules\nnamed fields"),
+        ("runtime", "batch builder\nsize or time"),
+        ("analysis", "SQLCipher outbox\nwrite before send"),
+        ("input", "mTLS send\nbatch JSON"),
+        ("analysis", "PostgreSQL commit\ndurable truth"),
+        ("runtime", "ACK\ndelete outbox row"),
+    ]
+    for y, (role, label) in zip(ys, labels):
+        elements += box(x, y, width, height, role, label)
+
+    steps = ["decode", "fill", "persist", "send", "commit", "ack"]
+    for index, label in enumerate(steps):
+        elements += arrow(
+            x + width / 2,
+            ys[index] + height,
+            x + width / 2,
+            ys[index + 1],
+            label,
+        )
+
+    elements.append(text(1080, 430, 380, 100, "A failed send keeps the row\nand retries with backoff.", FONT_NOTE, MUTED))
+    elements.append(text(1080, 550, 380, 100, "A crash between send and\ndelete replays the batch.", FONT_NOTE, MUTED))
+    return scene("Durable delivery: write, send, then acknowledge", elements)
+
 def write(name, document):
     path = OUT / f"{name}.excalidraw"
     path.write_text(json.dumps(document, indent=2) + "\n")
@@ -235,6 +308,8 @@ def main():
     write("runtime-architecture", architecture())
     write("exec-event-path", event_path())
     write("build-path", build_path())
+    write("fleet-architecture", fleet_architecture())
+    write("delivery-path", delivery_path())
 
 
 if __name__ == "__main__":

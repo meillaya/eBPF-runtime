@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ebpf-fleet.fullname" . }}-control-plane
+  labels:
+    {{- include "ebpf-fleet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+spec:
+  replicas: {{ .Values.controlPlane.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: control-plane
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: control-plane
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: control-plane
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/ebpf-control-plane"]
+          args: ["serve", "--config", "/etc/ebpf-control-plane/control.toml"]
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.controlPlane.grpcPort }}
+            - name: http
+              containerPort: {{ .Values.controlPlane.httpPort }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.controlPlane.databaseUrlSecret.name }}
+                  key: {{ .Values.controlPlane.databaseUrlSecret.key }}
+            {{- if .Values.controlPlane.oidc.caSecret }}
+            - name: OIDC_CA
+              value: /etc/ebpf-control-plane/oidc-ca/ca.crt
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.controlPlane.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ebpf-control-plane
+            - name: tls
+              mountPath: /etc/ebpf-control-plane/tls
+              readOnly: true
+            {{- if .Values.controlPlane.oidc.caSecret }}
+            - name: oidc-ca
+              mountPath: /etc/ebpf-control-plane/oidc-ca
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "ebpf-fleet.fullname" . }}-control-plane
+        - name: tls
+          secret:
+            secretName: {{ .Values.controlPlane.tlsSecret }}
+        {{- if .Values.controlPlane.oidc.caSecret }}
+        - name: oidc-ca
+          secret:
+            secretName: {{ .Values.controlPlane.oidc.caSecret }}
+        {{- end }}

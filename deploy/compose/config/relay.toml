@@ -1,0 +1,7 @@
+database_url = "postgres://ebpf:ebpf@postgres:5432/control"
+kafka_brokers = ["kafka:9092"]
+kafka_topic = "ebpf.batches"
+clickhouse_url = "http://clickhouse:8123"
+clickhouse_database = "ebpf"
+poll_ms = 500
+limit = 200

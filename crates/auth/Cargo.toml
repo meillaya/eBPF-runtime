@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "auth"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "OIDC bearer validation and RBAC for the control plane."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "auth"
+path = "src/lib.rs"
+
+[dependencies]
+base64 = "0.22"
+jsonwebtoken = "9"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

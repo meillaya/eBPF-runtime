@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "privacy"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Redaction policy for fleet events and alerts."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "privacy"
+path = "src/lib.rs"
+
+[dependencies]
+event-model = { path = "../event-model" }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"

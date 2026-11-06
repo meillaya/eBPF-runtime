@@ -1,0 +1,41 @@
+{{- if .Values.agent.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ebpf-fleet.fullname" . }}-agent
+  labels:
+    {{- include "ebpf-fleet.labels" . | nindent 4 }}
+data:
+  agent.toml: |
+    cluster = {{ .Values.agent.cluster | quote }}
+    node_name = ""
+    agent_id = ""
+    listen = "127.0.0.1:9464"
+    db_path = "/var/lib/ebpf-agent/outbox.db"
+    key_path = "/etc/ebpf-agent/storage.key"
+    rules_dir = {{ .Values.agent.rulesDir | quote }}
+    proc_root = "/proc"
+    sensors = ["process", "file"]
+    batch_max_events = {{ .Values.agent.batchMaxEvents }}
+    batch_max_bytes = {{ .Values.agent.batchMaxBytes }}
+    flush_ms = {{ .Values.agent.flushMs }}
+    retention_secs = {{ .Values.agent.retentionSecs }}
+    dev = false
+    tls_reload_poll_secs = {{ .Values.agent.tlsReloadPollSecs | default 10 }}
+    {{- if .Values.agent.transport.enabled }}
+    [transport]
+    endpoint = {{ .Values.agent.transport.endpoint | quote }}
+    domain_name = {{ .Values.agent.transport.domain | quote }}
+    ca_path = "/etc/ebpf-agent/tls/ca.crt"
+    cert_path = "/etc/ebpf-agent/tls/tls.crt"
+    key_path = "/etc/ebpf-agent/tls/tls.key"
+    timeout_secs = 10
+    {{- end }}
+    {{- if .Values.agent.otlp.enabled }}
+    [otlp]
+    endpoint = {{ .Values.agent.otlp.endpoint | quote }}
+    interval_secs = {{ .Values.agent.otlp.intervalSecs }}
+    service_name = "ebpf-agent"
+    headers = []
+    {{- end }}
+{{- end }}

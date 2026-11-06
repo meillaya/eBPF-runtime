@@ -1,0 +1,56 @@
+# Test-only Dex configuration for the live OIDC/RBAC profile.
+issuer: http://127.0.0.1:8081/dex
+
+storage:
+  type: memory
+
+web:
+  https: 0.0.0.0:5556
+  tlsCert: /etc/dex/tls/dex.crt
+  tlsKey: /etc/dex/tls/dex.key
+
+oauth2:
+  skipApprovalScreen: true
+  grantTypes:
+    - authorization_code
+    - refresh_token
+    - password
+  passwordConnector: ldap
+
+expiry:
+  idTokens: "1h"
+
+staticClients:
+  - id: ebpf-dashboard
+    public: true
+    name: eBPF fleet dashboard
+    redirectURIs:
+      - http://127.0.0.1:8081/callback
+  - id: wrong-audience
+    public: true
+    name: wrong audience test client
+
+connectors:
+  - type: ldap
+    id: ldap
+    name: Example LDAP
+    config:
+      host: 127.0.0.1:1389
+      insecureNoSSL: true
+      bindDN: cn=admin,dc=example,dc=org
+      bindPW: admin
+      usernamePrompt: Username
+      userSearch:
+        baseDN: ou=people,dc=example,dc=org
+        filter: "(objectClass=inetOrgPerson)"
+        username: uid
+        idAttr: uid
+        emailAttr: mail
+        nameAttr: cn
+      groupSearch:
+        baseDN: ou=groups,dc=example,dc=org
+        filter: "(objectClass=groupOfNames)"
+        userMatchers:
+          - userAttr: DN
+            groupAttr: member
+        nameAttr: cn

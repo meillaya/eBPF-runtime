@@ -1,0 +1,39 @@
+[Unit]
+Description=eBPF fleet agent
+Documentation=https://github.com/example/ebpf-runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStartPre=/usr/local/bin/ebpf-agent init --config /etc/ebpf-agent/agent.toml
+ExecStart=/usr/local/bin/ebpf-agent run --config /etc/ebpf-agent/agent.toml
+Restart=always
+RestartSec=2s
+TimeoutStopSec=30s
+
+# BPF attachment needs these capabilities. The agent runs as root on the
+# host; do not grant them to an unprivileged service account.
+AmbientCapabilities=CAP_BPF CAP_PERFMON CAP_SYS_ADMIN CAP_SYS_RESOURCE CAP_DAC_READ_SEARCH CAP_MAC_ADMIN
+CapabilityBoundingSet=CAP_BPF CAP_PERFMON CAP_SYS_ADMIN CAP_SYS_RESOURCE CAP_DAC_READ_SEARCH CAP_MAC_ADMIN
+NoNewPrivileges=true
+
+# Keep the host read-only except for the encrypted store and BPF filesystem.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=false
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/var/lib/ebpf-agent /etc/ebpf-agent /sys/fs/bpf
+
+[Install]
+WantedBy=multi-user.target

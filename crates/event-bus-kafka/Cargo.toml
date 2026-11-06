@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "event-bus-kafka"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Kafka producer for the durable projection relay."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "event_bus_kafka"
+path = "src/lib.rs"
+
+[dependencies]
+rdkafka = { version = "0.38", default-features = false, features = ["dynamic-linking", "tokio"] }
+thiserror = "2"
+tokio = { version = "1", features = ["time"] }
+tracing = "0.1"

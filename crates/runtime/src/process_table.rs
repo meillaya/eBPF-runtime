@@ -8,6 +8,7 @@
 
 use crate::decode::DecodedEvent;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 /// Maximum number of processes tracked at once.
 const MAX_PROCESSES: usize = 16_384;
@@ -15,13 +16,20 @@ const MAX_PROCESSES: usize = 16_384;
 /// A bounded tgid to executable map.
 pub struct ProcessTable {
     executables: HashMap<u32, String>,
+    proc_root: PathBuf,
 }
 
 impl ProcessTable {
     /// Create an empty table.
     pub fn new() -> Self {
+        Self::with_proc_root("/proc")
+    }
+
+    /// Create a table that reads executables from `proc_root`.
+    pub fn with_proc_root(proc_root: impl Into<PathBuf>) -> Self {
         Self {
             executables: HashMap::new(),
+            proc_root: proc_root.into(),
         }
     }
 
@@ -70,7 +78,7 @@ impl ProcessTable {
             return Some(path.clone());
         }
 
-        let path = std::fs::read_link(format!("/proc/{tgid}/exe"))
+        let path = std::fs::read_link(self.proc_root.join(tgid.to_string()).join("exe"))
             .ok()
             .map(|path| path.to_string_lossy().into_owned())?;
         self.insert(tgid, path.clone());
@@ -117,6 +125,7 @@ mod tests {
             identity: None,
             dns: None,
             lsm: None,
+            ..Default::default()
         }
     }
 

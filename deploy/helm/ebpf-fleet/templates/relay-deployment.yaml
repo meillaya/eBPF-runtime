@@ -1,0 +1,42 @@
+{{- if .Values.relay.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ebpf-fleet.fullname" . }}-relay
+  labels:
+    {{- include "ebpf-fleet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: relay
+spec:
+  replicas: {{ .Values.relay.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: relay
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: relay
+    spec:
+      containers:
+        - name: relay
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/ebpf-relay"]
+          args: ["--config", "/etc/ebpf-relay/relay.toml"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.controlPlane.databaseUrlSecret.name }}
+                  key: {{ .Values.controlPlane.databaseUrlSecret.key }}
+          resources:
+            {{- toYaml .Values.relay.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ebpf-relay
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "ebpf-fleet.fullname" . }}-relay
+{{- end }}

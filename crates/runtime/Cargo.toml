@@ -19,6 +19,7 @@ path = "src/main.rs"
 [dependencies]
 bpf-loader = { path = "../bpf-loader" }
 event-abi = { path = "../event-abi" }
+event-model = { path = "../event-model" }
 rules = { path = "../rules" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive"] }

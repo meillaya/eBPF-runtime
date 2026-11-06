@@ -36,6 +36,33 @@ pub struct Engine {
 }
 
 impl Engine {
+    /// Build an engine from one YAML rule pack.
+    pub fn from_yaml(text: &str) -> Result<Self, EngineError> {
+        let ruleset = parse_ruleset(text).map_err(|error| EngineError::Parse(error.to_string()))?;
+        let mut rules = Vec::new();
+        let mut skipped_sequences = 0;
+        let mut errors = Vec::new();
+        for rule in ruleset.rules {
+            if rule.action == Action::Deny {
+                errors.push(format!(
+                    "rule {} asks for deny, but this runtime does not enforce",
+                    rule.id
+                ));
+                continue;
+            }
+            if !rule.sequences.is_empty() {
+                skipped_sequences += 1;
+            }
+            rules.push(rule);
+        }
+        Ok(Self {
+            rules,
+            evaluator: PredicateEvaluator::new(default_budget()),
+            skipped_sequences,
+            errors,
+        })
+    }
+
     /// Load every `.yaml` and `.yml` file in `dir`.
     pub fn load(dir: &Path) -> Result<Self, EngineError> {
         let mut rules = Vec::new();
@@ -270,6 +297,9 @@ pub enum EngineError {
         /// Operating system error.
         detail: String,
     },
+    /// A rule pack could not be parsed.
+    #[error("rule parse error: {0}")]
+    Parse(String),
 }
 
 #[cfg(test)]
@@ -305,6 +335,7 @@ mod tests {
             identity: None,
             dns: None,
             lsm: None,
+            ..Default::default()
         }
     }
 
@@ -371,6 +402,7 @@ rules:
             identity: None,
             dns: None,
             lsm: None,
+            ..Default::default()
         };
 
         assert_eq!(engine.evaluate(&event).len(), 1);

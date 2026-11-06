@@ -1,0 +1,18 @@
+<!--
+  Development-only ClickHouse access rule.
+
+  The control plane runs on the host network and the relay runs on the
+  compose bridge, so HTTP requests can arrive from the bridge gateway.
+  ClickHouse's built-in `default` user normally accepts only loopback
+  connections. This override allows that user from any address with the
+  empty development password. Do not reuse this file outside the dev stack.
+-->
+<clickhouse>
+  <users>
+    <default>
+      <networks replace="replace">
+        <ip>::/0</ip>
+      </networks>
+    </default>
+  </users>
+</clickhouse>

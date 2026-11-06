@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "analytics-clickhouse"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "ClickHouse projection for fleet events and alerts."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "analytics_clickhouse"
+path = "src/lib.rs"
+
+[dependencies]
+event-model = { path = "../event-model" }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "time"] }

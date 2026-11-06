@@ -1,0 +1,80 @@
+image:
+  repository: ghcr.io/example/ebpf-fleet
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+controlPlane:
+  replicas: 1
+  cluster: default
+  grpcPort: 9443
+  httpPort: 8080
+  uiDir: /usr/share/ebpf/web
+  databaseUrlSecret:
+    name: ebpf-database
+    key: url
+  tlsSecret: ebpf-control-plane-tls
+  oidc:
+    issuer: https://dex.example.com
+    audience: ebpf-control-plane
+    jwksUrl: https://dex.example.com/keys
+    # Optional secret containing ca.crt for a private issuer.
+    caSecret: ""
+  clickhouseUrl: http://clickhouse:8123
+  clickhouseDatabase: ebpf
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+relay:
+  enabled: true
+  replicas: 1
+  kafkaBrokers:
+    - kafka:9092
+  kafkaTopic: ebpf.batches
+  clickhouseUrl: http://clickhouse:8123
+  clickhouseDatabase: ebpf
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+agent:
+  enabled: true
+  cluster: default
+  transport:
+    enabled: true
+    endpoint: https://ebpf-control-plane:9443
+    domain: control-plane
+  hostPaths:
+    bpf: /sys/fs/bpf
+    btf: /sys/kernel/btf
+    debug: /sys/kernel/debug
+    state: /var/lib/ebpf-agent
+    credentials: /etc/ebpf-agent
+  rulesDir: /etc/ebpf-runtime/rules
+  batchMaxEvents: 500
+  batchMaxBytes: 1048576
+  flushMs: 1000
+  retentionSecs: 604800
+  tlsReloadPollSecs: 10
+  otlp:
+    enabled: false
+    endpoint: http://otel-collector:4318
+    intervalSecs: 15
+  privileged: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  tolerations:
+    - operator: Exists

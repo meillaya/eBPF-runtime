@@ -1,0 +1,17 @@
+grpc_listen = "0.0.0.0:9443"
+http_listen = "0.0.0.0:8080"
+database_url = "postgres://ebpf@127.0.0.1/control"
+cluster = "prod"
+tls_ca = "/etc/ebpf-control-plane/tls/ca.crt"
+tls_cert = "/etc/ebpf-control-plane/tls/tls.crt"
+tls_key = "/etc/ebpf-control-plane/tls/tls.key"
+ui_dir = "/usr/share/ebpf/web"
+clickhouse_url = "http://127.0.0.1:8123"
+clickhouse_database = "ebpf"
+oidc_issuer = "https://dex.example.com"
+oidc_audience = "ebpf-control-plane"
+oidc_jwks_url = "https://dex.example.com/keys"
+# Optional PEM CA for a private issuer. OIDC_CA overrides it.
+# oidc_ca = "/etc/ebpf-control-plane/tls/oidc-ca.crt"
+max_connections = 10
+dev = false
