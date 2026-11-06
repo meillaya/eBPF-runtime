@@ -1,0 +1,33 @@
+[Unit]
+Description=eBPF fleet control plane
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ebpf-control
+Group=ebpf-control
+EnvironmentFile=/etc/ebpf-control-plane/env
+ExecStart=/usr/local/bin/ebpf-control-plane serve --config /etc/ebpf-control-plane/control.toml
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=30s
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/ebpf-control-plane
+
+[Install]
+WantedBy=multi-user.target

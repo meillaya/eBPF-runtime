@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ebpf-fleet.fullname" . }}-control-plane
+  labels:
+    {{- include "ebpf-fleet.labels" . | nindent 4 }}
+data:
+  control.toml: |
+    grpc_listen = "0.0.0.0:{{ .Values.controlPlane.grpcPort }}"
+    http_listen = "0.0.0.0:{{ .Values.controlPlane.httpPort }}"
+    database_url = ""
+    cluster = {{ .Values.controlPlane.cluster | quote }}
+    tls_ca = "/etc/ebpf-control-plane/tls/ca.crt"
+    tls_cert = "/etc/ebpf-control-plane/tls/tls.crt"
+    tls_key = "/etc/ebpf-control-plane/tls/tls.key"
+    ui_dir = {{ .Values.controlPlane.uiDir | quote }}
+    clickhouse_url = {{ .Values.controlPlane.clickhouseUrl | quote }}
+    clickhouse_database = {{ .Values.controlPlane.clickhouseDatabase | quote }}
+    oidc_issuer = {{ .Values.controlPlane.oidc.issuer | quote }}
+    oidc_audience = {{ .Values.controlPlane.oidc.audience | quote }}
+    oidc_jwks_url = {{ .Values.controlPlane.oidc.jwksUrl | quote }}
+    max_connections = 10
+    dev = false

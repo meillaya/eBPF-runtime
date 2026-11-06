@@ -1,7 +1,8 @@
-target
-.git
-.devenv
-.direnv
-result
-
-.audit
+target/
+web/node_modules/
+web/dist/
+.devenv/
+.direnv/
+.git/
+.audit/
+*.log

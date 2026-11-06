@@ -24,6 +24,7 @@ clap = { version = "4", features = ["derive"] }
 event-model = { path = "../event-model" }
 futures-util = "0.3"
 observability = { path = "../observability" }
+otlp = { path = "../otlp" }
 privacy = { path = "../privacy" }
 protocol = { path = "../protocol" }
 runtime = { path = "../runtime" }

@@ -100,8 +100,11 @@ impl AgentService for AgentServiceImpl {
                 protocol::MAX_BATCH_JSON_BYTES
             )));
         }
-        let batch: Batch = serde_json::from_slice(&payload.batch_json)
+        let mut batch: Batch = serde_json::from_slice(&payload.batch_json)
             .map_err(|error| Status::invalid_argument(format!("bad batch JSON: {error}")))?;
+        if batch.batch_id != payload.batch_id {
+            return Err(Status::invalid_argument("batch id does not match envelope"));
+        }
         let agent_key = match peer_spiffe_id(&request) {
             Some(id) => id,
             None if self.dev => payload.agent_id.clone(),
@@ -110,6 +113,7 @@ impl AgentService for AgentServiceImpl {
         if batch.events.len() > 10_000 {
             return Err(Status::resource_exhausted("too many events in one batch"));
         }
+        batch.agent_id = agent_key.clone();
         let outcome = control_db::accept_batch(&self.pool, self.cluster_id, &agent_key, &batch)
             .await
             .map_err(|error| Status::internal(error.to_string()))?;

@@ -96,6 +96,39 @@ impl ControlConfig {
             }
             None => Self::default(),
         };
+        if let Ok(value) = std::env::var("DATABASE_URL") {
+            config.database_url = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_CONTROL_CLUSTER") {
+            config.cluster = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_CONTROL_GRPC_LISTEN") {
+            config.grpc_listen = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_CONTROL_HTTP_LISTEN") {
+            config.http_listen = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_CONTROL_UI_DIR") {
+            config.ui_dir = PathBuf::from(value);
+        }
+        if let Ok(value) = std::env::var("EBPF_CONTROL_CLICKHOUSE_URL") {
+            config.clickhouse_url = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_CONTROL_CLICKHOUSE_DATABASE") {
+            config.clickhouse_database = value;
+        }
+        if let Ok(value) = std::env::var("OIDC_ISSUER") {
+            config.oidc_issuer = value;
+        }
+        if let Ok(value) = std::env::var("OIDC_AUDIENCE") {
+            config.oidc_audience = value;
+        }
+        if let Ok(value) = std::env::var("OIDC_JWKS_URL") {
+            config.oidc_jwks_url = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_CONTROL_DEV") {
+            config.dev = matches!(value.as_str(), "1" | "true" | "yes");
+        }
         config.validate()?;
         Ok(config)
     }

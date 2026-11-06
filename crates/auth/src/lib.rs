@@ -150,6 +150,7 @@ impl JwtVerifier {
         validation.set_issuer(&[self.issuer.as_str()]);
         validation.set_audience(&[self.audience.as_str()]);
         validation.leeway = 30;
+        validation.validate_nbf = true;
         let decoding = DecodingKey::from_rsa_components(&key.n, &key.e)
             .map_err(|error| AuthError::Invalid(error.to_string()))?;
         let data = decode::<Claims>(token, &decoding, &validation)
@@ -163,8 +164,17 @@ impl JwtVerifier {
     }
 
     async fn key_for(&self, kid: &str) -> Result<Jwk, AuthError> {
-        if let Some(key) = self.keys.read().await.get(kid).cloned() {
-            return Ok(key);
+        let stale = self
+            .fetched_at
+            .read()
+            .await
+            .map(|at| at.elapsed() > self.max_age)
+            .unwrap_or(true);
+        if !stale {
+            if let Some(key) = self.keys.read().await.get(kid).cloned() {
+                return Ok(key);
+            }
+            *self.fetched_at.write().await = None;
         }
         self.refresh().await?;
         self.keys

@@ -1,0 +1,8 @@
+The control plane is available at:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ebpf-fleet.fullname" . }}-control-plane 8080:8080
+
+The agent DaemonSet mounts per-node credentials from:
+  {{ .Values.agent.hostPaths.credentials }}
+
+Place a 32-byte storage.key and an mTLS SVID under that path on each node,
+or set agent.transport.enabled=false for a local-only rollout.

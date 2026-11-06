@@ -1,0 +1,121 @@
+{{- if .Values.agent.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "ebpf-fleet.fullname" . }}-agent
+  labels:
+    {{- include "ebpf-fleet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: agent
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: agent
+    spec:
+      hostPID: true
+      priorityClassName: system-node-critical
+      tolerations:
+        {{- toYaml .Values.agent.tolerations | nindent 8 }}
+      initContainers:
+        - name: keygen
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - test -f /etc/ebpf-agent/storage.key || /usr/local/bin/ebpf-agent keygen --out /etc/ebpf-agent/storage.key
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: credentials
+              mountPath: /etc/ebpf-agent
+      containers:
+        - name: agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["run", "--config", "/etc/ebpf-agent/agent.toml"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: EBPF_AGENT_NODE_NAME
+              value: $(NODE_NAME)
+          ports:
+            - name: api
+              containerPort: 9464
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: api
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.agent.resources | nindent 12 }}
+          securityContext:
+            {{- if .Values.agent.privileged }}
+            privileged: true
+            {{- else }}
+            capabilities:
+              add: ["BPF", "PERFMON", "SYS_ADMIN", "SYS_RESOURCE", "DAC_READ_SEARCH", "MAC_ADMIN"]
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ebpf-agent/agent.toml
+              subPath: agent.toml
+            - name: credentials
+              mountPath: /etc/ebpf-agent
+            - name: state
+              mountPath: /var/lib/ebpf-agent
+            - name: bpf
+              mountPath: /sys/fs/bpf
+            - name: btf
+              mountPath: /sys/kernel/btf
+              readOnly: true
+            - name: debug
+              mountPath: /sys/kernel/debug
+            - name: rules
+              mountPath: /etc/ebpf-runtime/rules
+              readOnly: true
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "ebpf-fleet.fullname" . }}-agent
+        - name: credentials
+          hostPath:
+            path: {{ .Values.agent.hostPaths.credentials }}
+            type: DirectoryOrCreate
+        - name: state
+          hostPath:
+            path: {{ .Values.agent.hostPaths.state }}
+            type: DirectoryOrCreate
+        - name: bpf
+          hostPath:
+            path: {{ .Values.agent.hostPaths.bpf }}
+            type: DirectoryOrCreate
+        - name: btf
+          hostPath:
+            path: {{ .Values.agent.hostPaths.btf }}
+            type: Directory
+        - name: debug
+          hostPath:
+            path: {{ .Values.agent.hostPaths.debug }}
+            type: Directory
+        - name: rules
+          configMap:
+            name: {{ include "ebpf-fleet.fullname" . }}-rules
+{{- end }}

@@ -258,6 +258,7 @@ pub struct LsmInfo {
 /// Wall clock conversion for monotonic kernel timestamps.
 pub struct Clock {
     boot_unix_ns: i128,
+    boot_id: [u8; 16],
 }
 
 impl Clock {
@@ -274,8 +275,13 @@ impl Clock {
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_nanos() as i128)
             .unwrap_or(0);
+        let boot_id = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")
+            .ok()
+            .and_then(|text| parse_boot_id(text.trim()))
+            .unwrap_or([0u8; 16]);
         Self {
             boot_unix_ns: now_ns - uptime_ns,
+            boot_id,
         }
     }
 
@@ -299,8 +305,11 @@ impl Default for Clock {
 /// Decode one record from `sensor`.
 pub fn decode(sensor: &str, bytes: &[u8], clock: &Clock) -> Result<DecodedEvent, DecodeFailure> {
     let event = event_abi::parse(bytes).map_err(|error| DecodeFailure::Abi(error.to_string()))?;
-    let header = event.header;
+    let mut header = event.header;
     let payload = event.payload;
+    if header.boot_id.iter().all(|byte| *byte == 0) {
+        header.boot_id = clock.boot_id;
+    }
     let kind = kind_name(header.event_kind);
 
     let mut decoded = Event {
@@ -355,6 +364,18 @@ pub fn decode(sensor: &str, bytes: &[u8], clock: &Clock) -> Result<DecodedEvent,
     }
 
     Ok(decoded)
+}
+
+fn parse_boot_id(text: &str) -> Option<[u8; 16]> {
+    let compact: String = text.chars().filter(|character| *character != '-').collect();
+    if compact.len() != 32 {
+        return None;
+    }
+    let mut bytes = [0u8; 16];
+    for (index, byte) in bytes.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&compact[index * 2..index * 2 + 2], 16).ok()?;
+    }
+    Some(bytes)
 }
 
 /// Compute a stable event id from the header and payload.
@@ -815,6 +836,7 @@ mod tests {
     fn clock_formats_rfc3339() {
         let clock = Clock {
             boot_unix_ns: 1_700_000_000_000_000_000,
+            boot_id: [0u8; 16],
         };
         let time = clock.format(1_500_000_000);
         assert!(time.starts_with("2023-11-14T22:13:21.500000Z"), "{time}");

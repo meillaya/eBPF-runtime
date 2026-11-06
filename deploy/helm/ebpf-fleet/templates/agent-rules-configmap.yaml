@@ -1,0 +1,26 @@
+{{- if .Values.agent.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ebpf-fleet.fullname" . }}-rules
+  labels:
+    {{- include "ebpf-fleet.labels" . | nindent 4 }}
+data:
+  default.yaml: |
+    schema_version: 1
+    engine_version: "1.0.0"
+    rules:
+      - id: sensitive-file-write-intent
+        version: 1
+        severity: high
+        source: file
+        description: A process opened a sensitive file for writing.
+        condition:
+          field: file.path
+          operator: in
+          value:
+            - /etc/shadow
+            - /etc/gshadow
+            - /etc/sudoers
+        action: alert
+{{- end }}

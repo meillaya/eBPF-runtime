@@ -14,6 +14,7 @@ dependencies = [
  "event-model",
  "futures-util",
  "observability",
+ "otlp",
  "privacy",
  "protocol",
  "reqwest 0.12.28",
@@ -300,6 +301,20 @@ name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
+
+[[package]]
+name = "bench"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "event-model",
+ "serde",
+ "serde_json",
+ "tokio",
+ "transport",
+ "uuid",
+]
 
 [[package]]
 name = "bit-set"
@@ -1865,6 +1880,19 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "otlp"
+version = "0.1.0"
+dependencies = [
+ "observability",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "parking"

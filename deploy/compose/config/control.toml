@@ -1,0 +1,9 @@
+grpc_listen = "0.0.0.0:9443"
+http_listen = "0.0.0.0:8080"
+database_url = "postgres://ebpf:ebpf@postgres:5432/control"
+cluster = "dev"
+dev = true
+ui_dir = "/usr/share/ebpf/web"
+clickhouse_url = "http://clickhouse:8123"
+clickhouse_database = "ebpf"
+max_connections = 10

@@ -44,6 +44,9 @@ pub struct AgentConfig {
     /// Remote sink. None keeps batches local.
     #[serde(default)]
     pub transport: Option<transport::TransportConfig>,
+    /// Optional OTLP metrics export.
+    #[serde(default)]
+    pub otlp: Option<otlp::OtlpConfig>,
 }
 
 impl Default for AgentConfig {
@@ -65,6 +68,7 @@ impl Default for AgentConfig {
             redaction: RedactionPolicy::defaults(),
             dev: false,
             transport: None,
+            otlp: None,
         }
     }
 }
@@ -101,6 +105,55 @@ impl AgentConfig {
             }
             None => Self::default(),
         };
+        if let Ok(value) = std::env::var("EBPF_AGENT_CLUSTER") {
+            config.cluster = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_AGENT_NODE_NAME") {
+            config.node_name = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_AGENT_AGENT_ID") {
+            config.agent_id = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_AGENT_LISTEN") {
+            config.listen = value;
+        }
+        if let Ok(value) = std::env::var("EBPF_AGENT_DB_PATH") {
+            config.db_path = PathBuf::from(value);
+        }
+        if let Ok(value) = std::env::var("EBPF_AGENT_KEY_PATH") {
+            config.key_path = PathBuf::from(value);
+        }
+        if let Ok(value) = std::env::var("EBPF_AGENT_RULES_DIR") {
+            config.rules_dir = PathBuf::from(value);
+        }
+        if let Ok(value) = std::env::var("EBPF_AGENT_PROC_ROOT") {
+            config.proc_root = PathBuf::from(value);
+        }
+        if let Ok(value) = std::env::var("EBPF_AGENT_DEV") {
+            config.dev = matches!(value.as_str(), "1" | "true" | "yes");
+        }
+        if let Ok(value) = std::env::var("EBPF_AGENT_TRANSPORT_ENDPOINT") {
+            match &mut config.transport {
+                Some(transport) => transport.endpoint = value,
+                None => {
+                    config.transport = Some(transport::TransportConfig {
+                        endpoint: value,
+                        domain_name: std::env::var("EBPF_AGENT_TRANSPORT_DOMAIN")
+                            .unwrap_or_else(|_| "control-plane".to_string()),
+                        ca_path: std::env::var("EBPF_AGENT_TLS_CA")
+                            .map(PathBuf::from)
+                            .unwrap_or_default(),
+                        cert_path: std::env::var("EBPF_AGENT_TLS_CERT")
+                            .map(PathBuf::from)
+                            .unwrap_or_default(),
+                        key_path: std::env::var("EBPF_AGENT_TLS_KEY")
+                            .map(PathBuf::from)
+                            .unwrap_or_default(),
+                        timeout_secs: 10,
+                    });
+                }
+            }
+        }
         if config.node_name.is_empty() {
             config.node_name = hostname();
         }
@@ -129,6 +182,18 @@ impl AgentConfig {
             return Err(ConfigError::Invalid(
                 "at least one sensor must be configured".to_string(),
             ));
+        }
+        if let Some(otlp) = &self.otlp {
+            if otlp.endpoint.is_empty() {
+                return Err(ConfigError::Invalid(
+                    "otlp.endpoint must not be empty".to_string(),
+                ));
+            }
+            if otlp.interval_secs == 0 || otlp.interval_secs > 3600 {
+                return Err(ConfigError::Invalid(
+                    "otlp.interval_secs must be in 1..=3600".to_string(),
+                ));
+            }
         }
         if let Some(transport) = &self.transport {
             if transport.endpoint.is_empty() {

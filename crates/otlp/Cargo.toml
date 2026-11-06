@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "otlp"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "OTLP/HTTP JSON metrics export for the agent."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "otlp"
+path = "src/lib.rs"
+
+[dependencies]
+observability = { path = "../observability" }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tokio = { version = "1", features = ["macros", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "sync", "time"] }

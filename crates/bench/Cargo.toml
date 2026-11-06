@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "bench"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Fleet ingest benchmark with pass or fail thresholds."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "bench"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ebpf-bench"
+path = "src/main.rs"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+event-model = { path = "../event-model" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+transport = { path = "../transport" }
+uuid = { version = "1", features = ["v4"] }

@@ -17,7 +17,6 @@ use serde::Deserialize;
 use serde_json::json;
 use sqlx::PgPool;
 use tokio::sync::{broadcast, watch};
-use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use uuid::Uuid;
 
@@ -68,10 +67,6 @@ pub async fn serve(
 
 /// Build the router.
 pub fn router(state: HttpState) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
     let index = state.ui_dir.join("index.html");
     Router::new()
         .route("/healthz", get(health))
@@ -87,7 +82,6 @@ pub fn router(state: HttpState) -> Router {
         .route("/api/v1/rules/validate", post(validate))
         .route("/api/v1/analytics/summary", get(analytics))
         .route("/api/v1/audit", get(audit))
-        .layer(cors)
         .fallback_service(ServeDir::new(&state.ui_dir).not_found_service(ServeFile::new(index)))
         .with_state(state)
 }

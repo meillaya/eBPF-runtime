@@ -4,6 +4,7 @@ members = [
     "crates/agent",
     "crates/analytics-clickhouse",
     "crates/auth",
+    "crates/bench",
     "crates/cli",
     "crates/control-db",
     "crates/control-plane",
@@ -19,5 +20,6 @@ members = [
     "crates/storage-local",
     "crates/transport",
     "crates/observability",
+    "crates/otlp",
     "crates/runtime",
 ]

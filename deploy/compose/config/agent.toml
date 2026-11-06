@@ -1,0 +1,22 @@
+cluster = "dev"
+node_name = ""
+agent_id = ""
+listen = "127.0.0.1:9464"
+db_path = "/var/lib/ebpf-agent/outbox.db"
+key_path = "/var/lib/ebpf-agent/storage.key"
+rules_dir = "/etc/ebpf-runtime/rules/default"
+proc_root = "/proc"
+sensors = ["process", "file"]
+batch_max_events = 500
+batch_max_bytes = 1048576
+flush_ms = 500
+retention_secs = 3600
+dev = true
+
+[transport]
+endpoint = "http://control-plane:9443"
+domain_name = "control-plane"
+ca_path = ""
+cert_path = ""
+key_path = ""
+timeout_secs = 10

@@ -146,6 +146,15 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
         }
     });
 
+    let mut otlp_handle = None;
+    if let Some(otlp_config) = config.otlp.clone() {
+        otlp_handle = Some(tokio::spawn(otlp::run(
+            otlp_config,
+            metrics.clone(),
+            shutdown.clone(),
+        )));
+    }
+
     let mut delivery_handle = None;
     if let Some(transport) = config.transport.clone() {
         let storage = storage.clone();
@@ -249,6 +258,9 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
     storage.checkpoint()?;
     let _ = api_shutdown_tx.send(true);
     if let Some(handle) = delivery_handle {
+        handle.abort();
+    }
+    if let Some(handle) = otlp_handle {
         handle.abort();
     }
     let _ = tokio::time::timeout(Duration::from_secs(2), api_handle).await;

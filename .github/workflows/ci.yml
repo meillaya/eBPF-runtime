@@ -16,7 +16,23 @@ jobs:
   test:
     name: build and test
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: control
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/control
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,3 +53,10 @@ jobs:
 
       - name: build sensors
         run: nix develop --no-pure-eval --accept-flake-config -c cargo run -p bpf-build -- build
+
+      - name: build dashboard
+        working-directory: web
+        run: nix develop .. --no-pure-eval --accept-flake-config -c bash -lc 'bun install --frozen-lockfile && bun run build'
+
+      - name: lint Helm chart
+        run: nix shell nixpkgs#kubernetes-helm -c helm lint deploy/helm/ebpf-fleet
