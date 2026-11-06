@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "agent"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Node agent: sensors, local storage, local API, outbox, and fleet transport."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ebpf-agent"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.8", features = ["ws", "json"] }
+bpf-loader = { path = "../bpf-loader" }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = { version = "4", features = ["derive"] }
+event-model = { path = "../event-model" }
+futures-util = "0.3"
+observability = { path = "../observability" }
+privacy = { path = "../privacy" }
+runtime = { path = "../runtime" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+storage-local = { path = "../storage-local" }
+transport = { path = "../transport" }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "signal", "net", "time"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+control-plane = { path = "../control-plane" }
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

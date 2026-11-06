@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "protocol"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Generated gRPC transport contracts for the fleet API."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "protocol"
+path = "src/lib.rs"
+
+[dependencies]
+prost = "0.14"
+tonic = { version = "0.14", features = ["transport", "tls-ring"] }
+tonic-prost = "0.14"
+
+[build-dependencies]
+protoc-bin-vendored = "3"
+tonic-prost-build = "0.14"

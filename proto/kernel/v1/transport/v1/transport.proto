@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package kernel.v1.transport;
+
+// Agent to control-plane transport.
+service AgentService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc PublishBatch(BatchRequest) returns (BatchAck);
+  rpc WatchControl(ControlRequest) returns (stream ControlCommand);
+  rpc ReportHealth(HealthReport) returns (HealthAck);
+}
+
+message RegisterRequest {
+  string agent_id = 1;
+  string cluster = 2;
+  string node_name = 3;
+  string agent_generation = 4;
+  string boot_id_hex = 5;
+  uint32 protocol_major = 6;
+  repeated string sensors = 7;
+}
+
+message RegisterResponse {
+  string cluster_id = 1;
+  string accepted_generation = 2;
+  uint32 protocol_major = 3;
+}
+
+message BatchRequest {
+  string batch_id = 1;
+  string agent_id = 2;
+  bytes batch_json = 3;
+  string idempotency_key = 4;
+}
+
+message BatchAck {
+  string batch_id = 1;
+  bool accepted = 2;
+  bool duplicate = 3;
+  string error = 4;
+  int64 accepted_at_unix = 5;
+}
+
+message ControlRequest {
+  string agent_id = 1;
+  string agent_generation = 2;
+}
+
+message ControlCommand {
+  oneof command {
+    PolicySnapshot policy = 1;
+    KillSwitch kill_switch = 2;
+  }
+}
+
+message PolicySnapshot {
+  string version = 1;
+  string digest = 2;
+  bytes yaml = 3;
+}
+
+message KillSwitch {
+  bool armed = 1;
+  string reason = 2;
+}
+
+message HealthReport {
+  string agent_id = 1;
+  string agent_generation = 2;
+  int64 epoch_unix_sec = 3;
+  repeated string loaded_sensors = 4;
+  repeated string blocked_sensors = 5;
+  uint64 events_emitted = 6;
+  uint64 events_dropped = 7;
+  uint64 outbox_depth = 8;
+}
+
+message HealthAck {
+  bool accepted = 1;
+}

@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "control-plane"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Fleet control plane: mTLS ingest, PostgreSQL truth, HTTP API."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "control_plane"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ebpf-control-plane"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.8", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+control-db = { path = "../control-db" }
+event-model = { path = "../event-model" }
+futures-core = "0.3"
+observability = { path = "../observability" }
+protocol = { path = "../protocol" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json"] }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "signal", "net", "time"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+toml = "0.8"
+tonic = { version = "0.14", features = ["transport", "tls-ring", "tls-connect-info"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+transport = { path = "../transport" }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
