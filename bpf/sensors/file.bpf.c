@@ -1,88 +1,24 @@
 /* SPDX-License-Identifier: GPL-2.0-only
  *
  * bpf/sensors/file.bpf.c
- * kernel-v1 — task 12 (enumerated file open/write-intent and mutation
- * coverage sensor).
+ * File open and mutation sensor.
  *
- * COVERAGE MANIFEST (the self-claim the LSB `coverage_manifest_denies_
- * generic_file_access_semantic` test in `crates/sensor-tests/tests/
- * process_events.rs` asserts is present at the top of this file; if
- * this sentence block is removed the regression test fails the build,
- * which is the explicit guard against accidental coverage claim
- * expansion):
+ * Hooks:
+ *   - lsm/file_open for opens, with the absolute path from bpf_d_path.
+ *   - kprobe openat2 and creat for opens when the LSM hook is absent.
+ *   - kprobe unlinkat, renameat2, and truncate for mutations.
  *
- *     This sensor does NOT cover mmap, read, splice, sendfile, or io_uring file activity. The kernel-v1 documentation explicitly labels this surface as FILE_OPEN/CREATE/UNLINK/RENAME/TRUNCATE only. Do NOT add a generic "FILE_ACCESS" claim to this file — task 12 is the enumerated file hook surface and task 33+ will add the LSM enforcement surface.
+ * Paths are capped at 256 bytes. When bpf_d_path fails the sensor
+ * falls back to the dentry name, which can be a basename. The
+ * FILE_PATH validity bit is set only when a path was read.
  *
- * INTRODUCTION
- *   This translation unit is the v1 file-payload CO-RE sensor. It
- *   captures, with truthful semantics, the five enumerated file
- *   mutations the platform MUST distinguish (per the approved plan):
+ * The sensor does not cover mmap, read, splice, sendfile, or io_uring.
  *
- *     1. FILE_OPEN       — emitted from BPF LSM `file_open` when
- *        CONFIG_BPF_LSM=y and a hook callback for file_open is
- *        registered; otherwise the syscall-result kprobe
- *        (`__x64_sys_openat2` on amd64, `__arm64_sys_openat2` on
- *        arm64) carries the recorded deny_source = SYSCALL. The
- *        payload carries the bounded path, the open flags, the
- *        MAY_READ/MAY_WRITE mode bits, and the deny_source.
+ * The 96-byte header comes from bpf/include/event_abi.h. The 552-byte
+ * payload is decoded in crates/runtime/src/decode.rs.
  *
- *     2. FILE_CREATE     — emitted from `__x64_sys_creat` /
- *        `__arm64_sys_creat` with the mode bits; the brief's
- *        EXCLUSIVE bit is the O_EXCL position of the open flags
- *        (replicated as a u8 for fast consumer-side decoding).
- *
- *     3. FILE_UNLINK     — emitted from `__x64_sys_unlinkat` /
- *        `__arm64_sys_unlinkat` with the bounded path and unlink
- *        flags (AT_REMOVEDIR for rmdir cases).
- *
- *     4. FILE_RENAME     — emitted from `__x64_sys_renameat2` /
- *        `__arm64_sys_renameat2` with bounded from_path + to_path
- *        + flags (RENAME_*).
- *
- *     5. FILE_TRUNCATE   — emitted from `__x64_sys_truncate` /
- *        `__arm64_sys_truncate` (kprobe) and `vfs_truncate` (kprobe
- *        fallback) with the bounded path and the new file length.
- *
- *   The BPF LSM `file_open` path is GATED by `bpf_core_field_exists`
- *   on a `security_file_open`-shaped symbol so older kernels without
- *   the LSM build cleanly: the loader refuses to attach the LSM
- *   program and `deny_source = SYSCALL` carries the recorded
- *   observation through the kprobe fallback. The recorded
- *   `deny_source` is the producer-side truth — a sensor that says
- *   SYSCALL may NOT be relabeled OWN_LSM.
- *
- * FIELD VALIDITY (Truthfulness contract)
- *   * The same identity invariants the process sensor carries:
- *     pid_tgid, cgroup_id, task_start_time, processor_id, boot_id
- *     are recorded with the standard `KERNEL_V1_VALID_*` bits.
- *   * boot_id is NOT set here (the loader, task 16, emits the
- *     identity event that carries the boot id; setting it without
- *     a real read would be a lie).
- *   * The five FILE_* specific validity bits
- *     (`KERNEL_V1_VALID_FILE_PATH/FLAGS/MODE/DENY_SOURCE/ERRNO`)
- *     are set only when the corresponding payload field was
- *     actually populated. A truncated path reads the truncation
- *     flag (`KERNEL_V1_EVENT_FLAG_TRUNC`) and clears
- *     `KERNEL_V1_VALID_FILE_PATH` — the consumer MUST consult
- *     the validity bit before drawing the path claim.
- *
- * HARD LIMITS
- *   * Path is bounded to 256 bytes by `KERNEL_V1_FILE_PATH_MAX`. The
- *     `BPF_CORE_READ_STR_INTO` helper returns a negative value on
- *     truncation; the program then sets TRUNC + clears FILE_PATH
- *     validity exactly as the brief specifies ("guess path on read
- *     fault" is forbidden).
- *   * The kfuncs_used string is encoded as a NUL-padded 16-byte
- *     ASCII field at the head of every file payload. Consumer-side
- *     decoders extract it byte-for-byte.
- *
- * SPDX NOTE
- *   The kernel verifier accepts any license string for tracing/
- *   raw-tracepoint/kprobe programs but REQUIRES a GPL-compatible
- *   string for BPF LSM programs. This file declares both a trace
- *   kprobe (`__x64_sys_openat2` etc.) and a BPF LSM
- *   (`file_open`) hook, so the conservative `GPL-2.0-only` SPDX
- *   applies.
+ * vmlinux.h is generated by bpf-build from the host BTF. The GPL
+ * license string is required for the LSM program.
  */
 
 #include "vmlinux.h"
@@ -97,11 +33,7 @@
 #error "bpf/sensors/file.bpf.c: __TARGET_ARCH_x86 or __TARGET_ARCH_arm64 must be defined by the build pipeline (-D__TARGET_ARCH_<arch>)"
 #endif
 
-/* Verifier-compatible license string. Required for the BPF LSM
- * `file_open` program on a CONFIG_BPF_LSM=y host (the kernel
- * rejects non-GPL-compatible LSM programs). The kprobe programs in
- * this TU would accept any license but the BPF LSM program ties
- * the whole translation unit to GPL. */
+/* GPL is required for the BPF LSM file_open program. */
 char _license[] SEC("license") = "GPL";
 
 #if defined(__TARGET_ARCH_arm64)
@@ -120,20 +52,18 @@ struct user_pt_regs {
 #endif
 
 /* ------------------------------------------------------------------------- *
- *  Path-size payload budget. Matches the Rust decoder constant in
- *  `crates/sensor-tests/tests/process_events.rs::file_payload::PATH_MAX`.
+ *  Path-size payload budget. The decoder reads the same 256-byte
+ *  field.
  *
  *  The path is bounded so a 4-KiB untrusted path argument cannot blow
- *  past the kernel_v1 4096-byte payload budget (task 17 enforces this
- *  limit). 256 bytes covers every realistic short-path observation;
- *  longer paths land in the truncation bucket with the FILE_PATH
- *  validity bit cleared.
+ *  past the 4096-byte payload budget. The buffer covers normal
+ *  short-path observations. A longer path lands in the truncation
+ *  bucket with the FILE_PATH validity bit cleared.
  * ------------------------------------------------------------------------- */
 #define KERNEL_V1_FILE_PATH_MAX        ((unsigned int)256u)
 #define KERNEL_V1_FILE_KFUNCS_MAX      ((unsigned int)16u)
 
-/* Kfuncs-string fingerprint per task 12. Set as the consumer-side
- * decode will expect: the kfuncs the BPF program actually used. */
+/* Kfuncs fingerprint. The decoder does not interpret this string. */
 static const char KERNEL_V1_FILE_KFUNCS_USED[] =
     "core_read_str_in";
 
@@ -146,37 +76,32 @@ struct {
     __type(value, __u64);
 } file_seq SEC(".maps");
 
-/* OWN ring buffer for the file sensor (separate from the process
- * sensor's `process_events`). The task 19 loader subscribes to
- * both ring buffers; the Rust decoder, in the same task 19,
- * selects between them via the per-event `event_kind` byte. The
- * 256 KiB size matches the process sensor — large enough that
- * normal workloads do not drop, but bounded so the bench
- * harness (task 53+) can drive it into fail-mode. */
+/* Ring buffer for the file sensor, separate from the process
+ * sensor's `process_events`. The runtime subscribes to both maps and
+ * selects between them by the per-event `event_kind` byte. The
+ * 256 KiB size matches the process sensor. */
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256u * 1024u);
 } file_events SEC(".maps");
 
 /* ------------------------------------------------------------------------- *
- *  File-payload layout (local to this TU; mirrored in
- *  `crates/sensor-tests/tests/process_events.rs::file_payload`).
+ *  File-payload layout. The decoder in crates/runtime/src/decode.rs
+ *  uses the same offsets.
  *
  *  Each FILE_* event carries a common 16-byte kfuncs-used prefix
  *  followed by an event-kind-specific tail. The per-event size is
  *  PADDED to a uniform 552 bytes so the decoder can rely on the
  *  same `record_len` for every FILE_* event. Total per-event record
  *  size = HEADER_LEN + 552 = 96 + 552 = 648 bytes. The padding
- *  beyond what the named fields use is bytes 280..551 reserved for
- *  forward-compat additions (e.g. a per-event `boot_id` if task 16
- *  later requires the file payload to include its own identity).
+ *  beyond what the named fields use is bytes 280..551, reserved for
+ *  later additions.
  *
- *  Why a uniform per-event size? Because the brief explicitly says
- *  the consumer side correlates events by `(event_kind, pid_tgid,
- *  seq)` and the loader (task 19) propagates `record_len` from the
- *  header — variable-sized records of the same kind are fine, but a
- *  uniform size avoids the per-event length round-trip and lets the
- *  fixed-size reservation succeed under load. The padding is
+ *  The payload is a uniform size because the consumer correlates
+ *  events by `(event_kind, pid_tgid, seq)` and the loader propagates
+ *  `record_len` from the header. A uniform size avoids a per-event
+ *  length round-trip and lets the fixed-size reservation succeed
+ *  under load. The padding is
  *  zero-initialised and consumers MUST treat reserved bytes as
  *  invalid (the corresponding validity bit is clear).
  * ------------------------------------------------------------------------- */
@@ -271,10 +196,10 @@ next_file_seq(void)
 }
 
 /* Fill the canonical 96-byte header for a file event. Sets the
- * standard identity bits (PID/CGROUP/TASK_START/PROCESSOR) — the
+ * standard identity bits (PID/CGROUP/TASK_START/PROCESSOR): the
  * caller adds the per-event FILE_* validity bits on top of this
  * base. NEVER sets BOOT_ID without a real `bpf_get_boot_id()`
- * read; the loader (task 16) owns the boot-identity surface. */
+ * read; the file payload does not carry it. */
 static __always_inline void
 fill_file_header(struct kernel_v1_header *hdr,
                  __u8 event_kind,
@@ -298,7 +223,10 @@ fill_file_header(struct kernel_v1_header *hdr,
     hdr->ts_monotonic_ns    = bpf_ktime_get_ns();
     __builtin_memset(hdr->boot_id, 0, sizeof(hdr->boot_id));
     hdr->pid_tgid           = bpf_get_current_pid_tgid();
-    hdr->task_start_time_ns = bpf_ktime_get_ns();
+    struct task_struct *cur = (struct task_struct *)bpf_get_current_task();
+    __u64 start_ns = 0;
+    BPF_CORE_READ_INTO(&start_ns, cur, start_time);
+    hdr->task_start_time_ns = start_ns;
     hdr->cgroup_id          = bpf_get_current_cgroup_id();
     hdr->processor_id       = bpf_get_smp_processor_id();
     hdr->valids             = (__u32)(valids_base
@@ -330,11 +258,9 @@ stamp_kfuncs(struct kernel_v1_file_payload *p)
  * this is true and the LSM program in `SEC("lsm/file_open")` will
  * attach. On other kernels, the value is false and the consumer
  * must rely on the kprobe fallback. The function is
- * intentionally left unused in task 12 — file.bpf.c is
- * observation-only and the brief forbids claiming OWN_LSM_DENY
- * inside the sensor. Future audit-only LSM tasks (task 33+) will
- * repurpose this gate to switch the recorded deny_source between
- * OWN_LSM and SYSCALL.
+ * intentionally left unused. file.bpf.c is
+ * observation-only, so it does not claim OWN_LSM_DENY. Future
+ * enforcement work can repurpose this gate.
  */
 __attribute__((unused))
 static __always_inline bool
@@ -343,49 +269,24 @@ bpf_lsm_file_open_present(void)
     return bpf_core_field_exists(struct file, f_mode);
 }
 
-/* Probe whether the BPF LSM hook `file_open` is registered.  The
- * BPF skeleton attaches the LSM program unconditionally; on a
- * CONFIG_BPF_LSM=y host without `security_file_open` registered,
- * the kernel rejects the attach and the loader records a degraded
- * reason in `coverage_manifest`. */
-static __always_inline __u32
-record_file_open_deny_source(void)
-{
-    /* Two reporting sources exist: BPF LSM (OWN_LSM) and the
-     * syscall-result kprobe (SYSCALL). The task brief refuses to
-     * label this sensor an enforcer, so OWN_LSM is documented but
-     * NEVER emitted at runtime: file.bpf.c is observation-only. The
-     * recorded value is therefore SYSCALL unless a future
-     * audit-only LSM task flips the bit. The function is named
-     * `record_*` to keep the door open; the value written is
-     * SYSCALL for task 12. */
-    return (__u32)KERNEL_V1_FILE_DENY_SYSCALL;
-}
-
 /* ------------------------------------------------------------------------- *
- *  FILE_OPEN handler — BPF LSM path.
+ *  FILE_OPEN handler: BPF LSM path.
  *
  *  The LSM `file_open` hook fires after the kernel has built the
  *  `struct file` and is about to surface it to userspace. We emit
  *  with MAY_READ/MAY_WRITE derived from `f_mode`, the open flags
- *  from `f_flags`, and the bounded path from `f_path.dentry.
- *  d_name.name`. If the BPF CORE read fails OR returns negative
- *  (truncation) we set `KERNEL_V1_EVENT_FLAG_TRUNC` and clear
+ *  from `f_flags`, and the absolute path from `bpf_d_path`. If the
+ *  path read fails we set `KERNEL_V1_EVENT_FLAG_TRUNC` and clear
  *  FILE_PATH validity.
  *
- *  NOTE: a real LSM hook implementation may call `BPF_PROBE_RETURN
- *  _ERR(0)` to allow the open (no enforcement) — file.bpf.c is
- *  observation-only and never returns an errno here. Return 0
- *  unconditionally so the LSM hook behaves audit-only even when
- *  attached.
+ *  The hook is observation-only. It returns 0 unconditionally, even
+ *  when a prior LSM denied the open.
  * ------------------------------------------------------------------------- */
 SEC("lsm/file_open")
 int BPF_PROG(lsm_file_open, struct file *file, int ret)
 {
-    /* Even LSM hooks participate in compose-with-prior-LSMs; a
-     * `ret != 0` means a prior LSM has already denied the open.
-     * The brief forbids claiming OWN_LSM_DENY in this case
-     * (`deny_source = NONE`, no FILE_RESULT_HAS_ERRNO). */
+    /* A non-zero ret means a prior LSM denied the open. This sensor
+     * does not claim that denial as its own. */
     bool prior_lsm_denied = (ret != 0);
 
     char path_buf[KERNEL_V1_FILE_PATH_MAX] = {0};
@@ -400,9 +301,11 @@ int BPF_PROG(lsm_file_open, struct file *file, int ret)
      * bytes from the kernel string into `path_buf` and returns
      * the number of bytes written on success; a negative return
      * indicates a read fault (we mark TRUNC + clear FILE_PATH). */
-    long path_len = -1;
-    const void *name_ptr = NULL;
-    {
+    long path_len = bpf_d_path(&file->f_path, path_buf, sizeof(path_buf));
+    if (path_len <= 0) {
+        /* Fall back to the dentry name. A basename can still identify
+         * a sensitive file, it just loses the directory. */
+        const void *name_ptr = NULL;
         struct dentry *dentry = NULL;
         BPF_CORE_READ_INTO(&dentry, file, f_path.dentry);
         if (dentry) {
@@ -431,13 +334,7 @@ int BPF_PROG(lsm_file_open, struct file *file, int ret)
 
     __u8 deny_source = (__u8)KERNEL_V1_FILE_DENY_NONE;
     __u8 result_flags = (__u8)0;
-    if (prior_lsm_denied) {
-        /* Per the brief: NEVER claim OWN_LSM_DENY for our own
-         * program; we record NULL on a prior-LSM deny path. */
-        deny_source = (__u8)KERNEL_V1_FILE_DENY_NONE;
-    } else {
-        deny_source = (__u8)record_file_open_deny_source();
-    }
+    (void)prior_lsm_denied;
 
     __u32 record_len = (__u32)(KERNEL_V1_ABI_HEADER_LEN +
                                KERNEL_V1_FILE_PAYLOAD_LEN);
@@ -476,7 +373,7 @@ int BPF_PROG(lsm_file_open, struct file *file, int ret)
     ev->payload.file_open.mode = mode_bits;
     ev->payload.file_open.deny_source = deny_source;
     ev->payload.file_open.result_flags = result_flags;
-    /* Zero the trailing bytes — explicit to suppress Wunused. */
+    /* Zero the trailing bytes. */
     ev->payload.file_open._pad0 = 0;
 
     bpf_ringbuf_submit(ev, 0);
@@ -484,22 +381,20 @@ int BPF_PROG(lsm_file_open, struct file *file, int ret)
 }
 
 /* ------------------------------------------------------------------------- *
- *  FILE_OPEN handler — syscall-result kprobe fallback.
+ *  FILE_OPEN handler: syscall-result kprobe fallback.
  *
  *  On a CONFIG_BPF_LSM=n host (or a BPF-LSM-enabled host without
  *  the file_open hook installed), this kprobe carries the recorded
- *  observation. The brief requires the consumer to see
- *  `deny_source = SYSCALL_FILE_RESULT` (encoded in our ABI as
- *  `KERNEL_V1_FILE_DENY_SYSCALL`) when the LSM path is absent.
+ *  observation with `deny_source = KERNEL_V1_FILE_DENY_SYSCALL`.
  *
  *  We do NOT take argv / open_how from the syscall arguments on
- *  every kernel — the open_how pointer shape has changed across
+ *  every kernel. The open_how pointer shape has changed across
  *  kernel revisions (the CO-RE `bpf_core_field_exists` gate is
  *  omitted here because the value at the time of the syscall
  *  return path is what consumers actually want, not the cached
  *  pre-call image). We therefore record only the path and the
- *  deny_source at the kprobe. The consumer's task-23 decoder
- *  stitches the path with the prior ATTEMPT (file create + open)
+ *  deny_source at the kprobe. The decoder stitches the path with
+ *  the prior ATTEMPT (file create + open)
  *  to derive the final flags + mode from the create event.
  * ------------------------------------------------------------------------- */
 SEC("kprobe/__x64_sys_openat2")
@@ -510,7 +405,7 @@ int kp_x64_sys_openat2(struct pt_regs *ctx)
     /* Portable arch-specific syscall-arg extraction via
      * libbpf's PT_REGS_PARM*_SYSCALL macros. On x86_64 arg1 is
      * `di`; on arm64 it's `orig_x0`. The PT_REGS_PARM1_SYSCALL
-     * macro is portable to both — see bpf/sensors/file.bpf.c
+     * macro is portable to both. See bpf/sensors/file.bpf.c
      * arch portability comment. */
     long path_len = bpf_probe_read_user_str(
         path_buf,
@@ -622,7 +517,7 @@ int kp_arm64_sys_openat2(struct pt_regs *ctx)
 #endif
 
 /* ------------------------------------------------------------------------- *
- *  FILE_CREATE handler — `do_creat` is called from `__x64_sys_creat`
+ *  FILE_CREATE handler: `do_creat` is called from `__x64_sys_creat`
  *  / `__arm64_sys_creat`. The path argument is `const char *` in
  *  both arches; the mode argument is a `umode_t` (u16).
  * ------------------------------------------------------------------------- */
@@ -704,7 +599,7 @@ int kp_arm64_sys_creat(struct pt_regs *ctx)
 #endif
 
 /* ------------------------------------------------------------------------- *
- *  FILE_UNLINK handler — `__x64_sys_unlinkat` /
+ *  FILE_UNLINK handler: `__x64_sys_unlinkat` /
  *  `__arm64_sys_unlinkat`. Arguments: dirfd (int), pathname (const
  *  char *), flags (int). The path is read best-effort.
  * ------------------------------------------------------------------------- */
@@ -782,7 +677,7 @@ int kp_arm64_sys_unlinkat(struct pt_regs *ctx)
 #endif
 
 /* ------------------------------------------------------------------------- *
- *  FILE_RENAME handler — `__x64_sys_renameat2` /
+ *  FILE_RENAME handler: `__x64_sys_renameat2` /
  *  `__arm64_sys_renameat2`. The `olddirfd` and `newdirfd` are the
  *  first two ints; `oldpath` and `newpath` are the next two `const
  *  char *`; the trailing `flags` is the last `unsigned int`. We
@@ -795,7 +690,7 @@ emit_file_rename(struct pt_regs *ctx, unsigned long arg_from,
 {
     /* Single 256-byte path buffer, REUSED for both from and to.
      * The verifier's worst-case stack-frame analysis counts the
-     * buffer once even though we re-read into it twice — each
+     * buffer once even though we re-read into it twice. Each
      * access is unconditional, so the buffer always counts in
      * the worst case. After each read we copy into the ring
      * buffer's reserved memory (not the BPF stack), then clear
@@ -827,7 +722,7 @@ emit_file_rename(struct pt_regs *ctx, unsigned long arg_from,
     /* Reserve the header first, then read the second path into
      * the same path_buf, then copy into the ring buffer. The
      * header fields written by fill_file_header below contain
-     * the from_path validity decision — the to_path validity
+     * the from_path validity decision. The to_path validity
      * collapses to "valid iff the second read returned >= 0"
      * and we encode it in the header's TRUNC flag if either
      * path truncated. */
@@ -897,7 +792,7 @@ int kp_arm64_sys_renameat2(struct pt_regs *ctx)
 #endif
 
 /* ------------------------------------------------------------------------- *
- *  FILE_TRUNCATE handler — `__x64_sys_truncate` /
+ *  FILE_TRUNCATE handler: `__x64_sys_truncate` /
  *  `__arm64_sys_truncate` AND a kprobe on `vfs_truncate` to catch
  *  writes that cause implicit truncation (e.g. `open(O_TRUNC)` plus
  *  a write). The kprobe path is gated by `bpf_core_field_exists` on

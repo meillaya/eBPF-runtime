@@ -3,7 +3,7 @@ name = "event-abi"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.95.0"
-description = "kernel-v1 event ABI v1: hand-written + bindgen-rustified C header, safe parser, decoder and typed errors."
+description = "Versioned C to Rust event ABI: safe parser, payload types, and typed errors."
 license = "Apache-2.0 OR MIT"
 publish = false
 

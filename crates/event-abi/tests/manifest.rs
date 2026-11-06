@@ -1,4 +1,4 @@
-// tests/manifest.rs — event-abi
+// tests/manifest.rs: event-abi
 //
 // Asserts the build-time manifest written by `build.rs` matches the
 // on-disk files: `bpf/include/event_abi.h` and `src/generated.rs`.

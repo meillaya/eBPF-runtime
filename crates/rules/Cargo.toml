@@ -3,7 +3,7 @@ name = "rules"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.95.0"
-description = "kernel-v1 native versioned YAML rule schema: canonical AST, parser, semantic/type checker, field catalog, deterministic canonical digest, and rich path-aware diagnostics. Native DSL; NOT Falco-compatible."
+description = "YAML rule schema: AST, parser, semantic checks, field catalog, and bounded predicates."
 license = "Apache-2.0 OR MIT"
 publish = false
 

@@ -5,7 +5,7 @@
 //! resolved field value and condition value. Type rules are strict:
 //! - equality/order operate on matching families; integers and floats compare
 //!   numerically (both are numbers), any other cross-family comparison is
-//!   [`RuleError::IncompatibleTypes`] — never coerced;
+//!   [`RuleError::IncompatibleTypes`]: never coerced;
 //! - `in`/`not_in` require an array operand; `contains` works on strings
 //!   (substring) or arrays (element); `starts_with`/`ends_with`/`regex` require
 //!   string operands;

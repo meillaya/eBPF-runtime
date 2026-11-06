@@ -9,8 +9,7 @@
 //!   `max_exception_items`. An exception over an unknown/null field never
 //!   applies (non-match).
 //! - [`PredicateEvaluator::validate_sequence`]: enforces the sequence step and
-//!   window budgets (the temporal engine itself is task 29; this is the budget
-//!   guard only).
+//!   window budgets. This is the budget guard only.
 
 use crate::ast::{Exception, List, Sequence, Value};
 
@@ -55,7 +54,8 @@ impl PredicateEvaluator {
 
     /// Validate a temporal sequence against the step/window budgets.
     ///
-    /// This enforces the budget only; ordered sequence correlation is task 29.
+    /// This enforces the budget only. Ordered correlation lives in the
+    /// sequence evaluator.
     pub fn validate_sequence(&self, sequence: &Sequence) -> Result<()> {
         if sequence.steps.len() > self.budget.max_sequence_steps {
             return Err(RuleError::TooManySequenceSteps(sequence.steps.len()));

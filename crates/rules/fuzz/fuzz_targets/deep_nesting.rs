@@ -1,4 +1,4 @@
-// fuzz_targets/deep_nesting.rs — rules
+// fuzz_targets/deep_nesting.rs: rules
 //
 // Deep-nesting fuzz target. Builds an AND-nested condition whose depth is
 // derived from the first input byte (bounded to < 80, so iterations always

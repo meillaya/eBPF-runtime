@@ -1,12 +1,12 @@
-// proptest/strategies.rs — rules
+// proptest/strategies.rs: rules
 //
 // proptest strategies for the rules property tests (task: fuzz & property-test
 // parser boundaries). Two families:
-//   * `arb_condition` / `arb_event` — arbitrary (bounded-depth) conditions and
+//   * `arb_condition` / `arb_event`: arbitrary (bounded-depth) conditions and
 //     typed events for the predicate-evaluation DETERMINISM property. Field
 //     names mix catalog-known and unknown names so the evaluator's typed
 //     null/unknown handling and incompatible-type errors are exercised.
-//   * `arb_valid_ruleset` — rule sets that are guaranteed to pass the semantic
+//   * `arb_valid_ruleset`: rule sets that are guaranteed to pass the semantic
 //     validator (kernel-observable `file.path` `eq` string, `alert` action,
 //     compatible engine version, unique ids) for the serialize/parse ROUNDTRIP
 //     property.
@@ -89,13 +89,14 @@ fn arb_severity() -> impl Strategy<Value = Severity> {
 /// anchored max_nesting_depth of 16) so the determinism property exercises
 /// evaluation rather than always hitting the NestingTooDeep guard.
 pub fn arb_condition() -> impl Strategy<Value = Condition> {
-    let leaf = (arb_field_name(), arb_operator(), arb_value()).prop_map(
-        |(field, operator, value)| Condition::Field {
-            field,
-            operator,
-            value,
-        },
-    );
+    let leaf =
+        (arb_field_name(), arb_operator(), arb_value()).prop_map(|(field, operator, value)| {
+            Condition::Field {
+                field,
+                operator,
+                value,
+            }
+        });
     leaf.prop_recursive(4, 32, 4, |inner| {
         prop_oneof![
             prop::collection::vec(inner.clone(), 0..4).prop_map(Condition::And),
@@ -121,25 +122,26 @@ pub fn arb_event() -> impl Strategy<Value = Event> {
 /// `file.path` `eq` string condition, `alert` action, compatible engine
 /// version, and unique rule ids (rewritten positionally to avoid duplicates).
 pub fn arb_valid_ruleset() -> impl Strategy<Value = RuleSet> {
-    let rule = ("[a-z]{1,8}", "[a-z/]{1,12}", arb_severity()).prop_map(
-        |(id_suffix, path, severity)| Rule {
-            id: format!("rule-{id_suffix}"),
-            version: 1,
-            severity,
-            tags: vec![],
-            source: Source::File,
-            description: format!("detect access to {path} ({id_suffix})"),
-            condition: Condition::Field {
-                field: "file.path".into(),
-                operator: Operator::Eq,
-                value: Value::String(format!("/{path}")),
-            },
-            action: Action::Alert,
-            exceptions: vec![],
-            lists: vec![],
-            sequences: vec![],
-        },
-    );
+    let rule =
+        ("[a-z]{1,8}", "[a-z/]{1,12}", arb_severity()).prop_map(|(id_suffix, path, severity)| {
+            Rule {
+                id: format!("rule-{id_suffix}"),
+                version: 1,
+                severity,
+                tags: vec![],
+                source: Source::File,
+                description: format!("detect access to {path} ({id_suffix})"),
+                condition: Condition::Field {
+                    field: "file.path".into(),
+                    operator: Operator::Eq,
+                    value: Value::String(format!("/{path}")),
+                },
+                action: Action::Alert,
+                exceptions: vec![],
+                lists: vec![],
+                sequences: vec![],
+            }
+        });
     prop::collection::vec(rule, 0..4).prop_map(|mut rules| {
         // Force unique, stable ids so re-parse never hits DuplicateRuleId.
         for (i, r) in rules.iter_mut().enumerate() {
@@ -157,5 +159,6 @@ pub fn arb_valid_ruleset() -> impl Strategy<Value = RuleSet> {
 /// newlines / non-YAML / hostile UTF-8) rendered lossily, so the parser's
 /// YAML-injection and malformed-input paths are exercised.
 pub fn arb_input_string() -> impl Strategy<Value = String> {
-    prop::collection::vec(any::<u8>(), 0..256).prop_map(|b| String::from_utf8_lossy(&b).into_owned())
+    prop::collection::vec(any::<u8>(), 0..256)
+        .prop_map(|b| String::from_utf8_lossy(&b).into_owned())
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//! Canonical AST for the kernel-v1 native rule schema.
+//! Canonical AST for the native rule schema.
 //!
 //! These types are the single, versioned in-memory representation a rule
 //! document compiles to. Serde impls are split by concern: deserialization

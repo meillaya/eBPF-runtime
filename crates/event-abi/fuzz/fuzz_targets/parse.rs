@@ -1,4 +1,4 @@
-// fuzz_targets/parse.rs — event-abi
+// fuzz_targets/parse.rs: event-abi
 //
 // Primary ABI-decode fuzz target. Feeds arbitrary bytes (malformed headers,
 // truncated payloads, unknown versions, arbitrary endianness) straight into

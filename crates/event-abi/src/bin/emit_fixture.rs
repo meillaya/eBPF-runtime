@@ -1,12 +1,9 @@
-// src/bin/emit_fixture.rs — event-abi
+// src/bin/emit_fixture.rs: event-abi
 //
 // Emits two binary fixtures used by `tests/parse.rs`:
-//   * `v1-happy.binpb`      — a record with a complete header + 32-byte
-//                             payload, exercising the happy path.
-//   * `v1-truncated.binpb`  — a header with `record_len = HEADER_LEN + 16`
-//                             but only `HEADER_LEN + 8` bytes in the
-//                             buffer, exercising the truncated-payload
-//                             path.
+//   * `v1-happy.binpb`: a complete header and a 32-byte payload.
+//   * `v1-truncated.binpb`: a header that claims `HEADER_LEN + 16`
+//     bytes when the buffer holds `HEADER_LEN + 8`.
 //
 // Fixtures are written into
 // `crates/event-abi/tests/fixtures/event-abi/`. The directory is
@@ -111,7 +108,7 @@ fn main() -> io::Result<()> {
 
     // Verify the truncated fixture: parser sees record_len=112 but
     // only 104 bytes; the record is rejected as LengthMismatch (this
-    // is the documented behaviour — `LengthMismatch` returns before
+    // is the documented behaviour. `LengthMismatch` returns before
     // payload extraction, so the fixture is exercised by the
     // `record_len > buf_len` branch in `parse`).
     let res = parse(&trunc);

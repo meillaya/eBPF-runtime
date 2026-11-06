@@ -8,7 +8,7 @@
 //! # Contract
 //!
 //! - **Never correlates by PID alone**: the group key is one of process
-//!   generation, container, socket, or custom — never a bare PID.
+//!   generation, container, socket, or custom: never a bare PID.
 //! - **Never hides loss/gap uncertainty**: if a step is missing or late, the
 //!   sequence is marked as incomplete and uncertain; uncertain sequences never
 //!   produce a deny.

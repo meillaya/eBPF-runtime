@@ -1,277 +1,219 @@
-# kernel-v1 — eBPF Runtime Security & Observability
+# eBPF runtime
 
-A production-style Linux eBPF runtime security and observability platform.
-C/libbpf CO-RE sensors, a Rust node agent, a typed YAML rule engine,
-audit-only-by-default BPF LSM enforcement, a SPIFFE-authenticated fleet
-control plane, and a React/TypeScript dashboard.
+Trace process execution and file activity on a Linux host. The tool loads
+two eBPF sensors, reads their ring buffers, and writes one JSON object per
+event. A small YAML rule engine marks sensitive file access while the
+events stream.
 
-## Architecture
+It runs as one process and needs root or the BPF capabilities. There is no
+server, database, or remote agent to deploy.
 
-```mermaid
-flowchart TB
-    subgraph KERNEL["⬛ KERNEL SPACE — Linux 5.15+ · CO-RE · BTF"]
-        direction TB
-        subgraph SENSORS["BPF Sensors (C / libbpf)"]
-            direction LR
-            P["process<br/><i>fork · exec · exit</i>"]
-            F["file<br/><i>open · create · rename<br/>unlink · truncate</i>"]
-            N["network<br/><i>connect · accept<br/>state transitions</i>"]
-            D["dns<br/><i>UDP/TCP :53 packets<br/>truncation-aware</i>"]
-            S["syscall<br/><i>latency histograms<br/>NO_RETURN · ORPHAN</i>"]
-            I["identity<br/><i>cgroup · namespaces<br/>creds · capabilities</i>"]
-            L["BPF LSM<br/><i>file_open · bprm<br/>socket_connect</i>"]
-        end
-        RB[["Ring Buffer — MPSC · per-CPU seq · loss counters"]]
-        SENSORS --> RB
-    end
+## Quick start
 
-    subgraph AGENT["⬛ NODE AGENT — Rust · panic-free · bounded"]
-        direction TB
-        CONS["Bounded Ring Consumer<br/><i>priority channels · backpressure · drain-on-shutdown</i>"]
-        subgraph PIPE["Correlation & Enrichment"]
-            direction LR
-            PT["Process Tree<br/><i>generation-keyed<br/>PID-reuse safe</i>"]
-            SC["Socket / DNS<br/><i>cookie correlation<br/>bounded TTL</i>"]
-            EN["CRI Enrichment<br/><i>containerd · CRI-O<br/>Docker · k8s</i>"]
-        end
-        RULE["Rule Engine<br/><i>YAML DSL · predicates<br/>temporal sequences</i>"]
-        PRIV["Privacy Redaction<br/><i>before every persist</i>"]
-        subgraph LOCAL["Local Surfaces"]
-            direction LR
-            DB["SQLCipher<br/><i>history + outbox</i>"]
-            MET["Prometheus<br/><i>low-cardinality</i>"]
-            API["REST / WebSocket<br/><i>+ CLI</i>"]
-        end
-        CONS --> PIPE
-        PIPE --> RULE
-        RULE --> PRIV
-        PRIV --> LOCAL
-    end
-
-    subgraph CONTROL["⬛ CONTROL PLANE — SPIFFE mTLS · fleet-wide"]
-        direction TB
-        TP["Transport<br/><i>separate control / event streams<br/>outbox ACK after durable accept</i>"]
-        subgraph STORES["State & Analytics"]
-            direction LR
-            PG["PostgreSQL<br/><i>authority · RLS<br/>append-only audit</i>"]
-            KF["Kafka<br/><i>idempotent producer<br/>acks=all · DLQ</i>"]
-            CH["ClickHouse<br/><i>ReplacingMergeTree<br/>dedup · TTL</i>"]
-        end
-        subgraph IDENTITY["Identity & Access"]
-            direction LR
-            SPIRE["SPIRE<br/><i>rotating SVIDs</i>"]
-            DEX["Dex<br/><i>OIDC PKCE · device</i>"]
-            RBAC["RBAC<br/><i>viewer → analyst →<br/>policy-admin → admin</i>"]
-        end
-        ROLLOUT["Policy Rollout<br/><i>STAGE → READY → COMMIT → APPLIED<br/>kill switch · rollback</i>"]
-        DASH["React Dashboard<br/><i>live-stream · process tree<br/>alerts · rollout admin</i>"]
-        TP --> STORES
-        IDENTITY --> TP
-        ROLLOUT --> TP
-        DASH --> TP
-    end
-
-    RB ==>|"events + validity flags"| CONS
-    API -.->|"fleet mode"| TP
-    PRIV ==>|"redacted batches"| TP
-    L -.->|"deny verdicts<br/>(audit-first)"| RB
-
-    classDef kernel fill:#1a1f2b,stroke:#5b6478,stroke-width:1px,color:#e6e9f0
-    classDef sensor fill:#232b3d,stroke:#7aa2f7,stroke-width:1.5px,color:#c0caf5
-    classDef agent fill:#1f2733,stroke:#9ece6a,stroke-width:1.5px,color:#c0caf5
-    classDef ctrl fill:#251f2e,stroke:#bb9af7,stroke-width:1.5px,color:#c0caf5
-    classDef store fill:#2b2436,stroke:#f7768e,stroke-width:1px,color:#c0caf5
-    classDef ring fill:#2e2a1f,stroke:#e0af68,stroke-width:2px,color:#e0af68
-
-    class P,F,N,D,S,I,L sensor
-    class RB ring
-    class CONS,PT,SC,EN,RULE,PRIV,DB,MET,API agent
-    class TP,ROLLOUT,DASH ctrl
-    class PG,KF,CH,SPIRE,DEX,RBAC store
-```
-
-**Data flow:** sensors emit versioned events with validity/degradation flags into
-a shared ring buffer → the agent consumes with bounded backpressure, reconstructs
-process trees and correlates sockets/DNS, evaluates rules, redacts, then persists
-locally (SQLCipher) and ships to the control plane over SPIFFE mTLS → PostgreSQL
-holds authoritative state, Kafka carries event batches, ClickHouse serves
-analytics, and the dashboard streams live + historical views.
-
-**Enforcement is audit-first:** the LSM sensor records `OWN_LSM_DENY` only when
-*its own* program returns an errno, preserves any prior LSM's nonzero return,
-fails open on unknown context, and honors an immediate kill switch. Deny links
-are never pinned.
-
-## Quick Start
+You need Linux 5.15 or newer with BTF at `/sys/kernel/btf/vmlinux`, Rust
+1.95, clang 19, bpftool, and permission to load BPF programs.
 
 ```bash
-# Enter the dev environment (Nix-based, pins all tooling)
-devenv shell
+git clone https://github.com/meillaya/eBPF-runtime
+cd eBPF-runtime
+cargo build --release -p runtime
 
-# Build everything
-cargo build --workspace
-
-# Run tests (1398 tests)
-cargo test --workspace
-
-# Start dev infrastructure (PostgreSQL, Kafka, ClickHouse, SPIRE, Dex)
-devenv tasks run infra:up
-
-# Run the dashboard in dev mode (loopback = admin, no OIDC needed)
-cd web && bun install && bun run dev
-
-# Run BPF sensors (requires privileged container or CAP_BPF)
-sg docker -c "docker run --rm --privileged \
-  -v $(pwd):/workspace -v /sys/fs/bpf:/sys/fs/bpf \
-  -v /sys/kernel/debug:/sys/kernel/debug \
-  -w /workspace archlinux:latest \
-  bash -c 'pacman -Sy --noconfirm clang llvm libbpf bpftool && \
-    clang -target bpf -D__TARGET_ARCH_x86 -I bpf/include -O2 \
-    -c bpf/sensors/process.bpf.c -o /tmp/process.bpf.o && \
-    bpftool prog load /tmp/process.bpf.o /sys/fs/bpf/process'"
+sudo ./target/release/ebpf-runtime check
+sudo ./target/release/ebpf-runtime run --pretty
 ```
 
-<!--## Directory Layout
+`check` loads the sensors and prints what attached. The reason for a
+blocked sensor goes to stderr. On a 7.2.7 kernel the table looks like this:
 
-| Path | Purpose |
-|------|---------|
-| `bpf/` | C/libbpf CO-RE sensors (7 programs: process, file, network, dns, syscall, identity, lsm) |
-| `crates/` | 22 Rust workspace crates (agent, rules, enforcement, protocol, auth, transport, etc.) |
-| `web/` | React 18 + TypeScript + Vite dashboard with Playwright e2e suite |
-| `proto/` | Versioned Protobuf schemas (events/v1, control/v1) |
-| `deploy/` | Systemd unit, OCI Dockerfiles, Helm chart, Compose stacks |
-| `rules/` | Default rule packs (sensitive-files, reverse-shell, container-escape) |
-| `bench/` | Benchmark harness, comparators, workloads, versioned JSON schemas |
-| `tests/` | Integration fixtures, privileged BPF tests, security/durability suites |
-| `scripts/` | Preflight, evidence validation, LOC/SPDX linting, VM launcher |
-| `schemas/` | JSON Schemas (preflight, evidence, rule-v1) |
+```text
+sensor    status     attached  failed  skipped
+process   capable           3       0        0
+file      capable           6       0        0
+```
 
-## Crates
+`run` prints events from the process and file sensors. Run `cat` in another
+terminal and the stream shows the exec, the file opens, and any rule that
+matched:
 
-| Crate | Purpose |
-|-------|---------|
-| `event-abi` | Versioned C→Rust event ABI with safe parser, validity flags |
-| `bpf-build` | Deterministic CO-RE build pipeline (clang → skeleton) |
-| `bpf-loader` | Load/attach manager with degrade matrix, coverage reporting |
-| `sensor-tests` | Fixture-based sensor verification (privileged + synthetic) |
-| `agent-core` | Bounded ring consumer, process tree, socket/DNS correlation |
-| `enrichment` | CRI/containerd/CRI-O/Docker/Kubernetes workload identity |
-| `privacy` | Redaction engine (AWS/Stripe/Bearer/password masking) |
-| `storage-local` | SQLCipher-v4 local history + durable outbox |
-| `observability` | Prometheus metrics, structured logging, health endpoints |
-| `agent` | Standalone node service (REST/WebSocket API) |
-| `cli` | Fleet-aware CLI with stable exit codes, device-flow auth |
-| `rules` | YAML rule DSL: predicates, sequences, lists, exceptions |
-| `enforcement` | Staged policy maps, kill switch, loader-death fail-open |
-| `protocol` | Typed fleet state machines, message bounds, deadlines |
-| `identity-spiffe` | SPIFFE Workload API client, rotating SVIDs, mTLS |
-| `auth` | OIDC PKCE + device flow, RBAC (viewer/analyst/policy-admin/admin) |
-| `control-db` | PostgreSQL migrations, RLS, append-only audit |
-| `transport` | Separate gRPC control/event streams, outbox ACK |
-| `event-bus-kafka` | Idempotent Kafka publisher (acks=all, at-least-once) |
-| `analytics-clickhouse` | ReplacingMergeTree dedup, DLQ routing, exact queries |
-| `control-plane` | Authenticated query API, live-stream fanout, policy rollout |
-| `policy-rollout` | Two-phase STAGE→READY→COMMIT→APPLIED fleet coordination |-->
+```text
+04:03:52.711 process exec pid=64032 tgid=64032 path=/bin/true
+04:03:52.712 file open pid=64032 path=/usr/bin/true process=/usr/bin/bash
+04:04:59.447 file open pid=65899 path=/etc/shadow process=/usr/sbin/cat
+alert high sensitive-file-write-intent: Detects write-intent operations... (pid 65899 path /etc/shadow)
+```
 
-## BPF Sensors
+JSON is the default. Alerts go to stderr, so a pipeline keeps a clean event
+stream:
 
-| Sensor | Hooks | Semantic honesty |
-|--------|-------|-----------------|
-| `process.bpf.c` | sched fork/exec/exit raw tracepoints | TASK_FORK, EXEC_RESULT, TASK_EXIT, NO_RETURN |
-| `file.bpf.c` | LSM file_open/file_permission + syscall fallback | Distinguishes OWN_LSM_DENY vs PRIOR_LSM vs SYSCALL_FALLBACK |
-| `network.bpf.c` | cgroup connect4/6, syscall accept, inet state | ATTEMPT ≠ ESTABLISHED; errno on failure |
-| `dns.bpf.c` | cgroup_skb ingress/egress port 53 | "packet observed" not "lookup performed"; truncation flag |
-| `syscall.bpf.c` | raw sys_enter/sys_exit | Wall time (not CPU); NO_RETURN, ORPHAN_ENTER/EXIT counters |
-| `identity.bpf.c` | cgroup/ns/credential helpers | Per-field validity; never PID alone as identity |
-| `lsm.bpf.c` | file_open, bprm_check_security, socket_connect | Audit-first; own-denial only; prior-ret preservation; kill switch |
+```bash
+sudo ./target/release/ebpf-runtime run \
+  | tee events.jsonl \
+  | jq -c 'select(.kind == "ProcessExec")'
+```
 
-## Rule Engine
+The default rule directory is `rules/default`. Pass `--no-rules` to skip
+it, or `--rules PATH` to load another directory.
 
-Rules are versioned YAML with typed fields, bounded predicates, temporal
-sequence windows, and safe exceptions:
+## Requirements in detail
+
+The build compiles the C sensors with clang 19. clang 20 and newer lower
+large `__builtin_memcpy` calls to an unresolved `memcpy` extern. libbpf
+cannot resolve that extern against the kernel BTF on the kernels tested
+here, so the object fails to open. The build reports the wrong compiler
+instead of producing an object that cannot load.
+
+At run time the loader needs `CAP_BPF` and `CAP_PERFMON`. Loading an LSM
+program also needs `CAP_SYS_ADMIN`. The simplest way to get all three is
+root on the host or a privileged container:
+
+```bash
+podman build -t ebpf-runtime .
+sudo podman run --rm --privileged --pid=host --cgroupns=host \
+  ebpf-runtime run --pretty --rules /etc/ebpf-runtime/rules/default
+```
+
+`--pid=host` makes the sensor see host pids instead of container pids.
+`--cgroupns=host` keeps cgroup ids meaningful. The image default command loads
+`/etc/ebpf-runtime/rules/default`.
+
+## What it records
+
+The process sensor attaches to three raw tracepoints and reports fork,
+successful exec, and exit. The file sensor attaches to the LSM
+`file_open` hook and to five syscall kprobes for open, create, unlink,
+rename, and truncate. Each record has a 96-byte header with the pid,
+cgroup id, timestamp, and event kind.
+
+![One node: kernel hooks to JSON lines](docs/figures/runtime-architecture.png)
+
+The decoder is the only place that reads payload bytes. It turns a record
+into named fields: `path`, `process_exec`, `exit_code`, `open_flags`, and
+so on. The process table maps a thread group to its last executable, so a
+file event can name the program that opened the file. Identical
+`FileOpen` events from the same thread group and path within 50 ms are
+collapsed, because the LSM hook and the openat2 kprobe report the same
+open. The rule engine evaluates the YAML conditions on the named fields.
+
+`check` uses the same loader and attach path as `run`. It reports a sensor
+as `capable` when every attachable program attached, `degraded` when some
+attached and some failed, and `blocked` when none attached.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `ebpf-runtime check` | Load the sensors and print the attach status. `--json` prints the matrix. |
+| `ebpf-runtime run` | Stream events. Flags: `--sensors`, `--rules`, `--no-rules`, `--pretty`, `--duration`, `--pid`, `--quiet`. |
+| `ebpf-runtime rules check DIR` | Parse a rule directory and print the rule count. |
+
+## One exec event
+
+An `execve` call reaches the `sched_process_exec` raw tracepoint. The
+sensor reads `bprm->filename`, copies up to 256 bytes into the record, and
+submits 364 bytes to the ring buffer. The decoder writes the path and pid
+as one JSON line.
+
+![One exec event, end to end](docs/figures/exec-event-path.png)
+
+The raw tracepoint does not carry argv, so `argv` is absent from exec
+events. A file event for the same process is linked by thread group id, not
+by pid alone.
+
+## Rules
+
+Rules are YAML. A rule names a source, a condition, a severity, and an
+action. A compact version of the shipped write-intent rule:
 
 ```yaml
-# rules/default/sensitive-files.yaml (excerpt)
+schema_version: 1
+engine_version: "1.0.0"
 rules:
-  - id: sensitive-file-mutation
-    severity: critical
+  - id: sensitive-file-write-intent
+    version: 1
+    severity: high
     source: file
+    description: Detect write-intent operations on sensitive files.
     condition:
       and:
         - field: file.kind
           operator: in
-          value: ["FileRename", "FileUnlink"]
+          value: ["FileOpen", "FileCreate", "FileTruncate"]
         - field: file.path
-          operator: in
-          value: ["/etc/shadow", "/etc/sudoers", "/etc/passwd"]
-    action: deny  # kernel-observable fields only
+          operator: eq
+          value: "/etc/shadow"
+    action: alert
     exceptions:
       - field: process.exec_path
         operator: in
         value: ["/usr/bin/apt", "/usr/bin/dpkg", "/usr/bin/pacman"]
 ```
 
-Three default packs ship: **sensitive-files**, **reverse-shell** (temporal
-sequence: exec→connect→dup2), and **container-escape** (namespace/mount/socket
-indicators).
+The runtime fills the fields the two sensors carry: `process.pid`,
+`process.tgid`, `process.exec_path`, `process.argv` when captured,
+`file.path`, and `file.kind`. A condition on a field the event does not
+carry is false, so missing data cannot create a match.
 
-## Deployment
+Only plain conditions run. A rule with a `sequences` block is counted and
+skipped, because the runtime does not keep correlation state across events
+yet. `rules check` prints the count:
 
-### Systemd (bare metal)
 ```bash
-sudo scripts/install-systemd.sh
-# Runs as dedicated kernel-v1 user with ambient CAP_BPF+CAP_PERFMON+CAP_SYS_ADMIN
+$ ./target/release/ebpf-runtime rules check rules/default
+2 rules, 0 sequence rules skipped
 ```
 
-### Docker Compose (dev)
+The rule schema is enforced when a file loads. An unknown field, an
+unbounded regex, or a deny action fails the load with a path to the bad
+rule.
+
+## Limits
+
+The project records events. It does not block syscalls. The LSM program
+attaches in audit mode and returns zero. A rule with `action: deny` is
+rejected at load time rather than reported as if it blocked something.
+
+The process sensor reports the binary path, not argv. The file sensor uses
+`bpf_d_path` for the absolute path and falls back to the dentry name when
+the helper fails, which can leave a basename instead of a full path.
+
+Only the process and file sensors ship. The event ABI still defines
+network, DNS, syscall, identity, and LSM records, but no BPF program
+produces them.
+
+There is no benchmark for overhead. A busy host produces a lot of file
+events, and the JSON stream can fill a pipe faster than a terminal can
+read it. Use a bounded consumer or `--pid`.
+
+The tool has been tested on Linux 7.2.7 on x86_64 with clang 19.1.7. Older
+kernels with CO-RE and ring buffer support should work, but the sensor set
+has not been verified there.
+
+## Build and test
+
+The binary carries both sensor objects. The build compiles them once for
+the host architecture and embeds the bytes.
+
+![Build path: C source to embedded object](docs/figures/build-path.png)
+
 ```bash
-docker compose -f deploy/compose/dev-infra.yml up -d
-# PostgreSQL :5432 | Kafka :9092 | ClickHouse :8123 | SPIRE :8081 | Dex :5556
+cargo test --workspace
+cargo run -p bpf-build -- build
+sudo -E scripts/run-privileged-tests.sh
 ```
 
-### Kubernetes (Helm)
+`cargo test` builds the sensors and runs the unit tests. The privileged
+test loads the process sensor, runs `/bin/true`, and checks that the exec
+event comes out of the ring buffer. It is ignored by default because an
+unprivileged host cannot load the program.
+
+`cargo run -p bpf-build -- build` writes the objects and a manifest to
+`target/bpf-out`. The loader's build script runs the same pipeline and
+embeds the objects with `include_bytes!`.
+
+The development shell pins Rust 1.95 and clang 19:
+
 ```bash
-helm install kernel-v1 deploy/helm/kernel-v1 \
-  --set external.postgresql.host=pg.internal \
-  --set external.kafka.brokers=kafka:9092
+devenv shell
+# or
+nix develop
 ```
-
-### OCI Images
-```bash
-docker buildx bake -f deploy/oci/docker-bake.hcl  # amd64 + arm64
-```
-
-## Verification
-
-| Suite | Tests | What it proves |
-|-------|-------|---------------|
-| `cargo test --workspace` | 1398 | All Rust unit/integration tests |
-| `bun run test:e2e` (web/) | 73 | Playwright: nav, a11y, responsive, live-stream, process tree |
-| `tests/security/run_all.sh` | 55 | OIDC/RBAC/PostgreSQL/policy adversarial tests (vs live Dex+PG) |
-| `tests/durability/run-all.sh` | 55 | Kafka/ClickHouse/PostgreSQL/outbox durability (vs live infra) |
-| `bench/compat-matrix.sh` | 11 features | BTF, LSM, cgroup v2, TCX, ringbuf on current kernel |
-| `bench/benchmark.sh` | 4 workloads × 6 comparators | Sub-5% p99/throughput gate (statistical CI) |
-| `tests/privileged/task53/` | live BPF | Sensor ordering, saturation loss, supported-load envelope |
-| `bench/enforcement-live.sh` | live LSM | Deny/audit/kill-switch on kernel 7.1.3 |
-
-## Toolchain
-
-- **Rust** 1.95.0 (pinned via `rust-toolchain.toml`)
-- **Clang/LLVM** for BPF CO-RE compilation
-- **Bun** for web package management
-- **Nix/devenv** for reproducible dev environment
-- **Docker/Podman** for infrastructure and privileged BPF testing
-
-## Licensing
-
-Dual-licensed **Apache-2.0 OR MIT** (user-space Rust, dashboard, schemas).
-BPF LSM programs use **GPL-2.0-only** (kernel requirement for
-`BPF_PROG_TYPE_LSM`). Tracing programs use dual MIT/Apache-2.0.
-
-## Known Limitations
-
-- 4 BPF sensors (network, dns, syscall, lsm) need CO-RE relocation fixes for
-  kernels other than 7.1.3 (process, file, identity load on all tested kernels)
-- Multi-kernel compatibility matrix (5.15/6.1/6.6/arm64) requires VMs
-- Benchmark comparative gate requires strace/auditd/Falco installed on the host
-- SPIRE agent attestation tested with join_token only (X.509/mTLS in production)

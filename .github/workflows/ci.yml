@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: "experimental-features = nix-command flakes"
+
+      - name: format
+        run: nix develop --no-pure-eval --accept-flake-config -c cargo fmt --all -- --check
+
+      - name: clippy
+        run: nix develop --no-pure-eval --accept-flake-config -c cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: test
+        run: nix develop --no-pure-eval --accept-flake-config -c cargo test --workspace
+
+      - name: build sensors
+        run: nix develop --no-pure-eval --accept-flake-config -c cargo run -p bpf-build -- build

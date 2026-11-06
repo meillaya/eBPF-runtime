@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://kernel-v1/schemas/rule-v1.schema.json",
-  "title": "kernel-v1 native YAML rule set (schema v1)",
-  "description": "Structural contract for the kernel-v1 native YAML rule format. This is a purpose-built, versioned rule DSL. It is NOT Falco-compatible and makes no Falco rule-syntax compatibility claim. The JSON Schema enforces structural shape (required keys, enums, no unknown fields, version/engine typing, and a character-length pre-bound on regex patterns). Deeper semantic bounds that JSON Schema cannot express -- regex byte length (<= 1024 bytes), regex capture-group count (<= 64), absence of unbounded/nested quantifiers, event-field catalog membership, operator/field-type compatibility, unique rule/list/sequence identifiers, engine-version compatibility, condition nesting depth, list recursion, and the deny-only-on-kernel-observable-field rule -- are enforced by the compiled semantic validator in the `rules` crate (parse_ruleset). Both layers together form the rule schema.",
+  "$id": "https://ebpf-runtime.local/schemas/rule-v1.schema.json",
+  "title": "native YAML rule set (schema v1)",
+  "description": "Structural contract for the native YAML rule format. This is a purpose-built, versioned rule DSL. It is NOT Falco-compatible and makes no Falco rule-syntax compatibility claim. The JSON Schema enforces structural shape (required keys, enums, no unknown fields, version/engine typing, and a character-length pre-bound on regex patterns). Deeper semantic bounds that JSON Schema cannot express. regex byte length (<= 1024 bytes), regex capture-group count (<= 64), absence of unbounded/nested quantifiers, event-field catalog membership, operator/field-type compatibility, unique rule/list/sequence identifiers, engine-version compatibility, condition nesting depth, list recursion, and the deny-only-on-kernel-observable-field rule. are enforced by the compiled semantic validator in the `rules` crate (parse_ruleset). Both layers together form the rule schema.",
   "type": "object",
   "required": ["schema_version", "engine_version", "rules"],
   "additionalProperties": false,

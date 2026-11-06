@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//! Event field catalog for the kernel-v1 native rule schema.
+//! Event field catalog for the native rule schema.
 //!
 //! The catalog is the single source of truth for which event fields a rule
 //! condition may reference, what Rust type each field carries, which event
-//! [`Source`] it belongs to, and — critically for enforcement — whether the
+//! [`Source`] it belongs to, and whether the
 //! field is *kernel-observable*.
 //!
 //! Kernel-observable fields are facts the eBPF sensors read directly from the
@@ -79,17 +79,17 @@ impl FieldCatalog {
     }
 }
 
-/// Returns the default field catalog derived from the kernel-v1 event API.
+/// Returns the default field catalog derived from the event API.
 ///
 /// The catalog covers every normalized event field emitted by the sensors and
 /// the enrichment layer:
-/// - process facts (`process.*`) — kernel-observable;
-/// - file facts (`file.*`) — kernel-observable;
-/// - network facts (`network.*`) — kernel-observable;
-/// - DNS facts (`dns.*`) — kernel-observable;
-/// - syscall facts (`syscall.*`) — kernel-observable;
-/// - raw identity facts (`identity.*`) — kernel-observable;
-/// - enrichment metadata (`enrichment.*`) — NOT kernel-observable.
+/// - process facts (`process.*`): kernel-observable;
+/// - file facts (`file.*`): kernel-observable;
+/// - network facts (`network.*`): kernel-observable;
+/// - DNS facts (`dns.*`): kernel-observable;
+/// - syscall facts (`syscall.*`): kernel-observable;
+/// - raw identity facts (`identity.*`): kernel-observable;
+/// - enrichment metadata (`enrichment.*`): NOT kernel-observable.
 pub fn default_field_catalog() -> FieldCatalog {
     let fields = vec![
         // process source (kernel-observable)

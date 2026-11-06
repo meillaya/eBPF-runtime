@@ -1,4 +1,4 @@
-// src/parser_helpers.rs — event-abi
+// src/parser_helpers.rs: event-abi
 //
 // Small, allocation-free helpers used by the safe parser. No public API
 // churn outside the crate. These are the building blocks the public
@@ -55,7 +55,7 @@ pub fn format_valids(valids: u32) -> String {
         (Valid::PayloadTrunc as u32, "payload_trunc"),
         (Valid::Redacted as u32, "redacted"),
         (Valid::KfuncUsed as u32, "kfunc_used"),
-        // TASK-12 additions — the `Valid` enum carries five new file
+        // File sensor additions: the `Valid` enum carries five new file
         // bits at positions 0x8000..0x80000; format them here so the
         // diagnostic surfaces the new file-sensor validity bits.
         (Valid::FilePath as u32, "file_path"),
@@ -63,7 +63,7 @@ pub fn format_valids(valids: u32) -> String {
         (Valid::FileMode as u32, "file_mode"),
         (Valid::FileDenySource as u32, "file_deny_source"),
         (Valid::FileErrno as u32, "file_errno"),
-        // TASK-13 additions — the network-sensor payload-bits.
+        // Network sensor additions: the network-sensor payload-bits.
         (Valid::NetDstIp as u32, "net_dst_ip"),
         (Valid::NetDstPort as u32, "net_dst_port"),
         (Valid::NetCookie as u32, "net_cookie"),
@@ -73,7 +73,7 @@ pub fn format_valids(valids: u32) -> String {
         (Valid::NetFd as u32, "net_fd"),
         (Valid::NetOldState as u32, "net_old_state"),
         (Valid::NetNewState as u32, "net_new_state"),
-        // TASK-14 additions — the DNS-packet-sensor validity bits.
+        // DNS sensor additions: the DNS-packet-sensor validity bits.
         // Aliased positions 25..30 with the NET_* bits are intentional;
         // see the deviation note in bpf/include/event_abi.h.
         (crate::generated::dns_valid::QNAME, "dns_qname"),

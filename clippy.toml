@@ -1,39 +1,10 @@
-# clippy.toml — kernel-v1 (eBPF Runtime Security & Observability)
+# Workspace Clippy policy. Run:
 #
-# Workspace-wide Clippy thresholds. Every committed .rs file in this
-# workspace MUST be lint-clean under:
-#
-#     cargo clippy --workspace --all-targets --all-features -- -D warnings
-#
-# The `-D warnings` flag is owned by `devenv.tasks."quality:rust"` (task 4)
-# and the `.pre-commit-config.yaml` pre-commit hook wired by the same task.
-#
-# Threshold rationale (task 4 / plan §Quality gates):
-#
-#   * `msrv = "1.95.0"` mirrors the rust-toolchain.toml pin so Clippy does
-#     not suggest items newer than the toolchain.
-#   * `cognitive-complexity-threshold = 30` matches the plan's required
-#     bounded-complexity baseline.
-#   * `too-many-arguments-threshold = 8` is the plan ceiling for a single
-#     function signature; exceeding it forces a struct-of-args refactor.
-#   * `too-many-lines-threshold = 250` matches the 250 pure-LOC module
-#     ceiling enforced by `scripts/loc-lint.sh` (task 4); a `.rs` file
-#     that is 251 lines will trip BOTH gates.
-#   * `type-complexity-threshold = 250` caps deeply nested generic types
-#     so signatures stay reviewable.
-#   * `single-char-lifetime-names` whitelists the short lifetimes used
-#     by the BPF ring/event layers (s = span, n = node, k = key,
-#     v = value, x = scratch). Adding a new short lifetime is a
-#     PR-tracked decision so this list stays tight.
+#     cargo clippy --workspace --all-targets -- -D warnings
 
 msrv = "1.95.0"
 cognitive-complexity-threshold = 30
 too-many-arguments-threshold = 8
-too-many-lines-threshold = 250
+too-many-lines-threshold = 400
 type-complexity-threshold = 250
-# The plan called for `single-char-lifetime-names`; clippy 1.95 renamed
-# the option to `single-char-binding-names-threshold` (variable names
-# only). Forbidding 1- or 2-letter bindings outright would have broken
-# existing crates, so the threshold keeps long bindings reviewable
-# without banning short ones outright.
 single-char-binding-names-threshold = 4

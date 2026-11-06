@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//! kernel-v1 native versioned YAML rule schema.
+//! Native versioned YAML rule schema.
 //!
 //! This crate defines the canonical AST, parser, semantic/type checker, field
 //! catalog, deterministic canonical digest, and rich path-aware diagnostics for
-//! the kernel-v1 native rule format (schema v1).
+//! the native rule format (schema v1).
 //!
 //! # Contract
 //!

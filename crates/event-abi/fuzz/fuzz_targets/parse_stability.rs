@@ -1,13 +1,13 @@
-// fuzz_targets/parse_stability.rs — event-abi
+// fuzz_targets/parse_stability.rs: event-abi
 //
 // Roundtrip / determinism fuzz target for the ABI decode boundary. For any
 // buffer that parses successfully:
-//   * DETERMINISM — parsing the same bytes twice yields an identical `Event`
+//   * DETERMINISM: parsing the same bytes twice yields an identical `Event`
 //     (same input -> same output);
-//   * ROUNDTRIP — the decoded payload slice is exactly
+//   * ROUNDTRIP: the decoded payload slice is exactly
 //     `data[HEADER_LEN..record_len]`, and re-parsing that exact recorded
 //     slice yields the same header (decode is self-consistent);
-//   * BOUNDS — `record_len` never exceeds the buffer length.
+//   * BOUNDS: `record_len` never exceeds the buffer length.
 // A violated invariant is a real bug and intentionally aborts the run. No
 // unsafe in this target (the encode->decode->encode byte roundtrip is covered
 // by the proptest module, which is allowed to use the test-only serializer).

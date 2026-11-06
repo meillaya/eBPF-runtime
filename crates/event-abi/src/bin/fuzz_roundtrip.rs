@@ -1,11 +1,11 @@
-// src/bin/fuzz_roundtrip.rs — event-abi
+// src/bin/fuzz_roundtrip.rs: event-abi
 //
 // Reads random bytes from stdin and feeds them to `event_abi::parse`.
 // The harness asserts no panic occurs for any input by wrapping the
 // call in `std::panic::catch_unwind`. Exits 0 if every input was
 // handled (Ok or Err); non-zero only on a panic.
 //
-// This is the deterministic seed-loop wrapper required by the task
+// This is the deterministic seed-loop wrapper required by the contract
 // spec's "fuzz-roundtrip run 100x with /dev/urandom" QA. The
 // real `cargo-fuzz` harness lives at `tests/fuzz.rs` (gated behind
 // `--features fuzz`) for nightly-toolchain runs.

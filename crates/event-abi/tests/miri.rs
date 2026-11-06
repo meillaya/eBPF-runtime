@@ -1,4 +1,4 @@
-// tests/miri.rs — event-abi
+// tests/miri.rs: event-abi
 //
 // Miri configuration / soundness tests for the single `unsafe` boundary in
 // the crate: the `core::ptr::read_unaligned` of the 96-byte header inside
@@ -23,7 +23,7 @@
 use event_abi::{parse, HEADER_LEN, PAYLOAD_MAX, SCHEMA_MAJOR, SCHEMA_MINOR};
 
 /// Build a well-formed record buffer (96-byte header + `payload_len` bytes)
-/// using only safe byte patches — no unsafe required to construct the input.
+/// using only safe byte patches, so no unsafe is required to construct the input.
 fn build_record(payload_len: usize, kind: u8) -> Vec<u8> {
     let mut buf = vec![0u8; HEADER_LEN + payload_len];
     buf[0..4].copy_from_slice(&SCHEMA_MAJOR.to_le_bytes());
@@ -61,12 +61,15 @@ fn parse_payload_size_boundaries() {
         let record = build_record(payload_len, 4); // 4 = FILE_OPEN
         let ev = parse(&record).expect("record must parse");
         assert_eq!(ev.payload.len(), payload_len);
-        assert_eq!(ev.payload.as_ptr() as usize, record.as_ptr() as usize + HEADER_LEN);
+        assert_eq!(
+            ev.payload.as_ptr() as usize,
+            record.as_ptr() as usize + HEADER_LEN
+        );
     }
 }
 
 /// Short buffers (0..HEADER_LEN) must return a typed `ShortBuffer` error
-/// BEFORE any header read — Miri confirms no out-of-bounds read occurs.
+/// BEFORE any header read. Miri confirms no out-of-bounds read occurs.
 #[test]
 fn short_buffer_never_reads_header() {
     for n in 0..HEADER_LEN {
@@ -83,5 +86,8 @@ fn overreported_record_len_is_typed_error() {
     let mut record = build_record(16, 1);
     // Claim a record_len far beyond the actual buffer.
     record[12..16].copy_from_slice(&((HEADER_LEN + 10_000) as u32).to_le_bytes());
-    assert!(parse(&record).is_err(), "over-reported record_len must fail typed");
+    assert!(
+        parse(&record).is_err(),
+        "over-reported record_len must fail typed"
+    );
 }

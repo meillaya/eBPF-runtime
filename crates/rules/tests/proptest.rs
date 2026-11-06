@@ -1,4 +1,4 @@
-// tests/proptest.rs — rules
+// tests/proptest.rs: rules
 //
 // Integration-test harness that wires the rules property-test modules under
 // `crates/rules/proptest/` into the `cargo test` binary. The strategies and

@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //! The rule-evaluation resource budget.
 //!
-//! [`RuleBudget`] names every bound the predicate evaluator enforces. The
-//! defaults match `bench/schemas/rule-budget.v1.json` (the single source of
-//! truth for these constants); [`load_budget_from_schema`] reads the `default`
-//! of each schema property so a deployment can re-tune the budget without
-//! recompiling. No bound is hardcoded at a call site — every limit flows from
-//! this struct.
+//! [`RuleBudget`] names every bound the predicate evaluator enforces.
+//! [`load_budget_from_schema`] reads the `default` of each schema property so
+//! a deployment can re-tune the budget without recompiling. No bound is
+//! hardcoded at a call site. Every limit flows from this struct.
 
 use std::path::Path;
 
@@ -33,7 +31,7 @@ pub struct RuleBudget {
     pub max_sequence_window_seconds: u64,
 }
 
-/// The default budget, mirroring `bench/schemas/rule-budget.v1.json` defaults:
+/// The default budget:
 /// 1024 ops, 16 nested expressions, 64 list items, 256 regex chars, 10 ms regex
 /// time, 64 exception items, 16 sequence steps, 3600 s sequence window.
 pub fn default_budget() -> RuleBudget {

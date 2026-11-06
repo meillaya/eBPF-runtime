@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: (MIT OR Apache-2.0)
  *
  * bpf/include/event_abi.h
- * kernel-v1 — authoritative C↔Rust event ABI v1.
+ * Authoritative C to Rust event ABI v1.
  *
  * This header is the SINGLE SOURCE OF TRUTH for the on-the-wire byte
  * layout of every event the BPF sensor programs emit through the shared
@@ -52,7 +52,7 @@
  * (little-endian on every supported platform: x86_64, arm64). Producer
  * and consumer live on the same host because the consumer reads from a
  * `mmap()`'d ring buffer, not over the network. Network transport
- * (gRPC, Kafka) encodes a separate protobuf (task 6).
+ * Network transports encode their own messages.
  */
 
 #ifndef KERNEL_V1_EVENT_ABI_H
@@ -64,7 +64,7 @@
  *      TU that includes only this header to confirm the struct
  *      layout and the static_asserts in it).
  *   2. BPF sensor programs compiled with `clang -target bpf`
- *      (task 10's `bpf/sensors/*.bpf.c` sources include vmlinux.h
+ *      (the `bpf/sensors/*.bpf.c` sources include vmlinux.h
  *      first, which already provides `uint8_t/16/32/64`, `u8/16/32/64`,
  *      `size_t`, `intptr_t`, `uintptr_t`, `wchar_t`, and the POSIX
  *      aliases like `uint32_t` via `typedef u32 uint32_t;`).
@@ -97,18 +97,18 @@
 #define KERNEL_V1_ABI_HEADER_LEN   ((uint32_t)96u)
 #define KERNEL_V1_ABI_PAYLOAD_MAX  ((uint32_t)4096u)
 
-/* EventKind — every semantic event the platform can emit (16 values).
+/* EventKind: every semantic event the platform can emit (16 values).
  * The proto contract (proto/kernel/v1/events/v1/events.proto::EventKind)
  * and this C enum must stay in lockstep. The Rust parser accepts any
  * value in [1, KERNEL_V1_EVENT_IDENTITY] and rejects 0 and any value
  * above.
  *
- * TASK-16 (identity sensor) EXTENSION (2026-07-21):
+ * Identity sensor extension:
  *   Re-pinned `KERNEL_V1_EVENT_IDENTITY` from 16 to 27 to avoid the
  *   aliasing collision with the prior assignment of value 16 to the
  *   reserved IDENTITY slot, while leaving the well-known Process /
  *   File / Network / DNS / Syscall discriminants untouched. The
- *   v1 header layout, payload sizes, and the task-11..task-15
+ *   v1 header layout, payload sizes, and the earlier sensors
  *   committed `.binpb` fixtures are unaffected because the
  *   discriminants in [1..12, 15, 25..26] still encode the same
  *   semantic events. The shift was applied in lockstep to the
@@ -141,9 +141,9 @@ enum kernel_v1_event_kind {
  * remaining valid bits are forward-compat placeholders for the
  * next minor revision.
  *
- * TASK-12 (file sensor) EXTENSION (2026-07-21):
- *   The task-12 brief asked for the file-specific validity bits at
- *   sequential positions 0x0800/0x1000/0x2000/0x4000/0x8000 — but
+ * File sensor extension:
+ *   The file sensor extension asked for the file-specific validity bits at
+ *   sequential positions 0x0800/0x1000/0x2000/0x4000/0x8000. But
  *   those positions are ALREADY OCCUPIED by PROCESSOR (0x0800),
  *   PAYLOAD_TRUNC (0x1000), REDACTED (0x2000), KFUNC_USED (0x4000),
  *   and the still-free 0x8000 (bit 15). Reusing a taken bit would
@@ -151,7 +151,6 @@ enum kernel_v1_event_kind {
  *   break every existing producer (process sensor already sets
  *   PROCESSOR = 0x0800 on every event). The file sensor therefore
  *   uses the same NON-OVERLAPPING positions documented in the
- *   `.omo/evidence/task-12-ebpf-runtime-security-observability.json`
  *   deviation table: FILE_PATH=0x8000 (bit 15, first free bit), and
  *   the four FILE_* extension bits at 0x10000 / 0x20000 / 0x40000 /
  *   0x80000 (bits 16..19). All bits still fit in `uint32_t valids`.
@@ -175,7 +174,7 @@ enum kernel_v1_valid {
     KERNEL_V1_VALID_PAYLOAD_TRUNC  = 0x1000u,
     KERNEL_V1_VALID_REDACTED       = 0x2000u,
     KERNEL_V1_VALID_KFUNC_USED     = 0x4000u,
-    /* TASK-12 ADDITIONS — first five bits above 0x4000 reserved for
+    /* File sensor bits: first five bits above 0x4000 reserved for
      * file-sensor validity (file path present, flags present, mode
      * bits present, deny_source present, errno present). See the
      * deviation table above for the rationale. */
@@ -184,15 +183,15 @@ enum kernel_v1_valid {
     KERNEL_V1_VALID_FILE_MODE       = 0x20000u,
     KERNEL_V1_VALID_FILE_DENY_SOURCE= 0x40000u,
     KERNEL_V1_VALID_FILE_ERRNO      = 0x80000u,
-    /* TASK-13 (network sensor) EXTENSION (2026-07-21):
+    /* Network sensor (network sensor) EXTENSION (2026-07-21):
      *   Nine non-overlapping bits above the FILE_ERRNO bit (bit
      *   19) reserved for network-sensor validity.
      *
-     *   The task-13 brief listed the bits at sequential positions
-     *   0x010000..0x1000000 — but those positions are already
+     *   The network sensor extension listed the bits at sequential positions
+     *   0x010000..0x1000000. But those positions are already
      *   occupied by the file-sensor bits (FILE_FLAGS=0x10000,
      *   FILE_MODE=0x20000, FILE_DENY_SOURCE=0x40000,
-     *   FILE_ERRNO=0x80000) added by task 12. Reusing those bits
+     *   FILE_ERRNO=0x80000) added by the file sensor. Reusing those bits
      *   would alias a file payload with a network payload and break
      *   every existing producer (file.bpf.c already sets FILE_FLAGS
      *   on every file_open event). The next genuinely free bits
@@ -209,11 +208,11 @@ enum kernel_v1_valid {
     KERNEL_V1_VALID_NET_FD          = 0x04000000u,
     KERNEL_V1_VALID_NET_OLD_STATE   = 0x08000000u,
     KERNEL_V1_VALID_NET_NEW_STATE   = 0x10000000u,
-    /* TASK-14 (DNS packet sensor) EXTENSION (2026-07-21):
+    /* DNS sensor extension:
      *   Six non-overlapping bits above the NET_NEW_STATE bit
      *   (bit 28) reserved for DNS packet-sensor validity. The
-     *   task-14 brief specified positions 0x02000000..0x40000000
-     *   (bits 25..30) — those positions are GENUINELY FREE
+     *   The DNS sensor pins positions 0x02000000..0x40000000.
+     *   (bits 25..30). Those positions are GENUINELY FREE
      *   (the network sensor uses 0x00100000..0x10000000, bits
      *   20..28). The truncated-payload bit
      *   (KERNEL_V1_VALID_DNS_PAYLOAD_TRUNC = 0x40000000) lives
@@ -226,9 +225,9 @@ enum kernel_v1_valid {
     KERNEL_V1_VALID_DNS_COUNTS      = 0x10000000u,
     KERNEL_V1_VALID_DNS_DST_IP      = 0x20000000u,
     KERNEL_V1_VALID_DNS_PAYLOAD_TRUNC = 0x40000000u,
-    /* TASK-16 (identity sensor) EXTENSION (2026-07-21):
+    /* Identity sensor (identity sensor) EXTENSION (2026-07-21):
      *   Fifteen non-overlapping bits above the DNS_PAYLOAD_TRUNC bit
-     *   (bit 30) reserved for identity-sensor validity. The brief
+     *   (bit 30) reserved for identity-sensor validity. The specification
      *   pinned the bits to 0x80000000..0x4000000000000 (bits 31, then
      *   bit 32..46 in the `uint64_t` extension of `valids`); the v1
      *   header carries `valids` as a 32-bit field at offset 84, so
@@ -267,7 +266,7 @@ enum kernel_v1_valid {
 };
 
 /* Identity-sensor flag bits encoded into the IDENTITY payload
- * `flags` field (NOT the kernel_v1_header `flags` byte — the
+ * `flags` field (NOT the kernel_v1_header `flags` byte. The
  * identity payload carries its own flag word because identity
  * reserves its own namespace, exactly like file/network/dns).
  * Each flag bit is set when the named condition is true; the
@@ -280,7 +279,7 @@ enum kernel_v1_valid {
 #define KERNEL_V1_IDENTITY_FLAG_COMPAT             ((uint32_t)0x04u)
 
 /* Identity-sensor payload layout constants. The 96-byte primary
- * payload carries every identity field that the brief requires;
+ * payload carries every identity field that the specification requires;
  * the 56-byte tail struct carries the fields that did not fit
  * (the 16-byte boot id and the four trailing namespace inodes,
  * `ns_uts`/`ns_ipc`/`ns_time`/`ns_cgroup`, plus the kernel-relative
@@ -301,7 +300,7 @@ enum kernel_v1_valid {
     ((uint32_t)(KERNEL_V1_IDENTITY_PAYLOAD_LEN + KERNEL_V1_IDENTITY_TAIL_LEN))
 
 /* Identity-payload primary layout (96 bytes, exactly).
- * Source-of-truth byte offsets — the Rust `IdentityPayload` mirror
+ * Source-of-truth byte offsets. The Rust `IdentityPayload` mirror
  * in `crates/event-abi/src/generated.rs` mirrors these offsets
  * verbatim and `_Static_assert`s the same size. The discriminator
  * is `header.event_kind`, so a single uniform primary size is
@@ -373,7 +372,7 @@ _Static_assert(KERNEL_V1_IDENTITY_RECORD_LEN == 152u,
 /* Deny-source enum for FILE_OPEN events. Distinguishes OWN_LSM
  * (the BPF LSM `file_open` hook returned an errno from this
  * platform's own program; DECLARED, NOT currently emitted by the
- * sensor — file.bpf.c is an observation sensor, NOT enforcement —
+ * sensor. file.bpf.c is an observation sensor, NOT enforcement.
  * but the source-of-truth is reserved here so a follow-up LSM
  * audit task can switch the enum without ABI churn) from SYSCALL
  * (the LSM hook was unavailable and the syscall-result kprobe was
@@ -383,7 +382,7 @@ _Static_assert(KERNEL_V1_IDENTITY_RECORD_LEN == 152u,
  * events; the other file event kinds (FILE_CREATE, FILE_UNLINK,
  * FILE_RENAME, FILE_TRUNCATE) carry deny_source through the same
  * per-event field for consistency but always set NONE because the
- * brief's decision is to NOT enforce on mutation-class hooks.
+ * specification's decision is to NOT enforce on mutation-class hooks.
  *
  * The integer values are stable across C/Rust builds. */
 enum kernel_v1_file_deny_source {
@@ -393,9 +392,9 @@ enum kernel_v1_file_deny_source {
 };
 
 /* File-result flag bits encoded into the FILE_* payload byte 0
- * (`flags` payload byte, NOT the kernel_v1_header `flags` byte —
- * the per-event payload carries its own byte because each sensor
- * reserves its own namespace). The brief asked for one
+ * (`flags` payload byte, NOT the kernel_v1_header `flags` byte.
+ * The per-event payload carries its own byte because each sensor
+ * reserves its own namespace). The specification asked for one
  * file-specific flag (FILE_RESULT_HAS_ERRNO) at bit 0; the second
  * sentinel bit (OWN_LSM_DENY) is reserved at 0x02 for the future
  * LSM-task work but is intentionally NEVER set by file.bpf.c. */
@@ -403,13 +402,13 @@ enum kernel_v1_file_deny_source {
 #define KERNEL_V1_FILE_RESULT_OWN_LSM  ((uint8_t)0x02u)  /* reserved; NEVER set by file.bpf.c */
 
 /* Network-result flag bits encoded into the NETWORK_* payload byte 0
- * (`flags` payload byte, NOT the kernel_v1_header `flags` byte — each
- * sensor reserves its own flag-byte namespace). TASK-13 reserves two
+ * (`flags` payload byte, NOT the kernel_v1_header `flags` byte. Each
+ * sensor reserves its own flag-byte namespace). Network sensor reserves two
  * bits: NONBLOCKING records that the O_NONBLOCK file status flag was
  * observed on the file descriptor at connect-issue time, and
  * EINPROGRESS records that the syscall exited with -EINPROGRESS
  * (the documented nonblocking-connect return code). Consumers MUST
- * ignore EINPROGRESS for "connect succeeded" classification — the
+ * ignore EINPROGRESS for "connect succeeded" classification. The
  * result event is the source of truth, not the flag. */
 #define KERNEL_V1_NET_RESULT_FLAG_NONBLOCKING ((uint8_t)0x01u)
 #define KERNEL_V1_NET_RESULT_FLAG_EINPROGRESS ((uint8_t)0x02u)
@@ -440,14 +439,14 @@ enum kernel_v1_tcp_state {
 
 /* Network-payload layout constants (must match the Rust
  * `network_payload` module in
- * `crates/sensor-tests/tests/process_events.rs`). */
+ * `crates/runtime/src/decode.rs`). */
 #define KERNEL_V1_NET_IPV6_LEN       ((uint32_t)16u)
 #define KERNEL_V1_NET_IPV4_LEN       ((uint32_t)4u)
 #define KERNEL_V1_NET_MAX_FAMILY     ((uint32_t)2u)
 
 /* Each network sub-event carries a bounded payload. The sensor
- * always writes 80 bytes — the union of every sub-event's field set —
- * so the consumer can dispatch on `event_kind` and read the relevant
+ * always writes 80 bytes: the union of every sub-event's field set.
+ * The consumer can dispatch on `event_kind` and read the relevant
  * fields without first measuring the payload length. Unused bytes in
  * any one event are zero and the corresponding validity bit is clear. */
 #define KERNEL_V1_NET_PAYLOAD_LEN ((uint32_t)80u)
@@ -490,7 +489,7 @@ struct network_accept_result_payload {
     uint8_t  peer_ip[KERNEL_V1_NET_IPV6_LEN]; /* off 16 */
     uint32_t peer_port;             /* off 32: network byte order */
     int32_t errno_;                /* off 36: raw errno (0 on success) */
-    int32_t fd;                    /* off 40: returned fd (>=0 only); per-task brief */
+    int32_t fd;                    /* off 40: returned fd (>=0 only); the ABI */
     uint32_t _pad1;                 /* off 44 */
 } __attribute__((packed));
 
@@ -520,7 +519,7 @@ struct kernel_v1_network_payload {
     };
 } __attribute__((packed));
 
-/* DNS packet-sensor extensions (TASK-14, 2026-07-21).
+/* DNS packet-sensor extensions (DNS sensor, 2026-07-21).
  *
  * The DNS sensor captures BOUNDED CLEARTEXT DNS ONLY. The
  * directional discriminator is `KERNEL_V1_DNS_DIR_*`; the
@@ -528,8 +527,8 @@ struct kernel_v1_network_payload {
  * truncation reason is `KERNEL_V1_DNS_TRUNC_*`. The six
  * DNS validity bits `KERNEL_V1_VALID_DNS_*` are appended
  * to the existing `enum kernel_v1_valid` above (bits 29..30
- * were genuinely free before task 14; bits 31..33 mirror the
- * brief's requested sequential positions). Validity-bit
+ * were genuinely free before the DNS sensor; bits 31..33 mirror the
+ * specification's requested sequential positions). Validity-bit
  * rationale mirrors the file/network predecessor precedent
  * in this header. The Rust mirror
  * (`crates/event-abi/src/generated.rs`) and the per-bit
@@ -563,7 +562,7 @@ enum kernel_v1_dns_truncation_reason {
     KERNEL_V1_DNS_TRUNC_INTERNAL_BPF_ERROR= 3,
 };
 
-/* DNS sensor payload layout constants. The brief requires a
+/* DNS sensor payload layout constants. The specification requires a
  * single, fixed-length 320-byte payload that always carries
  * the union of fields, with unused fields zero and the
  * matching validity bit cleared. Consumers dispatch on
@@ -597,7 +596,7 @@ struct kernel_v1_dns_packet_payload {
     uint8_t  _pad1[28];                            /* off  292: pad to 320 */
 } __attribute__((packed));
 
-/* _Static_assert keeps the DNS payload size honest — drift
+/* _Static_assert keeps the DNS payload size honest. Drift
  * between this header and the Rust `kernel_v1_dns_packet_payload`
  * mirror fails `cargo build` of the event-abi crate via the
  * build.rs c-check step. */
@@ -654,17 +653,17 @@ _Static_assert(sizeof(struct kernel_v1_syscall_event_payload) <= 40u,
 
 /* v1 producer MUST NOT set bits above bit 30.
  *
- * WAS: 0x00007FFF (15 bits). Widened by task 12 to admit the five
+ * WAS: 0x00007FFF (15 bits). Widened by the file sensor to admit the five
  * FILE_* validity bits at 0x8000..0x80000 (bits 15..19). Widened
- * again by task 13 to admit the nine NET_* validity bits at
- * 0x100000..0x10000000 (bits 20..28). Widened again by task 14 to
+ * again by the network sensor to admit the nine NET_* validity bits at
+ * 0x100000..0x10000000 (bits 20..28). Widened again by the DNS sensor to
  * admit the six DNS_* validity bits at 0x02000000..0x40000000
- * (bits 25..30). The mask remains tight — only the legitimately-
- * reserved identity bits and the file-specific / network-specific /
- * DNS-specific bits are admissible — so a future ABI major bump
+ * (bits 25..30). The mask remains tight, so only the legitimately
+ * reserved identity bits and the file-specific, network-specific, and
+ * DNS-specific bits are admissible. A future ABI major bump
  * is the only path that opens more bits.
  *
- * TASK-16 DEVIATION NOTE: the IDENTITY validity bits
+ * Identity sensor DEVIATION NOTE: the IDENTITY validity bits
  * (`KERNEL_V1_VALID_IDENTITY_*`) live at positions
  * 0x80000000..0x4000000000000 (bits 31, 32..46) which are above
  * the 32-bit `valids` field in `kernel_v1_header`. They are NOT
@@ -676,11 +675,11 @@ _Static_assert(sizeof(struct kernel_v1_syscall_event_payload) <= 40u,
  * 32-bit `header.valids` for non-IDENTITY events still rejects
  * bits above 30, exactly as before.
  *
- * TASK-14 DEVIATION NOTE: the brief specified the DNS validity
+ * DNS sensor DEVIATION NOTE: the specification specified the DNS validity
  * bits at sequential positions 0x02000000..0x40000000 (bits
- * 25..30). Those positions partly overlap with the task-13
- * network bits (NET_PEER_PORT @ bit 25, NET_FD @ bit 26,
- * NET_OLD_STATE @ bit 27, NET_NEW_STATE @ bit 28). The brief
+ * 25..30). Those positions partly overlap with the network
+ * bits (NET_PEER_PORT @ bit 25, NET_FD @ bit 26,
+ * NET_OLD_STATE @ bit 27, NET_NEW_STATE @ bit 28). The specification
  * is binding, so the DNS bits are pinned to those exact
  * positions. Aliasing is benign at the wire level because the
  * DNS and NETWORK_* events carry different `event_kind`
@@ -717,8 +716,8 @@ struct kernel_v1_header {
     uint64_t ns_pid;                /* off 88 */
 };
 
-/* Build-time size and offset assertions. The kernel-v1 build pipeline
- * (task 10) compiles a tiny TU that includes this header and only
+/* Build-time size and offset assertions. The build pipeline
+ * compiles a tiny translation unit that includes this header and only
  * references these assertions, so any drift in the struct layout is
  * caught by the normal C compiler invocation. */
 _Static_assert(KERNEL_V1_ABI_HEADER_LEN == 96u,

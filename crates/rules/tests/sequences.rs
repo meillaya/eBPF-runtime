@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//! Unit tests for bounded temporal sequence correlation (task 29).
+//! Unit tests for bounded temporal sequence correlation.
 
 use rules::ast::{Operator, Sequence, Step, Value};
 use rules::predicates::{default_budget, Event};

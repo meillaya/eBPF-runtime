@@ -12,7 +12,7 @@ use super::{
 };
 
 /// Extract the group key from an event. Priority order:
-/// 1. `process.generation` (u64) — unique across PID reuse
+/// 1. `process.generation` (u64): unique across PID reuse
 /// 2. `container.id` (String)
 /// 3. `socket.inode` (u64)
 /// 4. Fallback: `Custom("default")`

@@ -1,23 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# rules/default/sensitive-files.yaml — sensitive file access policy pack (task 30)
+# rules/default/sensitive-files.yaml: sensitive file access pack
 #
 # Detects write-intent and mutation operations on sensitive system files.
+#
 # Design principles:
-#   - NEVER globally deny /etc or any broad path prefix; only specific
-#     sensitive paths and directories are matched.
-#   - NEVER deny reads by default; FileOpen gets alert (not deny) because
-#     it may be a read-only open.
-#   - NEVER act on unresolved/truncated paths; the predicate evaluator
-#     treats null/unknown file.path as non-match (false), so truncated
-#     paths from the file sensor (task 12) never trigger a rule.
-#   - NEVER equate syscall fallback with authoritative LSM decision;
-#     deny eligibility rests only on kernel-observable fields (file.path,
-#     file.kind) which the file sensor populates from LSM hooks, not from
-#     syscall tracepoint fallback.
-#   - Audit/deny eligibility is ONLY on authoritative own-LSM facts:
-#     file.path and file.kind are kernel-observable (fields.rs catalog);
-#     enrichment.* fields are NOT kernel-observable and never appear in
-#     a deny condition.
+#   - Match specific paths and directories, never a broad /etc prefix.
+#   - Alert only. The runtime records events and does not block syscalls.
+#   - Do not fire on an unresolved or truncated path. A missing file.path
+#     is a non-match, so a truncated read cannot create an alert.
+#   - Use only kernel-observable fields (file.path, file.kind). The
+#     enrichment namespace is not populated by these sensors.
 #
 # Schema: schemas/rule-v1.schema.json (schema_version 1)
 # Engine: 1.0.0 (crates/rules/src/version.rs CURRENT_ENGINE_VERSION)
@@ -27,12 +19,11 @@ engine_version: "1.0.0"  # same major as engine, not newer
 
 rules:
   # -----------------------------------------------------------------------
-  # Rule 1: Write-intent detection (alert only, never deny)
+  # Rule 1: Write-intent detection
   # -----------------------------------------------------------------------
   # Fires when a process opens, creates, or truncates a sensitive file.
-  # Action is "alert" (not deny) because FileOpen may be a read-only open;
-  # we alert for visibility but do not block. This satisfies the
-  # "do not deny reads by default" constraint.
+  # Action is "alert" because FileOpen may be a read-only open. The
+  # runtime reports the open and does not block it.
   #
   # Operation constraint: file.kind in [FileOpen, FileCreate, FileTruncate]
   #   - FileOpen: may be write-intent open (we cannot distinguish read vs
@@ -45,7 +36,7 @@ rules:
   #   operation the kernel observed). Only the listed kinds trigger.
   #
   # Source constraint: source=file means this rule applies only to file
-  #   sensor events (task 12), not process/network/DNS/syscall events.
+  #   sensor events, not events from other sources.
   #
   # Identity constraint: exceptions on process.exec_path constrain WHO
   #   may perform the operation without alerting (package managers and
@@ -61,12 +52,12 @@ rules:
       - file         # event source category
       - sensitive    # sensitive file access
       - write-intent # operation category (open/create/truncate)
-    source: file  # file sensor events only (task 12)
+    source: file  # file sensor events only
     description: >-
       Detects write-intent operations (open, create, truncate) on
       sensitive system files such as /etc/shadow, /etc/passwd,
       /etc/sudoers, SSH host keys, and PAM configuration. Alerts
-      but does not deny because FileOpen may be read-only.
+      but does not block because FileOpen may be read-only.
       Package managers and config management tools are excepted.
     condition:
       and:
@@ -104,7 +95,7 @@ rules:
             - field: file.path
               operator: starts_with
               value: "/etc/pam.d/"
-    action: alert  # alert only; never deny on write-intent (may be read)
+    action: alert  # write-intent may be a read; report only
     # Safe exceptions: trusted actors that legitimately modify sensitive
     # files. If process.exec_path matches any exception, the alert is
     # suppressed. These are package managers and config management tools.
@@ -169,29 +160,24 @@ rules:
           - "/opt/chef/bin/chef-client"
 
   # -----------------------------------------------------------------------
-  # Rule 2: Mutation detection (deny-eligible)
+  # Rule 2: Mutation detection
   # -----------------------------------------------------------------------
   # Fires when a process renames or unlinks (deletes) a sensitive file.
-  # Action is "deny" because mutations are destructive and irreversible;
-  # deny is permitted here because the condition references ONLY
-  # kernel-observable fields (file.path, file.kind) — never enrichment
-  # or heuristic data. This satisfies the "audit/deny eligibility only
-  # on authoritative own-LSM facts" constraint.
+  # Action is "alert" because mutations are destructive and worth
+  # reporting. The condition references only kernel-observable fields
+  # (file.path, file.kind), never enrichment data.
   #
   # Operation constraint: file.kind in [FileRename, FileUnlink]
   #   - FileRename: renaming a sensitive file (e.g., moving /etc/shadow)
   #   - FileUnlink: deleting a sensitive file (e.g., rm /etc/sudoers)
   #
-  # These are unambiguously destructive operations; there is no
-  # "read-only rename" or "read-only unlink", so deny is safe.
+  # These are destructive operations. There is no read-only rename or
+  # read-only unlink, so an alert is useful.
   #
-  # LSM authority: file.path and file.kind are populated by the file
-  # sensor (task 12) from LSM hooks (security_inode_rename,
-  # security_inode_unlink). When the sensor falls back to syscall
-  # tracepoints, the validity flags indicate reduced confidence; the
-  # predicate evaluator treats null/unknown file.path as non-match,
-  # so syscall-fallback events with unresolved paths never trigger
-  # this deny rule.
+  # The file sensor fills file.kind and file.path from the
+  # lsm/file_open hook and the renameat2 and unlinkat kprobes. The
+  # predicate evaluator treats a null path as a non-match, so an
+  # unreadable path cannot trigger this rule.
   - id: sensitive-file-mutation
     version: 1
     severity: critical  # mutation of sensitive files is critical
@@ -199,13 +185,12 @@ rules:
       - file      # event source category
       - sensitive # sensitive file access
       - mutation  # operation category (rename/unlink)
-    source: file  # file sensor events only (task 12)
+    source: file  # file sensor events only
     description: >-
       Detects mutation operations (rename, unlink) on sensitive system
-      files. Denies the operation because mutations are destructive.
-      Deny is permitted because the condition uses only kernel-observable
-      fields (file.path, file.kind from LSM hooks). Package managers
-      and config management tools are excepted.
+      files. Alerts because mutations are destructive. The condition
+      uses only kernel-observable fields (file.path, file.kind).
+      Package managers and config management tools are excepted.
     condition:
       and:
         # Operation constraint: only destructive mutation operations.
@@ -235,7 +220,7 @@ rules:
             - field: file.path
               operator: starts_with
               value: "/etc/pam.d/"
-    action: deny  # deny-eligible: kernel-observable fields only (LSM facts)
+    action: alert  # this runtime does not enforce policy
     # Same safe exceptions as write-intent rule: package managers and
     # config management tools legitimately rename/unlink sensitive files
     # during package removal or configuration rollback.

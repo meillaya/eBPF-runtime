@@ -1,8 +1,8 @@
-// tests/fuzz.rs — event-abi
+// tests/fuzz.rs: event-abi
 //
 // Fuzz harness gated behind `--features fuzz`. Uses a hand-rolled
 // PRNG to generate random bytes (avoids the nightly `cargo-fuzz`
-// runtime, which the task spec acknowledges is not available in this
+// runtime, which the test contract acknowledges is not available in this
 // session). The real nightly harness is a one-liner that wraps this
 // function with `cargo_fuzz::fuzz_target!`.
 //

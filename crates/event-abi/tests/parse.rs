@@ -1,8 +1,8 @@
-// tests/parse.rs — event-abi
+// tests/parse.rs: event-abi
 //
 // Exhaustive round-trip + hostile-input tests for the safe parser.
 // Covers every `EventKind` plus the failure paths required by the
-// task spec: too-short buffer, length mismatch (low + high), unknown
+// documented contract: too-short buffer, length mismatch (low + high), unknown
 // schema major, unknown event kind, truncated record, and the
 // truncation / redaction flag bits.
 //
@@ -60,7 +60,7 @@ fn build_record(kind: EventKind, payload_len: usize, valids: u32) -> Vec<u8> {
 }
 
 // ---------------------------------------------------------------------------
-// Happy paths — round-trip every EventKind
+// Happy paths: round-trip every EventKind
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -130,7 +130,7 @@ fn happy_fixture_round_trips() {
 }
 
 // ---------------------------------------------------------------------------
-// Hostile inputs — typed errors, no panic
+// Hostile inputs: typed errors, no panic
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -290,7 +290,7 @@ fn header_struct_size_matches_constant() {
 }
 
 // ---------------------------------------------------------------------------
-// TASK-14 — DNS packet sensor ABI additions.
+// DNS sensor: DNS packet sensor ABI additions.
 // ---------------------------------------------------------------------------
 
 use event_abi::{
@@ -320,7 +320,7 @@ fn dns_payload_layout_matches_c_header_struct() {
 }
 
 #[test]
-fn dns_validity_bit_constants_match_brief() {
+fn dns_validity_bit_constants_match_header() {
     assert_eq!(dns_valid::QNAME, 0x0200_0000);
     assert_eq!(dns_valid::QTYPE, 0x0400_0000);
     assert_eq!(dns_valid::FLAGS, 0x0800_0000);

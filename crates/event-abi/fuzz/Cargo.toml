@@ -2,9 +2,9 @@
 #
 # cargo-fuzz harness crate for the event-abi ABI decode boundary.
 # This is a SEPARATE workspace (the empty `[workspace]` table detaches it
-# from the parent kernel-v1 workspace) so `cargo test --workspace` and the
+# from the parent workspace) so `cargo test --workspace` and the
 # main `Cargo.lock` are never affected by the fuzzer build. Run via
-# `cargo fuzz` from this directory (see README.md / top-level FUZZING.md).
+# `cargo fuzz` from this directory.
 
 [package]
 name = "event-abi-fuzz"

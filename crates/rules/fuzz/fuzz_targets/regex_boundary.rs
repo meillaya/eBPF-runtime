@@ -1,4 +1,4 @@
-// fuzz_targets/regex_boundary.rs — rules
+// fuzz_targets/regex_boundary.rs: rules
 //
 // Catastrophic-regex fuzz target. Embeds the arbitrary input as the pattern of
 // a `regex` condition inside an otherwise-valid rule set, then parses it. This

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//! Typed, path-aware diagnostics for the kernel-v1 native rule schema.
+//! Typed, path-aware diagnostics for the native rule schema.
 //!
 //! Every way a rule set can fail to parse or validate maps onto one
 //! [`RuleError`] variant. Variants that originate from a specific node in the

@@ -1,2 +1,0 @@
-DROP SEQUENCE IF EXISTS audit_log_seq;
-DROP TABLE IF EXISTS audit_log;

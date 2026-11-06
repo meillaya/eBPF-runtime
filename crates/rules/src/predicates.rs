@@ -6,7 +6,7 @@
 //! [`EvaluationResult`] with a full match [`Explanation`]. It implements the
 //! equality/order/set/prefix/bounded-regex predicates, typed null/validity
 //! handling, reusable immutable lists, scoped exceptions, and AND/OR/NOT with
-//! complexity/depth budgets (task 28). Temporal sequence correlation is task 29;
+//! complexity/depth budgets. Temporal sequence correlation is separate;
 //! only the sequence *budget* guard lives here.
 //!
 //! # Contract
@@ -22,8 +22,8 @@
 //! - **Deterministic**: the same input always yields the same result and
 //!   explanation tree.
 //!
-//! The budget defaults are anchored in `bench/schemas/rule-budget.v1.json`
-//! (see [`default_budget`] / [`load_budget_from_schema`]).
+//! The budget defaults live in [`default_budget`] and can be loaded from a
+//! JSON file with [`load_budget_from_schema`].
 
 mod budget;
 mod collection;

@@ -1,2 +1,0 @@
-# protobuf package tree is laid out under proto/kernel/v1/{events,control}/v1/.
-# See buf.yaml at the repo root for the Buf module configuration.

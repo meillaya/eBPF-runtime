@@ -1,4 +1,4 @@
-// fuzz_targets/decode_report.rs — event-abi
+// fuzz_targets/decode_report.rs: event-abi
 //
 // Exercises the FULL decode surface on any successfully-parsed record:
 // `report()` aggregation, the truncation/redaction flag accessors,

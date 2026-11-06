@@ -10,7 +10,7 @@
 //! - **unknown**: the field is in neither (never observed).
 //!
 //! Both null and unknown resolve to "no value" via [`Event::lookup`], and a
-//! leaf predicate over a missing value is a non-match (`false`) — the evaluator
+//! leaf predicate over a missing value is a non-match (`false`). The evaluator
 //! never treats unknown as true. Field storage is a [`BTreeMap`] so iteration
 //! order (and therefore evaluation) is deterministic.
 

@@ -1,17 +1,17 @@
-// tests/proptest.rs — event-abi
+// tests/proptest.rs: event-abi
 //
 // Property tests for the ABI decode boundary (task: fuzz & property-test
 // parser boundaries). Three families of properties:
 //
-//   1. ROUNDTRIP STABILITY — for any well-formed record (arbitrary header
+//   1. ROUNDTRIP STABILITY: for any well-formed record (arbitrary header
 //      bytes + arbitrary payload, with the four wire-constrained fields
 //      patched to legal values), `parse` succeeds, re-serializing the
 //      decoded header yields byte-for-byte the original 96 header bytes
 //      (encode -> decode -> encode == same bytes), and the payload slice is
 //      exactly `buf[HEADER_LEN..record_len]`.
-//   2. DETERMINISM — parsing the same buffer twice yields an identical
+//   2. DETERMINISM: parsing the same buffer twice yields an identical
 //      `Event` (same input -> same output).
-//   3. BOUNDS + NEVER-PANIC — for fully arbitrary bytes (up to the anchored
+//   3. BOUNDS + NEVER-PANIC: for fully arbitrary bytes (up to the anchored
 //      max_input_size), `parse` returns a typed `Ok`/`Err` and NEVER panics;
 //      on success the payload length never exceeds the buffer and always
 //      equals `record_len - HEADER_LEN`.
@@ -20,8 +20,7 @@
 // `tests/parse.rs`; the "no unsafe in fuzz targets" rule applies to the
 // cargo-fuzz harnesses under `fuzz/`, not to proptest modules.
 //
-// Constants are anchored in `bench/schemas/fuzz.v1.json` (max_input_size,
-// max_record_len) and `bench/schemas/rule-budget.v1.json` is unrelated here.
+// The input bound is 65536 bytes and the corpus runs 1000 cases.
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
@@ -69,7 +68,7 @@ fn build_record(mut header: [u8; HEADER_LEN], kind: u8, payload: &[u8]) -> Vec<u
 
 proptest! {
     #![proptest_config(ProptestConfig {
-        cases: 1000, // anchored corpus_size default (bench/schemas/fuzz.v1.json)
+        cases: 1000,
         .. ProptestConfig::default()
     })]
 
@@ -122,19 +121,15 @@ proptest! {
         buf in prop::collection::vec(any::<u8>(), 0..=65536usize),
     ) {
         // A panic here fails the property: parse must be total over &[u8].
-        match parse(&buf) {
-            Ok(ev) => {
-                prop_assert!(ev.payload.len() <= buf.len(),
-                    "payload must never exceed the input buffer");
-                prop_assert_eq!(ev.payload.len() + HEADER_LEN, ev.header.record_len as usize,
-                    "payload_len must equal record_len - HEADER_LEN");
-                prop_assert!(ev.header.record_len as usize <= buf.len(),
-                    "record_len must never exceed the buffer length");
-                prop_assert!(event_abi::EventKind::is_known(ev.header.event_kind),
-                    "a parsed event must have a known kind");
-            }
-            // Typed errors are the expected outcome for malformed input.
-            Err(_) => {}
+        if let Ok(ev) = parse(&buf) {
+            prop_assert!(ev.payload.len() <= buf.len(),
+                "payload must never exceed the input buffer");
+            prop_assert_eq!(ev.payload.len() + HEADER_LEN, ev.header.record_len as usize,
+                "payload_len must equal record_len - HEADER_LEN");
+            prop_assert!(ev.header.record_len as usize <= buf.len(),
+                "record_len must never exceed the buffer length");
+            prop_assert!(event_abi::EventKind::is_known(ev.header.event_kind),
+                "a parsed event must have a known kind");
         }
     }
 
@@ -154,9 +149,8 @@ proptest! {
         // panic. If the cut keeps the full record, parse succeeds.
         let cut_at = HEADER_LEN.saturating_add(cut).min(buf.len());
         let truncated = &buf[..cut_at];
-        match parse(truncated) {
-            Ok(ev) => prop_assert_eq!(ev.header.record_len as usize, truncated.len()),
-            Err(_) => {}
+        if let Ok(ev) = parse(truncated) {
+            prop_assert_eq!(ev.header.record_len as usize, truncated.len());
         }
     }
 }

@@ -1,15 +1,15 @@
-// proptest/determinism.rs — rules
+// proptest/determinism.rs: rules
 //
 // Property tests for the rules parser / predicate-evaluator boundaries
 // (task: fuzz & property-test parser boundaries):
 //
-//   1. PREDICATE-EVALUATION DETERMINISM — evaluating the same condition + event
+//   1. PREDICATE-EVALUATION DETERMINISM: evaluating the same condition + event
 //      twice under the same budget yields an identical result (same input ->
 //      same output), whether Ok or a typed Err.
-//   2. PARSE DETERMINISM — `parse_ruleset` on the same arbitrary string yields
+//   2. PARSE DETERMINISM: `parse_ruleset` on the same arbitrary string yields
 //      an identical outcome twice (YAML injection / malformed input never
 //      diverges).
-//   3. SERIALIZE/PARSE ROUNDTRIP — a valid rule set survives
+//   3. SERIALIZE/PARSE ROUNDTRIP: a valid rule set survives
 //      serialize -> parse -> serialize byte-for-byte (encode -> decode ->
 //      encode == same bytes) and the AST is unchanged.
 //
@@ -27,7 +27,7 @@ use crate::strategies::{arb_condition, arb_event, arb_input_string, arb_valid_ru
 
 proptest! {
     #![proptest_config(ProptestConfig {
-        cases: 1000, // anchored corpus_size default (bench/schemas/fuzz.v1.json)
+        cases: 1000,
         .. ProptestConfig::default()
     })]
 

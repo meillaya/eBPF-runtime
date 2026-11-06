@@ -1,449 +1,390 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//
-// crates/bpf-loader/src/lib.rs
-// kernel-v1 — task 18 (load/attach compatibility manager).
+//! Load the compiled sensors and attach their programs.
 //!
-//! The user-space BPF loader crate. Task 10 stood up the
-//! compile-time embedding surface and the placeholder-object
-//! helpers (`open_placeholder_object`, `open_placeholder_object_arch`,
-//! `identify_placeholder_bytes`). Task 18 adds the
-//! load/attach compatibility manager:
+//! [`load`] opens each embedded object, loads it into the kernel, and
+//! attaches every program libbpf can attach without extra context. The
+//! result records one entry per sensor: attached programs, skipped
+//! sections, and the error for every failed attach.
 //!
-//!   * `CoverageMatrix` typed envelope with the per-sensor
-//!     `Capable|Degraded|Blocked` outcome plus every ladder
-//!     rung and the documented denial reasons.
-//!   * `BpfArtifacts` static table the `embedded` module
-//!     exposes; populated by the build script when
-//!     `bpf_build::build()` succeeds, empty otherwise.
-//!   * `LoaderState` runtime container with the
-//!     "scope-safe" cleanup contract that returns with empty
-//!     `attached_links` and `map_handles` on partial failure.
-//!   * `probe_and_load()` walks the per-sensor hook ladder,
-//!     probes each rung against the kernel's verifier on a
-//!     privileged runner, and records the outcome.
-//!   * `coverage_as_json()` serialises the matrix to the
-//!     canonical release contract that
-//!     `bench/coverage-matrix.json` must match.
+//! A sensor that attaches no program is dropped, so a caller never holds
+//! an object that observes nothing. Programs in `cgroup/`, `cgroup_skb/`,
+//! and `classifier` sections need a cgroup or network device handle; this
+//! loader skips them and says so in the coverage entry.
 //!
-//! The .bpf.o bytes are embedded at compile time via
-//! `include_bytes!` with absolute paths supplied by `build.rs`
-//! (which calls `bpf_build::build()` first to guarantee the
-//! files exist). When the build pipeline cannot produce
-//! artefacts (the documented graceful path on this
-//! unprivileged build host), the loader's `probe_and_load()`
-//! records every sensor as `Blocked` with the build-pipeline
-//! reason; no `bpftool link show` mutation is left behind.
+//! ```no_run
+//! # fn main() -> Result<(), bpf_loader::LoaderError> {
+//! let sensors = bpf_loader::load(&[])?;
+//! let (ring, events) = sensors.ring_reader()?;
+//! loop {
+//!     sensors.poll(&ring, std::time::Duration::from_millis(200))?;
+//!     for sample in events.try_iter() {
+//!         println!("{} {} bytes", sample.sensor, sample.bytes.len());
+//!     }
+//! }
+//! # }
+//! ```
 
 #![forbid(unsafe_code)]
-#![deny(missing_docs)]
 
-use std::collections::BTreeMap;
-use std::sync::OnceLock;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Once;
+use std::time::Duration;
 
-pub mod coverage;
-pub mod embedded;
-pub mod ladder;
-pub mod loader_state;
-pub mod matrix_serde;
-pub mod probe;
-pub mod sha256;
-
+use libbpf_rs::{Link, MapCore, Object, RingBuffer, RingBufferBuilder};
+use serde::Serialize;
 use thiserror::Error;
 
-pub use coverage::{CoverageMatrix, SensorCoverage, SensorStatus};
-pub use embedded::{artifact_key, iter_sorted, lookup, BpfArtifact, BpfArtifacts, EMPTY_ARTIFACTS};
-pub use ladder::{ladder_for, select_hook, HookRung};
-pub use loader_state::{BpfLinkId, LoaderState, MapHandle};
-pub use matrix_serde::matrix_to_json;
-pub use probe::{build_state, ProbeOutcome};
-
-// ───────────────────────── task-10 embedded surface ─────────────────────────
-
-/// Path of the embedded amd64 BPF object, set by `build.rs` via
-/// the `BPF_LOADER_OBJECT_AMD64` rustc-env directive.
-pub const AMD64_OBJECT_PATH: &str = env!("BPF_LOADER_OBJECT_AMD64");
-
-/// Path of the embedded arm64 BPF object, set by `build.rs` via
-/// the `BPF_LOADER_OBJECT_ARM64` rustc-env directive.
-pub const ARM64_OBJECT_PATH: &str = env!("BPF_LOADER_OBJECT_ARM64");
-
-/// sha256 of the embedded amd64 .bpf.o, recorded in the
-/// `bpf-build.manifest.json` at build time.
-pub const AMD64_OBJECT_SHA256: &str = env!("BPF_LOADER_OBJECT_AMD64_SHA256");
-
-/// sha256 of the embedded arm64 .bpf.o, recorded in the
-/// `bpf-build.manifest.json` at build time.
-pub const ARM64_OBJECT_SHA256: &str = env!("BPF_LOADER_OBJECT_ARM64_SHA256");
-
-/// Compile-time embedded amd64 BPF object bytes.
-pub static AMD64_OBJECT_BYTES: &[u8] = include_bytes!(env!("BPF_LOADER_OBJECT_AMD64"));
-
-/// Compile-time embedded arm64 BPF object bytes.
-pub static ARM64_OBJECT_BYTES: &[u8] = include_bytes!(env!("BPF_LOADER_OBJECT_ARM64"));
-
-/// Open the embedded placeholder BPF object as a
-/// `libbpf_rs::OpenObject` without loading it into the kernel.
-/// Task-10 happy-QA surface.
-pub fn open_placeholder_object() -> Result<libbpf_rs::OpenObject, libbpf_rs::Error> {
-    open_placeholder_object_arch(PlaceholderArch::Host)
+/// One compiled sensor embedded at build time.
+pub struct EmbeddedSensor {
+    /// Sensor name, for example `process`.
+    pub name: &'static str,
+    /// Architecture the object was compiled for.
+    pub arch: &'static str,
+    /// SHA-256 of the object bytes.
+    pub sha256: &'static str,
+    /// Raw CO-RE object.
+    pub bytes: &'static [u8],
 }
 
-/// Select which per-arch embedded object to open. The unit
-/// tests use `Host` to mean "match the current build target"
-/// so the same test binary works on amd64 and arm64 hosts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PlaceholderArch {
-    /// Match the host architecture this loader was compiled for.
-    Host,
-    /// Always open the embedded amd64 object.
-    Amd64,
-    /// Always open the embedded arm64 object.
-    Arm64,
+mod embedded {
+    use super::EmbeddedSensor;
+    include!(env!("EBPF_EMBEDDED_ARTIFACTS"));
 }
 
-/// As `open_placeholder_object`, but with explicit arch selection.
-pub fn open_placeholder_object_arch(
-    arch: PlaceholderArch,
-) -> Result<libbpf_rs::OpenObject, libbpf_rs::Error> {
-    let bytes: &[u8] = match arch {
-        PlaceholderArch::Host => host_bytes(),
-        PlaceholderArch::Amd64 => AMD64_OBJECT_BYTES,
-        PlaceholderArch::Arm64 => ARM64_OBJECT_BYTES,
+/// Every sensor compiled into this binary.
+pub use embedded::SENSORS;
+
+/// Status of one sensor after loading and attaching.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SensorStatus {
+    /// Every attachable program attached.
+    Capable,
+    /// At least one program attached and at least one failed.
+    Degraded,
+    /// No program attached.
+    Blocked,
+}
+
+/// Per-sensor result.
+#[derive(Debug, Clone, Serialize)]
+pub struct SensorCoverage {
+    /// Sensor name.
+    pub name: String,
+    /// Object SHA-256.
+    pub sha256: String,
+    /// Attach verdict.
+    pub status: SensorStatus,
+    /// Programs that attached, as `section:program`.
+    pub programs: Vec<String>,
+    /// Sections this loader does not attach without extra context.
+    pub skipped: Vec<String>,
+    /// Errors from programs that failed to attach.
+    pub errors: Vec<String>,
+}
+
+/// Coverage for one load call.
+#[derive(Debug, Clone, Serialize)]
+pub struct CoverageMatrix {
+    /// Matrix schema version.
+    pub schema_version: u32,
+    /// Architecture of the embedded objects.
+    pub arch: String,
+    /// One entry per embedded sensor the call considered.
+    pub sensors: Vec<SensorCoverage>,
+}
+
+/// A sensor object kept alive for the lifetime of the process.
+pub struct LoadedSensor {
+    /// Sensor name.
+    pub name: String,
+    /// Loaded object. Dropping it detaches every program and closes maps.
+    pub object: Object,
+    /// Attached program links.
+    pub links: Vec<Link>,
+    /// Attach result for this sensor.
+    pub coverage: SensorCoverage,
+}
+
+/// All sensors loaded by one call.
+pub struct LoadedSensors {
+    /// Architecture of the objects.
+    pub arch: String,
+    /// Sensors that attached at least one program.
+    pub sensors: Vec<LoadedSensor>,
+    /// Coverage for every sensor, including blocked ones.
+    pub coverage: CoverageMatrix,
+}
+
+/// One raw record from a ring buffer.
+#[derive(Debug, Clone)]
+pub struct RawSample {
+    /// Sensor that produced the record.
+    pub sensor: String,
+    /// Record bytes.
+    pub bytes: Vec<u8>,
+}
+
+/// Errors from loading.
+#[derive(Debug, Error)]
+pub enum LoaderError {
+    /// No embedded sensor matched the requested names.
+    #[error("no sensor matched the request")]
+    NoSensors,
+    /// A requested sensor is not embedded in this binary.
+    #[error("sensor `{0}` is not embedded in this binary")]
+    UnknownSensor(String),
+    /// The ring buffer could not be built.
+    #[error("ring buffer error: {0}")]
+    RingBuffer(String),
+}
+
+/// Load every embedded sensor for the host architecture.
+pub fn load_all() -> Result<LoadedSensors, LoaderError> {
+    load(&[])
+}
+
+/// Load the named sensors. An empty slice loads every embedded sensor.
+///
+/// A sensor that fails to load or attach is recorded in the coverage
+/// matrix and omitted from [`LoadedSensors::sensors`]. The call returns
+/// an error only when no requested sensor is embedded or when a requested
+/// name is unknown.
+pub fn load(names: &[&str]) -> Result<LoadedSensors, LoaderError> {
+    static QUIET: Once = Once::new();
+    QUIET.call_once(|| {
+        libbpf_rs::set_print(Some((libbpf_rs::PrintLevel::Warn, |_, _| {})));
+    });
+
+    let host_arch = match std::env::consts::ARCH {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        other => {
+            return Err(LoaderError::RingBuffer(format!(
+                "unsupported host architecture `{other}`"
+            )))
+        }
+    }
+    .to_string();
+
+    if SENSORS.is_empty() {
+        return Err(LoaderError::NoSensors);
+    }
+
+    let selected: Vec<&EmbeddedSensor> = if names.is_empty() {
+        SENSORS.iter().collect()
+    } else {
+        let mut selected = Vec::new();
+        for name in names {
+            let sensor = SENSORS
+                .iter()
+                .find(|sensor| sensor.name == *name)
+                .ok_or_else(|| LoaderError::UnknownSensor((*name).to_string()))?;
+            selected.push(sensor);
+        }
+        selected
     };
-    libbpf_rs::ObjectBuilder::default().open_memory(bytes)
-}
 
-fn host_bytes() -> &'static [u8] {
-    static CACHE: OnceLock<&'static [u8]> = OnceLock::new();
-    CACHE.get_or_init(|| match std::env::consts::ARCH {
-        "aarch64" => ARM64_OBJECT_BYTES,
-        _ => AMD64_OBJECT_BYTES,
+    let mut loaded = Vec::new();
+    let mut coverage_entries = Vec::new();
+
+    for sensor in selected {
+        let coverage = load_one(sensor, &mut loaded);
+        coverage_entries.push(coverage);
+    }
+
+    if coverage_entries.is_empty() {
+        return Err(LoaderError::NoSensors);
+    }
+
+    Ok(LoadedSensors {
+        arch: host_arch.clone(),
+        sensors: loaded,
+        coverage: CoverageMatrix {
+            schema_version: 1,
+            arch: host_arch,
+            sensors: coverage_entries,
+        },
     })
 }
 
-/// Identify which per-arch object a slice of bytes
-/// corresponds to by comparing the sha256 digests. Returns
-/// `None` if neither matches; that case is treated as a
-/// tamper / unexpected-build event.
-pub fn identify_placeholder_bytes(bytes: &[u8]) -> Option<PlaceholderArch> {
-    let hex = crate::sha256::sha256_hex(bytes);
-    if hex == AMD64_OBJECT_SHA256 {
-        Some(PlaceholderArch::Amd64)
-    } else if hex == ARM64_OBJECT_SHA256 {
-        Some(PlaceholderArch::Arm64)
-    } else {
-        None
-    }
-}
+fn load_one(sensor: &EmbeddedSensor, loaded: &mut Vec<LoadedSensor>) -> SensorCoverage {
+    let mut coverage = SensorCoverage {
+        name: sensor.name.to_string(),
+        sha256: sensor.sha256.to_string(),
+        status: SensorStatus::Blocked,
+        programs: Vec::new(),
+        skipped: Vec::new(),
+        errors: Vec::new(),
+    };
 
-// ───────────────────────── task-18 typed errors ─────────────────────────────
-
-/// Errors returned by `probe_and_load`. Every variant is
-/// `Display`-able so the binary and the integration harness can
-/// print a single-line reason without depending on libbpf-rs's
-/// opaque error type.
-#[derive(Debug, Error)]
-pub enum LoaderError {
-    /// The build pipeline produced no artefacts for the
-    /// requested host. The loader fell back to the
-    /// documented graceful path: every sensor recorded as
-    /// `Blocked { reasons: vec!["BPF artifacts not embedded
-    /// in this build"] }`, no `bpftool link show` mutation.
-    #[error("BPF artifacts not embedded in this build: {detail}")]
-    NoEmbeddedArtifacts {
-        /// Diagnostic detail (e.g. the build-pipeline
-        /// stderr text).
-        detail: String,
-    },
-    /// A privileged probe attempted to attach a deny link;
-    /// the loader does not permit that and returns Err so
-    /// the caller can drop every attached observation link
-    /// via `LoaderState::cleanup()`.
-    #[error("deny-link attach disallowed on this host: attempted hook={hook}")]
-    DenyLinkAttachDisallowed {
-        /// The hook section the deny attach tried to use.
-        hook: String,
-    },
-    /// A partial attach left some observation links alive
-    /// while a later rung failed; the loader calls
-    /// `LoaderState::cleanup()` and surfaces this error so
-    /// callers can audit the per-sensor transcript.
-    #[error("partial attach at sensor={sensor}; earlier links detached")]
-    PartialAttach {
-        /// Sensor whose attach failed.
-        sensor: String,
-    },
-    /// `libbpf_rs` returned an error during open / probe /
-    /// attach. The `detail` carries the libbpf-rs error
-    /// string for the matrix.
-    #[error("libbpf-rs error: {detail}")]
-    Libbpf {
-        /// Verbatim `libbpf_rs::Error` message.
-        detail: String,
-    },
-}
-
-impl From<libbpf_rs::Error> for LoaderError {
-    fn from(e: libbpf_rs::Error) -> Self {
-        LoaderError::Libbpf {
-            detail: format!("{e}"),
+    let object = match libbpf_rs::ObjectBuilder::default().open_memory(sensor.bytes) {
+        Ok(object) => match object.load() {
+            Ok(object) => object,
+            Err(error) => {
+                coverage.errors.push(format!("load: {error}"));
+                return coverage;
+            }
+        },
+        Err(error) => {
+            coverage.errors.push(format!("open: {error}"));
+            return coverage;
         }
-    }
-}
+    };
 
-// ───────────────────────── task-18 public API ───────────────────────────────
+    let mut links = Vec::new();
+    for program in object.progs_mut() {
+        let section = program.section().to_string_lossy().into_owned();
+        let name = program.name().to_string_lossy().into_owned();
+        let label = format!("{section}:{name}");
 
-/// Static, build-time populated artifact table. The build
-/// script hands the embed list to `embedded::populate_*`
-/// during `build.rs`; runtime code reads it through this
-/// constant. When `bpf_build::build()` failed at compile time
-/// this is the empty table.
-pub static BPF_ARTIFACTS: std::sync::LazyLock<BpfArtifacts> =
-    std::sync::LazyLock::new(build_static_artifacts);
+        if needs_context(&section) {
+            coverage.skipped.push(label);
+            continue;
+        }
 
-fn build_static_artifacts() -> BpfArtifacts {
-    let mut out: BpfArtifacts = BTreeMap::new();
-    // Place the canonical per-arch placeholder artefacts
-    // when the build pipeline produced them. The
-    // environment-driven paths are the same ones task 10
-    // declares; the `include_bytes!` invocations above make
-    // them part of the binary, so we copy them into the
-    // static table here.
-    out.insert(
-        artifact_key("amd64", "placeholder"),
-        BpfArtifact {
-            arch: "amd64".to_string(),
-            sensor: "placeholder".to_string(),
-            o_bytes: AMD64_OBJECT_BYTES,
-            o_sha256: AMD64_OBJECT_SHA256.to_string(),
-            skel_bytes: b"",
-            skel_sha256: String::new(),
-        },
-    );
-    out.insert(
-        artifact_key("arm64", "placeholder"),
-        BpfArtifact {
-            arch: "arm64".to_string(),
-            sensor: "placeholder".to_string(),
-            o_bytes: ARM64_OBJECT_BYTES,
-            o_sha256: ARM64_OBJECT_SHA256.to_string(),
-            skel_bytes: b"",
-            skel_sha256: String::new(),
-        },
-    );
-    out
-}
-
-/// Global cached loader state. The `OnceLock` makes the
-/// process-wide probe result reusable across the four host-side
-/// tests and the binary; calling `probe_and_load` more than
-/// once is idempotent and replaces the cache via interior
-/// mutability of `CoverageMatrix` clones.
-static CACHED_STATE: OnceLock<LoaderState> = OnceLock::new();
-
-/// Run the per-program load/attach compatibility probe and
-/// return the loader state.
-///
-/// On this unprivileged build host (where CAP_BPF /
-/// CAP_PERFMON are unavailable) the probe returns `Ok(state)`
-/// with every sensor at `Blocked { reasons: vec!["BPF
-/// artifacts not embedded in this build"] }` (or the
-/// cap-denial text). The state is scope-safe by construction
-/// (zero attached links, zero pinned deny links). On a
-/// privileged runner, the same function walks the hook ladder
-/// per sensor and emits `Ok(state)` only when every rung
-/// attached; `Err(_)` otherwise, with the previously-attached
-/// links detached.
-///
-/// `arch` is the requested probe architecture; pass
-/// `std::env::consts::ARCH` to probe the host that the loader
-/// binary was compiled for.
-pub fn probe_and_load(arch: &str) -> Result<LoaderState, LoaderError> {
-    // The build-script-issued `BPF_ARTIFACTS` table holds
-    // every artefact the build pipeline produced. The
-    // task-18 graceful path is "table empty -> every sensor
-    // Blocked"; the task-53+ privileged runner path supplies
-    // real per-sensor artefacts by extending `embedded`.
-    let artifacts: &BpfArtifacts = &BPF_ARTIFACTS;
-
-    let mut state = build_state(artifacts, arch);
-
-    // Apply the deny-link policy: if any sensor's
-    // `selected_hook` would attach OWN_LSM_DENY, refuse with
-    // the deny-link error and leave every prior attachment
-    // cleaned. The hook sections in this v1 surface are
-    // observation-only (LSM audit / tracepoints /
-    // cgroup_skb), so the policy triggers only when the BPF
-    // source adds OWN_LSM_DENY hooks in a later wave.
-    for sensor in &state.coverage.sensors {
-        let deny_hook = sensor.selected_hook.clone();
-        let has_deny_in_ladder = sensor
-            .ladder
-            .iter()
-            .any(|r| r.section.contains("OWN_LSM_DENY"));
-        if deny_hook.contains("OWN_LSM_DENY") || has_deny_in_ladder {
-            state.cleanup();
-            return Err(LoaderError::DenyLinkAttachDisallowed { hook: deny_hook });
+        match program.attach() {
+            Ok(link) => {
+                links.push(link);
+                coverage.programs.push(label);
+            }
+            Err(error) => coverage.errors.push(format!("{label}: {error}")),
         }
     }
 
-    // Touch the cached-state slot so unit tests / binaries
-    // can read the most recent matrix via `coverage()`.
-    // The matrix is owned by `state`; the cache keeps a
-    // clone of the coverage field for read-only access via
-    // `coverage()` without exposing mutable state.
-    let _ = CACHED_STATE.set(LoaderState {
-        coverage: state.coverage.clone(),
-        attached_links: BTreeMap::new(),
-        map_handles: BTreeMap::new(),
-        pinned_deny_links: BTreeMap::new(),
-    });
+    coverage.status = match (coverage.programs.is_empty(), coverage.errors.is_empty()) {
+        (true, _) => SensorStatus::Blocked,
+        (false, true) => SensorStatus::Capable,
+        (false, false) => SensorStatus::Degraded,
+    };
 
-    Ok(state)
+    if !coverage.programs.is_empty() {
+        loaded.push(LoadedSensor {
+            name: sensor.name.to_string(),
+            object,
+            links,
+            coverage: coverage.clone(),
+        });
+    }
+
+    coverage
 }
 
-/// Return the most recently cached CoverageMatrix. The
-/// contract is: the first call to `probe_and_load` is what
-/// populates the cache; subsequent reads return the same
-/// matrix. The Plan's wave-3 CLI (task 26) and agent binary
-/// (task 19) call this on startup.
-pub fn coverage() -> CoverageMatrix {
-    CACHED_STATE
-        .get()
-        .map(|s| s.coverage.clone())
-        .unwrap_or_else(CoverageMatrix::with_default_sensors)
+/// Sections that need a cgroup or network device handle to attach.
+fn needs_context(section: &str) -> bool {
+    section.starts_with("cgroup/")
+        || section.starts_with("cgroup_skb/")
+        || section.starts_with("classifier")
+        || section.starts_with("xdp")
+        || section.starts_with("tc/")
 }
 
-/// Serialise the cached CoverageMatrix to JSON. The output
-/// is the canonical contract that `bench/coverage-matrix.json`
-/// must match at release time.
-pub fn coverage_as_json() -> String {
-    matrix_to_json(&coverage())
+impl LoadedSensors {
+    /// Build one ring buffer over every loaded sensor.
+    ///
+    /// The returned receiver yields one [`RawSample`] per kernel record.
+    /// The ring buffer holds raw map file descriptors, so it does not
+    /// borrow the sensor objects. The caller must keep `self` alive while
+    /// polling.
+    pub fn ring_reader(&self) -> Result<(RingBuffer<'static>, Receiver<RawSample>), LoaderError> {
+        let (sender, receiver) = channel();
+        let mut maps = Vec::new();
+
+        for sensor in &self.sensors {
+            let map_name = format!("{}_events", sensor.name);
+            let map = sensor
+                .object
+                .maps()
+                .find(|map| map.name().to_string_lossy() == map_name);
+            match map {
+                Some(map) => maps.push((sensor.name.clone(), map)),
+                None => {
+                    return Err(LoaderError::RingBuffer(format!(
+                        "sensor {} has no ring buffer map {}",
+                        sensor.name, map_name
+                    )))
+                }
+            }
+        }
+
+        if maps.is_empty() {
+            return Err(LoaderError::NoSensors);
+        }
+
+        let mut builder = RingBufferBuilder::new();
+        for (sensor, map) in &maps {
+            let sender: Sender<RawSample> = sender.clone();
+            let sensor = sensor.clone();
+            builder
+                .add(map, move |bytes| {
+                    let _ = sender.send(RawSample {
+                        sensor: sensor.clone(),
+                        bytes: bytes.to_vec(),
+                    });
+                    0
+                })
+                .map_err(|error| LoaderError::RingBuffer(error.to_string()))?;
+        }
+
+        let ring = builder
+            .build()
+            .map_err(|error| LoaderError::RingBuffer(error.to_string()))?;
+        drop(maps);
+        Ok((ring, receiver))
+    }
+
+    /// Coverage as pretty JSON.
+    pub fn coverage_as_json(&self) -> String {
+        serde_json::to_string_pretty(&self.coverage).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Poll every ring buffer once. The call blocks up to `timeout`.
+    pub fn poll(&self, ring: &RingBuffer<'_>, timeout: Duration) -> Result<(), LoaderError> {
+        ring.poll(timeout)
+            .map_err(|error| LoaderError::RingBuffer(error.to_string()))
+    }
 }
 
-// ───────────────────────── task-10 unit tests ──────────────────────────────
+impl RawSample {
+    /// Event kind byte from the ABI header, if the record is long enough.
+    pub fn kind(&self) -> Option<u8> {
+        self.bytes.get(16).copied()
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn env_vars_are_populated() {
-        assert!(!AMD64_OBJECT_PATH.is_empty());
-        assert!(!ARM64_OBJECT_PATH.is_empty());
-        assert_eq!(AMD64_OBJECT_SHA256.len(), 64);
-        assert_eq!(ARM64_OBJECT_SHA256.len(), 64);
-    }
-
-    #[test]
-    fn embedded_objects_are_non_empty() {
-        assert!(!AMD64_OBJECT_BYTES.is_empty());
-        assert!(!ARM64_OBJECT_BYTES.is_empty());
-    }
-
-    #[test]
-    fn identify_placeholder_bytes_matches_embedded() {
-        assert!(identify_placeholder_bytes(AMD64_OBJECT_BYTES).is_some());
-        assert!(identify_placeholder_bytes(ARM64_OBJECT_BYTES).is_some());
-    }
-
-    #[test]
-    fn identify_placeholder_bytes_rejects_unknown() {
-        let bogus: &[u8] = b"definitely not a BPF object";
-        assert_eq!(identify_placeholder_bytes(bogus), None);
-    }
-
-    // ──────────────────── task-18 smoke tests ────────────────────────────
-
-    #[test]
-    fn static_artifacts_hold_placeholder_for_host_arch() {
-        let arch = std::env::consts::ARCH;
-        let arch_dir = match arch {
-            "aarch64" => "arm64",
-            _ => "amd64",
-        };
-        let placeholder_key = artifact_key(arch_dir, "placeholder");
-        let found = lookup(&BPF_ARTIFACTS, arch_dir, "placeholder")
-            .unwrap_or_else(|| panic!("missing placeholder entry for {placeholder_key}"));
-        assert!(!found.o_bytes.is_empty());
-        assert_eq!(found.o_sha256.len(), 64);
-    }
-
-    #[test]
-    fn probe_and_load_returns_ok_on_unprivileged_build_host() {
-        let arch = std::env::consts::ARCH;
-        let arch_dir = match arch {
-            "aarch64" => "arm64",
-            _ => "amd64",
-        };
-        let state =
-            probe_and_load(arch_dir).expect("probe_and_load must not Err on unprivileged host");
-        assert_eq!(state.pinned_deny_links_count(), 0);
-        assert_eq!(state.active_links_count(), 0);
-        assert!(!state.coverage.sensors.is_empty());
-    }
-
-    #[test]
-    fn coverage_after_probe_lists_every_default_sensor() {
-        // Force a probe to populate the cached state, then
-        // verify the cached matrix.
-        let arch = std::env::consts::ARCH;
-        let arch_dir = match arch {
-            "aarch64" => "arm64",
-            _ => "amd64",
-        };
-        let _ = probe_and_load(arch_dir);
-        let matrix = coverage();
-        let names: Vec<String> = matrix.sensors.iter().map(|s| s.sensor.clone()).collect();
-        assert_eq!(
-            names,
-            vec![
-                "dns".to_string(),
-                "file".to_string(),
-                "identity".to_string(),
-                "network".to_string(),
-                "process".to_string(),
-                "syscall".to_string(),
-            ]
-        );
-        assert_eq!(matrix.schema_version, 1);
-    }
-
-    #[test]
-    fn coverage_as_json_returns_valid_json_with_schema_version_one() {
-        let arch = std::env::consts::ARCH;
-        let arch_dir = match arch {
-            "aarch64" => "arm64",
-            _ => "amd64",
-        };
-        let _ = probe_and_load(arch_dir);
-        let s = coverage_as_json();
-        let v: serde_json::Value = serde_json::from_str(&s)
-            .unwrap_or_else(|e| panic!("coverage_as_json returned invalid JSON: {e}; got:\n{s}"));
-        assert_eq!(v["schema_version"], serde_json::json!(1));
-        let sensors = v["sensors"]
-            .as_object()
-            .expect("sensors must be a JSON object");
-        for s in ["dns", "file", "identity", "network", "process", "syscall"] {
-            assert!(sensors.contains_key(s), "sensors missing key {s}");
+    fn every_sensor_is_embedded_with_bytes() {
+        assert_eq!(SENSORS.len(), 2);
+        for sensor in SENSORS {
+            assert!(!sensor.bytes.is_empty(), "{} has no object", sensor.name);
+            assert_eq!(sensor.sha256.len(), 64, "{} has a bad digest", sensor.name);
+            assert!(sensor.arch == "amd64" || sensor.arch == "arm64");
         }
     }
 
     #[test]
-    fn no_enforcement_link_is_pinned_under_any_branch() {
-        let arch = std::env::consts::ARCH;
-        let arch_dir = match arch {
-            "aarch64" => "arm64",
-            _ => "amd64",
-        };
-        let ok_state = probe_and_load(arch_dir).expect("ok path");
-        assert_eq!(ok_state.pinned_deny_links_count(), 0);
-        // The LoaderState's pinned_deny_links field is
-        // private; the accessor's invariant is the public
-        // contract. The integration test in
-        // `tests/loader.rs::no_enforcement_link_is_pinned`
-        // verifies the same invariant on every exit path.
-        let state = LoaderState::new();
-        assert_eq!(state.pinned_deny_links_count(), 0);
+    fn cgroup_and_classifier_sections_are_skipped() {
+        assert!(needs_context("cgroup/connect4"));
+        assert!(needs_context("cgroup_skb/ingress"));
+        assert!(needs_context("classifier"));
+        assert!(!needs_context("raw_tracepoint/sched_process_exec"));
+        assert!(!needs_context("lsm/file_open"));
+        assert!(!needs_context("kprobe/__x64_sys_openat2"));
+    }
+
+    #[test]
+    fn unknown_sensor_is_rejected() {
+        let error = load(&["does-not-exist"]).err().expect("must fail");
+        assert!(matches!(error, LoaderError::UnknownSensor(_)));
+    }
+
+    #[test]
+    fn coverage_serializes_with_lowercase_status() {
+        let json = serde_json::to_string(&SensorStatus::Capable).unwrap();
+        assert_eq!(json, "\"capable\"");
     }
 }

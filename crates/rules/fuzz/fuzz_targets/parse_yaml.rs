@@ -1,4 +1,4 @@
-// fuzz_targets/parse_yaml.rs — rules
+// fuzz_targets/parse_yaml.rs: rules
 //
 // Primary rule-parse fuzz target. Feeds arbitrary bytes (rendered lossily as
 // UTF-8 so hostile YAML, YAML-injection attempts, malformed documents, and

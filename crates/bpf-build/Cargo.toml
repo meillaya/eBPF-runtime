@@ -1,9 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
 [package]
 name = "bpf-build"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.95.0"
-description = "kernel-v1 deterministic libbpf-cargo CO-RE build pipeline and skeleton generation (task 10)."
+description = "Compile the eBPF sensors in bpf/sensors into relocatable CO-RE objects."
 license = "Apache-2.0 OR MIT"
 publish = false
 
@@ -15,17 +16,6 @@ path = "src/lib.rs"
 name = "bpf-build"
 path = "src/main.rs"
 
-# No runtime deps beyond the libbpf-cargo plugin the build pipeline
-# invokes. libbpf-cargo is a pure build-time helper; bpf-loader
-# already has its own libbpf-rs 0.26 dependency for the runtime
-# surface (task 18), so the libbpf-cargo version here is locked to
-# 0.26 to match that and prevent ABI drift.
 [dependencies]
-libbpf-cargo = "0.26"
-
-# Build-time dependencies mirror the locked libbpf-cargo / libbpf-rs
-# version. libbpf-cargo 0.26 is the same minor version as the
-# libbpf-rs dependency pinned in crates/bpf-loader/Cargo.toml; the
-# `deny.toml` `bans.toml` rejects accidental major-version drift.
-[build-dependencies]
-libbpf-cargo = "0.26"
+sha2 = "0.10"
+thiserror = "2"

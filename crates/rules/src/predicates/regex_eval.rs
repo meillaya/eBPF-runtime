@@ -6,7 +6,7 @@
 //! - pattern length <= `max_regex_chars` characters ([`RuleError::RegexTooLarge`]);
 //! - pattern is non-empty and compiles ([`RuleError::InvalidRegex`]);
 //! - <= 64 capture groups and no unbounded/nested quantifiers
-//!   ([`RuleError::RegexTooComplex`]) — the catastrophic-backtracking guard;
+//!   ([`RuleError::RegexTooComplex`]): the catastrophic-backtracking guard;
 //! - match wall-clock time <= `max_regex_time_ms` ([`RuleError::RegexTooSlow`]).
 //!
 //! The `regex` crate is linear-time (it never backtracks), so allocation and

@@ -1,6 +1,6 @@
-// src/lib.rs — event-abi
+// src/lib.rs: event-abi
 //
-// kernel-v1 event ABI v1: safe parser, payload variants, validity/
+// Event ABI v1: safe parser, payload variants, validity/
 // degradation/truncation/redaction flags, static size/offset assertions,
 // endianness/version/length checks, and generation manifest hash.
 //
@@ -10,14 +10,14 @@
 // generated file and the C header in `$OUT_DIR/event-abi.manifest.json`;
 // `tests/manifest.rs` asserts the manifest matches.
 //
-// PUBLIC SURFACE (must not grow without a plan-major bump)
-//   * `parse(buf)` — the safe parser
-//   * `Event<'a> { header, payload }` — the typed view
-//   * `DecodeError` — typed errors with enough context for diagnostics
-//   * `DecodeReport` — aggregation of validity/truncation/redaction
-//   * `SCHEMA_MAJOR`, `SCHEMA_MINOR`, `HEADER_LEN`, `PAYLOAD_MAX` —
+// PUBLIC SURFACE (must not grow without a schema-major bump)
+//   * `parse(buf)`: the safe parser
+//   * `Event<'a> { header, payload }`: the typed view
+//   * `DecodeError`: typed errors with enough context for diagnostics
+//   * `DecodeReport`: aggregation of validity/truncation/redaction
+//   * `SCHEMA_MAJOR`, `SCHEMA_MINOR`, `HEADER_LEN`, `PAYLOAD_MAX`:
 //     re-exports of the versioned constants
-//   * `EventKind`, `Valid` — re-exports of the hand-written enums
+//   * `EventKind`, `Valid`: re-exports of the hand-written enums
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
@@ -74,7 +74,7 @@ pub enum DecodeError {
     },
     /// `event_kind` byte is 0 (UNSPECIFIED) or above the max accepted discriminant.
     UnknownEventKind { byte: u8, max: u8 },
-    /// Payload slice extends past the buffer (defensive — `LengthMismatch`
+    /// Payload slice extends past the buffer (defensive: `LengthMismatch`
     /// covers the common case but the parser also checks this).
     BufferUnderflow { record_len: u32, header_len: u32 },
     /// Payload exceeds `PAYLOAD_MAX`. The parser clips the slice in
@@ -133,7 +133,7 @@ pub struct Event<'a> {
 
 /// Aggregated report of validity, truncation, and redaction. Used by
 /// tests for fixture round-trip assertions and by the loader's bound
-/// diagnostics (task 19).
+/// diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DecodeReport {
     pub schema_major: u32,

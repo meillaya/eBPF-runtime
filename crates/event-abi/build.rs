@@ -1,7 +1,7 @@
-// build.rs — event-abi crate
+// build.rs: event-abi crate
 //
 // The header `bpf/include/event_abi.h` is the single source of truth for
-// the kernel-v1 wire format. The `src/generated.rs` file is the
+// the wire format. The `src/generated.rs` file is the
 // hand-written Rust mirror of that header; the `build.rs` script:
 //
 //   1. Computes a SHA-256 of the C header and the `src/generated.rs`
@@ -30,7 +30,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-// SHA-256 (FIPS 180-4) — vendored, no external dependencies.
+// SHA-256 (FIPS 180-4): vendored, no external dependencies.
 //
 // The round constants K are the first 32 bits of the fractional parts
 // of the cube roots of the first 64 primes. SHA-256 is a 64-round

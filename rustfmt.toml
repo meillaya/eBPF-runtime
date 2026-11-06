@@ -1,10 +1,5 @@
-# rustfmt.toml — kernel-v1 (eBPF Runtime Security & Observability)
-#
-# Stable-only options for rustfmt 1.9.0 (Rust 1.95.0).
-# Nightly-only knobs (import_granularity, group_imports, format_strings,
-# wrap_comments, format_code_in_doc_comments, normalize_comments,
-# match_arm_bodies, condense_wildcard_suffixes) were removed because they
-# produce warnings on the stable channel pinned in rust-toolchain.toml.
+# Stable rustfmt options only. The toolchain is pinned in
+# rust-toolchain.toml.
 
 edition = "2021"
 max_width = 100

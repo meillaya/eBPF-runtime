@@ -2,9 +2,9 @@
 #
 # cargo-fuzz harness crate for the rules parser / predicate boundary
 # (YAML parse, bounded-regex validation, condition nesting). Separate
-# workspace (empty `[workspace]` detaches it from the parent kernel-v1
+# workspace (empty `[workspace]` detaches it from the parent
 # workspace) so `cargo test --workspace` and the main lock are unaffected.
-# Run via `cargo fuzz` (see README.md / top-level FUZZING.md).
+# Run via `cargo fuzz` from this directory.
 
 [package]
 name = "rules-fuzz"

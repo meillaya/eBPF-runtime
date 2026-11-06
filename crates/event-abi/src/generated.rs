@@ -1,4 +1,4 @@
-// src/generated.rs — event-abi
+// src/generated.rs: event-abi
 //
 // HAND-WRITTEN MIRROR of `bpf/include/event_abi.h`. The C header is the
 // single source of truth for the wire format; this file is the Rust-side
@@ -20,7 +20,7 @@
 //      change the SHA-256 each release; the test then becomes a
 //      false-positive failure.
 //   3. The C struct layout is verified by the C compiler's static_assert
-//      at task 10 (build-time) plus the hand-written `const _: () = ...`
+//      at build time plus the hand-written `const _: () = ...`
 //      block in `src/lib.rs` (compile-time).
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -40,26 +40,22 @@ pub const HEADER_LEN: usize = 96;
 pub const PAYLOAD_MAX: usize = 4096;
 
 /// Every semantic event the platform can emit. The values match the C
-/// `enum kernel_v1_event_kind` and the proto `EventKind` in
-/// `proto/kernel/v1/events/v1/events.proto`. `repr(u8)` matches the
+/// `enum kernel_v1_event_kind`. `repr(u8)` matches the
 /// on-the-wire `uint8_t` slot at header offset 16.
 ///
-/// TASK-12 (file sensor) EXTENSION (2026-07-21):
-///   `FileTruncate = 8` was appended by task 12, shifting
+/// File sensor extension:
+///   `FileTruncate = 8` was appended later, shifting
 ///   `NetworkConnect` and every enum value above it by +1. The
-///   shift was chosen over appending at value 16 because the brief
+///   shift was chosen over appending at value 16 because the format
 ///   requires FILE_OPEN/CREATE/UNLINK/RENAME (already at 4..7 from
 ///   the original allocation) to remain contiguous with the
-///   truncation mutation; the consumer-side `parse.rs` test was
-///   updated to match the new positions, and the proto enum
-///   (`proto/kernel/v1/events/v1/events.proto`) is updated as part
-///   of the task-12 follow-up patch so all four layouts (C enum,
-///   Rust enum, parse.rs match arms, proto enum) stay in lockstep.
+///   truncation mutation. The C enum, the Rust enum, and the
+///   `parse.rs` match arms stay in lockstep.
 ///
-/// TASK-16 (identity sensor) EXTENSION (2026-07-21):
+/// Identity sensor extension:
 ///   `Identity` re-pinned from 16 to 27 to clear the aliasing
 ///   collision with the prior reserved 16 slot. The committed
-///   task-11..task-15 `.binpb` fixtures still use the same
+///   earlier `.binpb` fixtures still use the same
 ///   discriminants (1..12, 15, 25, 26), so the wire-format
 ///   compatibility is preserved. The C-side enum was updated
 ///   in lockstep; the SHA-256 manifest check `event-abi/build.rs`
@@ -102,12 +98,12 @@ impl EventKind {
 /// remaining valid bits (NS_USER/UTS/IPC/TIME, KFUNC_USED) are
 /// forward-compat placeholders for the next minor revision.
 ///
-/// TASK-12 (file sensor) EXTENSION (2026-07-21):
+/// File sensor extension:
 ///   Added `FilePath`, `FileFlags`, `FileMode`, `FileDenySource`,
 ///   `FileErrno` at non-overlapping positions 0x8000..0x80000
 ///   (bits 15..19). See the matching block in
-///   `bpf/include/event_abi.h` for the deviation rationale —
-///   the brief-specified positions 0x0800..0x8000 would alias
+///   `bpf/include/event_abi.h` for the deviation rationale.
+///   The documented positions 0x0800..0x8000 would alias
 ///   `Processor`/`PayloadTrunc`/`Redacted`/`KfuncUsed` (bit 11..14).
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -127,13 +123,13 @@ pub enum Valid {
     PayloadTrunc = 0x1000,
     Redacted = 0x2000,
     KfuncUsed = 0x4000,
-    // TASK-12 additions — see header comment block in bpf/include/event_abi.h
+    // File sensor additions: see header comment block in bpf/include/event_abi.h
     FilePath = 0x8000,
     FileFlags = 0x10000,
     FileMode = 0x20000,
     FileDenySource = 0x40000,
     FileErrno = 0x80000,
-    // TASK-13 additions — see header comment block in
+    // Network sensor additions: see header comment block in
     // bpf/include/event_abi.h. The nine NET_* validity bits at
     // 0x100000..0x10000000 (bits 20..28) cover the network-sensor
     // payload fields (dst_ip, dst_port, cookie, family, peer_ip,
@@ -147,8 +143,8 @@ pub enum Valid {
     NetFd = 0x0400_0000,
     NetOldState = 0x0800_0000,
     NetNewState = 0x1000_0000,
-    // TASK-14 DNS validity bits are NOT added to this enum because
-    // their brief-pinned positions (0x02000000..0x40000000, bits
+    // DNS sensor DNS validity bits are NOT added to this enum because
+    // their documented positions (0x02000000..0x40000000, bits
     // 25..30) overlap with the NET_* variants above; a Rust
     // `#[repr(u32)]` enum disallows duplicate discriminants
     // (E0081). The DNS bits exist as `pub const`s in the
@@ -161,15 +157,15 @@ pub enum Valid {
 }
 
 /// Deny-source enum for FILE_OPEN events; mirrors the C
-/// `enum kernel_v1_file_deny_source` (task 12).
+/// `enum kernel_v1_file_deny_source`.
 ///
-/// - `None` — no observation; the default-zero value.
-/// - `OwnLsm` — the BPF LSM `file_open` hook would have returned a
+/// - `None`: no observation; the default-zero value.
+/// - `OwnLsm`: the BPF LSM `file_open` hook would have returned a
 ///   non-zero, but file.bpf.c is observation-only and never sets
 ///   this bit at emit time. The slot is reserved for the future
-///   audit-only LSM task (per the approved plan's enforcement
+///   audit-only LSM path (per the enforcement
 ///   contract).
-/// - `Syscall` — the LSM hook was unavailable on the host and the
+/// - `Syscall`: the LSM hook was unavailable on the host and the
 ///   kprobe fallback (`__x64_sys_openat2` / `__arm64_sys_openat2`)
 ///   was the effective source of the recorded result.
 #[repr(u8)]
@@ -181,32 +177,32 @@ pub enum FileDenySource {
 }
 
 /// Per-payload (file-result-namespace) flag bits. These live in the
-/// FILE_* payload's `flags` byte, NOT in `kernel_v1_header.flags` —
-/// each sensor reserves its own flag-byte namespace. `task 12` only
+/// FILE_* payload's `flags` byte, NOT in `kernel_v1_header.flags`.
+/// each sensor reserves its own flag-byte namespace. The file sensor only
 /// emits `FileResultHasErrno` (when the underlying syscall returned
 /// a non-zero); `FileResultOwnLsm` is reserved for future LSM work
 /// and is intentionally never set by file.bpf.c.
 pub const FILE_RESULT_HAS_ERRNO: u8 = 0x01;
 pub const FILE_RESULT_OWN_LSM: u8 = 0x02;
 
-/// Per-payload (network-result-namespace) flag bits. TASK-13
+/// Per-payload (network-result-namespace) flag bits. The network sensor
 /// reserves `NetResultFlagNonblocking` (O_NONBLOCK observed on the
 /// file descriptor at connect-issue time) and
 /// `NetResultFlagEinprogress` (connect syscall returned -EINPROGRESS).
 /// Consumers MUST classify "connect succeeded" on the result event,
-/// not on the EINPROGRESS flag — the flag is metadata for correlation
+/// not on the EINPROGRESS flag. The flag is metadata for correlation
 /// with socket-cookie state, not a success signal.
 pub const NET_RESULT_FLAG_NONBLOCKING: u8 = 0x01;
 pub const NET_RESULT_FLAG_EINPROGRESS: u8 = 0x02;
 
 /// v1 producer MUST NOT set bits above bit 30.
 ///
-/// WAS: `0x0000_7FFF` (15 bits, task 11). Widened to `0x0001_FFFF`
-/// by task 12 (FILE_* bits 15..19), widened again to `0x1FFF_FFFF`
-/// by task 13 (NET_* bits 20..28), widened again to `0x7FFF_FFFF`
-/// by task 14 (DNS_* bits 25..30). See the matching block in
+/// WAS: `0x0000_7FFF` (15 bits). Widened to `0x0001_FFFF`
+/// for the FILE_* bits 15..19, to `0x1FFF_FFFF` for the NET_* bits
+/// 20..28, and to `0x7FFF_FFFF` for the DNS_* bits 25..30. See the
+/// matching block in
 /// `bpf/include/event_abi.h` for the deviation note on the bit
-/// positions the brief pinned.
+/// positions documented in the header.
 pub const VALID_V1_ALLOWED_MASK: u32 = 0x7FFF_FFFF;
 
 /// Network-payload layout constants. Mirror `bpf/include/event_abi.h`.
@@ -332,7 +328,7 @@ impl TcpState {
 /// by every test.
 ///
 /// Field access through these structs is `unsafe { core::ptr::read()
-/// }` from an aligned scratch buffer — see the `process_events.rs`
+/// }` from an aligned scratch buffer. See the `process_events.rs`
 /// decoder helpers. The struct shapes are the documented source of
 /// truth for byte offsets; the size constants below mirror the C
 /// `_Static_assert` checks.
@@ -410,16 +406,16 @@ pub struct NetworkState {
 }
 
 // ---------------------------------------------------------------------------
-// DNS packet sensor (TASK-14) — bounded cleartext-only capture
+// DNS packet sensor: bounded cleartext-only capture
 // ---------------------------------------------------------------------------
 
 /// DNS validity bits as `pub const`s. The Rust `enum Valid`
-/// cannot host these (the brief-pinned positions alias the
+/// cannot host these (the documented positions alias the
 /// `Net*` variants and a Rust `#[repr(u32)]` enum rejects
 /// duplicate discriminants as E0081). Consumers do
 /// `event.header.valids & dns_valid::QNAME != 0` for the same
 /// effect `verify_field` provides on the non-DNS bits. The
-/// bit positions are the brief-pinned 0x02000000..0x40000000
+/// bit positions are the documented 0x02000000..0x40000000
 /// (bits 25..30) and they alias the `NetPeerPort`, `NetFd`,
 /// `NetOldState`, `NetNewState` positions by design; the
 /// consumer dispatcher in `event_abi::parse` keys on
@@ -436,7 +432,7 @@ pub mod dns_valid {
     pub const COUNTS: u32 = 0x1000_0000;
     /// Destination IP family + bytes were decoded from the skb.
     pub const DST_IP: u32 = 0x2000_0000;
-    /// `parsed_truncation_reason != NONE` — payload was clipped.
+    /// `parsed_truncation_reason != NONE`: payload was clipped.
     pub const PAYLOAD_TRUNC: u32 = 0x4000_0000;
 }
 
@@ -603,16 +599,16 @@ pub struct SyscallHistogramBucket {
 }
 
 // ---------------------------------------------------------------------------
-// Identity sensor (TASK-16) — cgroup / namespace / credential facts
+// Identity sensor: cgroup / namespace / credential facts
 // ---------------------------------------------------------------------------
 
 /// Identity validity bits as `pub const`s. The Rust `enum Valid`
-/// cannot host these (the brief-pinned positions 0x80000000..
+/// cannot host these (the documented positions 0x80000000..
 /// 0x4000000000000 are above the 32-bit `header.valids` field, so
 /// they live in a parallel identity-side validity bitmask).
 /// Consumers do `event.identity.validity & identity_valid::UID != 0`
 /// for the same effect `verify_field` provides on the non-IDENTITY
-/// bits. The bit positions are the brief-pinned
+/// bits. The bit positions are the documented
 /// `KERNEL_V1_VALID_IDENTITY_*` constants from
 /// `bpf/include/event_abi.h`. See the deviation note in
 /// `bpf/include/event_abi.h` for the rationale that the identity
@@ -708,14 +704,14 @@ const _: () = {
     assert!(core::mem::size_of::<NetworkState>() == 24);
     assert!(NET_PAYLOAD_LEN == 80);
 
-    // TASK-14 additions — DNS payload mirrors.
+    // DNS sensor additions: DNS payload mirrors.
     assert!(DNS_QNAME_MAX == 253);
     assert!(DNS_PAYLOAD_LEN == 320);
     assert!(core::mem::size_of::<DnsPacket>() == 320);
     assert!(core::mem::size_of::<SyscallEventPayload>() == SYSCALL_PAYLOAD_LEN);
     assert!(core::mem::size_of::<SyscallHistogramBucket>() == 568);
 
-    // TASK-16 additions — identity payload mirrors.
+    // Identity sensor additions: identity payload mirrors.
     assert!(IDENTITY_PAYLOAD_LEN == 96);
     assert!(IDENTITY_TAIL_LEN == 56);
     assert!(IDENTITY_RECORD_LEN == 152);
