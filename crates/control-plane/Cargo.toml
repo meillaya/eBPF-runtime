@@ -33,7 +33,7 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chro
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "signal", "net", "time"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
-tower-http = { version = "0.6", features = ["cors"] }
+tower-http = { version = "0.6", features = ["cors", "fs"] }
 toml = "0.8"
 tonic = { version = "0.14", features = ["transport", "tls-ring", "tls-connect-info"] }
 tracing = "0.1"

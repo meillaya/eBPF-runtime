@@ -109,6 +109,7 @@ pub async fn serve(config: ControlConfig) -> Result<(), ControlError> {
         metrics,
         auth,
         control,
+        ui_dir: config.ui_dir.clone(),
     };
     let http_listen = config.http_listen.clone();
     let http_shutdown = shutdown_rx.clone();

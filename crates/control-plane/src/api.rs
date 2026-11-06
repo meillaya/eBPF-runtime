@@ -2,6 +2,7 @@
 //! Authenticated control-plane HTTP API.
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use auth::{AuthContext, AuthService, Role};
@@ -17,6 +18,7 @@ use serde_json::json;
 use sqlx::PgPool;
 use tokio::sync::{broadcast, watch};
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 use uuid::Uuid;
 
 /// HTTP state.
@@ -32,6 +34,8 @@ pub struct HttpState {
     pub auth: AuthService,
     /// Policy fanout to agents.
     pub control: broadcast::Sender<ControlCommand>,
+    /// Built dashboard directory.
+    pub ui_dir: PathBuf,
 }
 
 /// Serve the HTTP API until `shutdown` becomes true.
@@ -62,11 +66,13 @@ pub fn router(state: HttpState) -> Router {
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
+    let index = state.ui_dir.join("index.html");
     Router::new()
         .route("/healthz", get(health))
         .route("/readyz", get(ready))
         .route("/metrics", get(metrics))
         .route("/api/v1/events", get(events))
+        .route("/api/v1/alerts", get(alerts))
         .route("/api/v1/agents", get(agents))
         .route("/api/v1/policies", get(policies))
         .route("/api/v1/policies/stage", post(stage))
@@ -75,6 +81,7 @@ pub fn router(state: HttpState) -> Router {
         .route("/api/v1/rules/validate", post(validate))
         .route("/api/v1/audit", get(audit))
         .layer(cors)
+        .fallback_service(ServeDir::new(&state.ui_dir).not_found_service(ServeFile::new(index)))
         .with_state(state)
 }
 
@@ -143,6 +150,16 @@ async fn events(
     let limit = query.limit.unwrap_or(100).clamp(1, 1000);
     match control_db::recent_events(&state.pool, state.cluster_id, limit).await {
         Ok(events) => Json(json!({"events": events, "next_cursor": null})).into_response(),
+        Err(error) => internal(error.to_string()),
+    }
+}
+
+async fn alerts(State(state): State<HttpState>, headers: HeaderMap) -> Response {
+    if let Err(response) = authenticate(&state, &headers, Role::Viewer).await {
+        return response;
+    }
+    match control_db::recent_alerts(&state.pool, state.cluster_id, 200).await {
+        Ok(alerts) => Json(json!({"alerts": alerts, "next_cursor": null})).into_response(),
         Err(error) => internal(error.to_string()),
     }
 }

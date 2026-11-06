@@ -498,6 +498,34 @@ pub async fn recent_events(
     Ok(events)
 }
 
+/// Recent alerts for the API.
+pub async fn recent_alerts(
+    pool: &PgPool,
+    cluster_id: Uuid,
+    limit: usize,
+) -> Result<Vec<event_model::Alert>, DbError> {
+    let rows = sqlx::query(
+        "SELECT payload FROM event_batches
+         WHERE cluster_id = $1
+         ORDER BY received_at DESC LIMIT $2",
+    )
+    .bind(cluster_id)
+    .bind(limit as i64)
+    .fetch_all(pool)
+    .await?;
+    let mut alerts = Vec::new();
+    for row in rows {
+        let payload: serde_json::Value = row.get("payload");
+        let batch: Batch = serde_json::from_value(payload)?;
+        alerts.extend(batch.alerts);
+        if alerts.len() >= limit {
+            break;
+        }
+    }
+    alerts.truncate(limit);
+    Ok(alerts)
+}
+
 /// List agents in a cluster.
 pub async fn list_agents(pool: &PgPool, cluster_id: Uuid) -> Result<Vec<AgentRecord>, DbError> {
     let rows = sqlx::query(

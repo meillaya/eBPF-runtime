@@ -24,6 +24,8 @@ pub struct ControlConfig {
     pub tls_cert: PathBuf,
     /// PEM server key.
     pub tls_key: PathBuf,
+    /// Built dashboard directory.
+    pub ui_dir: PathBuf,
     /// Database pool size.
     pub max_connections: u32,
     /// OIDC issuer URL.
@@ -46,6 +48,7 @@ impl Default for ControlConfig {
             tls_ca: PathBuf::from("/etc/ebpf-control-plane/ca.pem"),
             tls_cert: PathBuf::from("/etc/ebpf-control-plane/tls.crt"),
             tls_key: PathBuf::from("/etc/ebpf-control-plane/tls.key"),
+            ui_dir: PathBuf::from("web/dist"),
             max_connections: 10,
             oidc_issuer: String::new(),
             oidc_audience: "ebpf-control-plane".to_string(),

@@ -15,6 +15,8 @@
 
   packages = with pkgs; [
     bpftools
+    bun
+    nodejs
     git
     jq
     libbpf

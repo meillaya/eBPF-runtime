@@ -1,0 +1,106 @@
+:root {
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: #10131a;
+  color: #e6e9ef;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button {
+  background: #1d2430;
+  border: 1px solid #334052;
+  color: inherit;
+  border-radius: 6px;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+}
+
+button:hover,
+button.active {
+  background: #2a3547;
+}
+
+.shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.muted {
+  color: #8b96a8;
+  margin: 0.4rem 0 0;
+}
+
+.badge {
+  border: 1px solid #3b4a5f;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  color: #9fb0c7;
+}
+
+nav {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1.5rem 0;
+  border-bottom: 1px solid #263140;
+  padding-bottom: 0.75rem;
+}
+
+.stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  color: #9fb0c7;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.55rem 0.5rem;
+  border-bottom: 1px solid #222c3a;
+  vertical-align: top;
+}
+
+th {
+  color: #8b96a8;
+  font-weight: 500;
+}
+
+.mono {
+  font-family: ui-monospace, monospace;
+}
+
+.error {
+  border: 1px solid #7f2d2d;
+  background: #2a1515;
+  color: #ffb4b4;
+  padding: 0.8rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}

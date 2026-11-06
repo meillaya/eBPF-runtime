@@ -7,6 +7,10 @@
 **/fuzz/artifacts/
 **/fuzz/Cargo.lock
 
+# Web build output
+/web/node_modules/
+/web/dist/
+
 # Development shell state
 .devenv/
 .direnv/
