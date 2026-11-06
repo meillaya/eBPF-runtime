@@ -26,6 +26,10 @@ pub struct ControlConfig {
     pub tls_key: PathBuf,
     /// Built dashboard directory.
     pub ui_dir: PathBuf,
+    /// ClickHouse HTTP endpoint. Empty disables analytics.
+    pub clickhouse_url: String,
+    /// ClickHouse database.
+    pub clickhouse_database: String,
     /// Database pool size.
     pub max_connections: u32,
     /// OIDC issuer URL.
@@ -49,6 +53,8 @@ impl Default for ControlConfig {
             tls_cert: PathBuf::from("/etc/ebpf-control-plane/tls.crt"),
             tls_key: PathBuf::from("/etc/ebpf-control-plane/tls.key"),
             ui_dir: PathBuf::from("web/dist"),
+            clickhouse_url: String::new(),
+            clickhouse_database: "ebpf".to_string(),
             max_connections: 10,
             oidc_issuer: String::new(),
             oidc_audience: "ebpf-control-plane".to_string(),

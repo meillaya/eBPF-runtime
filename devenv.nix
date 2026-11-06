@@ -21,6 +21,7 @@
     jq
     libbpf
     openssl
+    rdkafka
     llvmPackages_19.clang
     llvmPackages_19.clang-unwrapped
     llvmPackages_19.llvm

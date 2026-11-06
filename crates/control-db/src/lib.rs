@@ -526,6 +526,60 @@ pub async fn recent_alerts(
     Ok(alerts)
 }
 
+/// One batch waiting for Kafka and ClickHouse projection.
+#[derive(Debug, Clone)]
+pub struct PendingProjection {
+    /// Batch id.
+    pub batch_id: String,
+    /// Raw batch JSON.
+    pub payload: Vec<u8>,
+    /// Event count.
+    pub event_count: i32,
+}
+
+/// Claim batches that have not been projected yet.
+pub async fn pending_projections(
+    pool: &PgPool,
+    limit: usize,
+) -> Result<Vec<PendingProjection>, DbError> {
+    let rows = sqlx::query(
+        "SELECT batch_id, payload, event_count FROM event_batches
+         WHERE relayed_at IS NULL
+         ORDER BY received_at ASC LIMIT $1",
+    )
+    .bind(limit as i64)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let payload: serde_json::Value = row.get("payload");
+            PendingProjection {
+                batch_id: row.get("batch_id"),
+                payload: serde_json::to_vec(&payload).unwrap_or_default(),
+                event_count: row.get("event_count"),
+            }
+        })
+        .collect())
+}
+
+/// Mark a batch as projected.
+pub async fn mark_relayed(pool: &PgPool, batch_id: &str) -> Result<(), DbError> {
+    sqlx::query("UPDATE event_batches SET relayed_at = now() WHERE batch_id = $1")
+        .bind(batch_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Count batches waiting for projection.
+pub async fn projection_depth(pool: &PgPool) -> Result<i64, DbError> {
+    let row = sqlx::query("SELECT count(*) AS count FROM event_batches WHERE relayed_at IS NULL")
+        .fetch_one(pool)
+        .await?;
+    Ok(row.get("count"))
+}
+
 /// List agents in a cluster.
 pub async fn list_agents(pool: &PgPool, cluster_id: Uuid) -> Result<Vec<AgentRecord>, DbError> {
     let rows = sqlx::query(

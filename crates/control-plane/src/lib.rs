@@ -103,6 +103,13 @@ pub async fn serve(config: ControlConfig) -> Result<(), ControlError> {
             .map_err(ControlError::Grpc)
     });
 
+    let clickhouse = if config.clickhouse_url.is_empty() {
+        None
+    } else {
+        Some(analytics_clickhouse::ClickHouse::new(
+            config.clickhouse_url.clone(),
+        ))
+    };
     let http_state = api::HttpState {
         pool,
         cluster_id,
@@ -110,6 +117,9 @@ pub async fn serve(config: ControlConfig) -> Result<(), ControlError> {
         auth,
         control,
         ui_dir: config.ui_dir.clone(),
+        clickhouse,
+        clickhouse_database: config.clickhouse_database.clone(),
+        cluster_name: config.cluster.clone(),
     };
     let http_listen = config.http_listen.clone();
     let http_shutdown = shutdown_rx.clone();

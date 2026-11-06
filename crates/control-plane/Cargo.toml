@@ -19,6 +19,7 @@ path = "src/main.rs"
 [dependencies]
 auth = { path = "../auth" }
 axum = { version = "0.8", features = ["json"] }
+analytics-clickhouse = { path = "../analytics-clickhouse" }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 control-db = { path = "../control-db" }

@@ -36,6 +36,12 @@ pub struct HttpState {
     pub control: broadcast::Sender<ControlCommand>,
     /// Built dashboard directory.
     pub ui_dir: PathBuf,
+    /// Optional ClickHouse client.
+    pub clickhouse: Option<analytics_clickhouse::ClickHouse>,
+    /// ClickHouse database.
+    pub clickhouse_database: String,
+    /// Cluster name.
+    pub cluster_name: String,
 }
 
 /// Serve the HTTP API until `shutdown` becomes true.
@@ -79,6 +85,7 @@ pub fn router(state: HttpState) -> Router {
         .route("/api/v1/policies/commit", post(commit))
         .route("/api/v1/policies/{version}/acks", get(acks))
         .route("/api/v1/rules/validate", post(validate))
+        .route("/api/v1/analytics/summary", get(analytics))
         .route("/api/v1/audit", get(audit))
         .layer(cors)
         .fallback_service(ServeDir::new(&state.ui_dir).not_found_service(ServeFile::new(index)))
@@ -330,6 +337,50 @@ async fn validate(
             .into_response()
         }
         Err(error) => Json(json!({"valid": false, "error": error.to_string()})).into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct AnalyticsQuery {
+    hours: Option<u32>,
+}
+
+async fn analytics(
+    State(state): State<HttpState>,
+    headers: HeaderMap,
+    Query(query): Query<AnalyticsQuery>,
+) -> Response {
+    if let Err(response) = authenticate(&state, &headers, Role::Viewer).await {
+        return response;
+    }
+    let Some(clickhouse) = &state.clickhouse else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "analytics is not configured"})),
+        )
+            .into_response();
+    };
+    let hours = query.hours.unwrap_or(24).clamp(1, 24 * 30);
+    let cluster = state.cluster_name.replace('\'', "\\'");
+    let database = state.clickhouse_database.replace('`', "");
+    let events_sql = format!(
+        "SELECT kind, count() AS count FROM {database}.events \
+         WHERE cluster = '{cluster}' AND ingested_at >= now() - INTERVAL {hours} HOUR \
+         GROUP BY kind ORDER BY count DESC"
+    );
+    let alerts_sql = format!(
+        "SELECT severity, count() AS count FROM {database}.alerts \
+         WHERE cluster = '{cluster}' AND ingested_at >= now() - INTERVAL {hours} HOUR \
+         GROUP BY severity ORDER BY count DESC"
+    );
+    match clickhouse.query_json(&events_sql).await {
+        Ok(events) => match clickhouse.query_json(&alerts_sql).await {
+            Ok(alerts) => {
+                Json(json!({"events": events["data"], "alerts": alerts["data"]})).into_response()
+            }
+            Err(error) => internal(error.to_string()),
+        },
+        Err(error) => internal(error.to_string()),
     }
 }
 
