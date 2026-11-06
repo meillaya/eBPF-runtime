@@ -26,6 +26,12 @@ pub struct ControlConfig {
     pub tls_key: PathBuf,
     /// Database pool size.
     pub max_connections: u32,
+    /// OIDC issuer URL.
+    pub oidc_issuer: String,
+    /// OIDC audience for this API.
+    pub oidc_audience: String,
+    /// OIDC JWKS URL.
+    pub oidc_jwks_url: String,
     /// Development mode binds loopback and skips TLS.
     pub dev: bool,
 }
@@ -41,6 +47,9 @@ impl Default for ControlConfig {
             tls_cert: PathBuf::from("/etc/ebpf-control-plane/tls.crt"),
             tls_key: PathBuf::from("/etc/ebpf-control-plane/tls.key"),
             max_connections: 10,
+            oidc_issuer: String::new(),
+            oidc_audience: "ebpf-control-plane".to_string(),
+            oidc_jwks_url: String::new(),
             dev: false,
         }
     }
@@ -92,6 +101,11 @@ impl ControlConfig {
         if self.cluster.is_empty() {
             return Err(ConfigError::Invalid(
                 "cluster must not be empty".to_string(),
+            ));
+        }
+        if !self.dev && (self.oidc_issuer.is_empty() || self.oidc_jwks_url.is_empty()) {
+            return Err(ConfigError::Invalid(
+                "oidc_issuer and oidc_jwks_url are required outside dev mode".to_string(),
             ));
         }
         if self.dev {

@@ -24,6 +24,17 @@ use uuid::Uuid;
 
 pub use config::AgentConfig;
 
+/// A policy update pushed to the sensor thread.
+#[derive(Debug, Clone)]
+pub struct PolicyUpdate {
+    /// Version.
+    pub version: String,
+    /// Digest.
+    pub digest: String,
+    /// YAML content.
+    pub yaml: String,
+}
+
 /// A decoded event and the alerts it produced.
 pub struct AgentRecord {
     /// Event.
@@ -82,15 +93,24 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
     let storage = Arc::new(LocalStorage::open(&config.db_path, &key)?);
     let metrics = Arc::new(Metrics::new().expect("metric names are static"));
 
-    let policy_yaml = storage
-        .get_policy()?
-        .and_then(|(_, _, content)| String::from_utf8(content).ok());
+    let stored_policy = storage.get_policy()?;
+    let policy_yaml = stored_policy
+        .as_ref()
+        .and_then(|(_, _, content)| String::from_utf8(content.clone()).ok());
     if let Some(yaml) = &policy_yaml {
         match Engine::from_yaml(yaml) {
             Ok(engine) => tracing::info!(rules = engine.rule_count(), "loaded stored policy"),
             Err(error) => tracing::warn!(%error, "stored policy rejected; loading files"),
         }
     }
+    let initial_policy = stored_policy.and_then(|(version, digest, content)| {
+        String::from_utf8(content).ok().map(|yaml| PolicyUpdate {
+            version,
+            digest,
+            yaml,
+        })
+    });
+    let (policy_tx, policy_rx) = watch::channel(initial_policy);
 
     let (live, _) = broadcast::channel(1024);
     let coverage = Arc::new(RwLock::new(None::<serde_json::Value>));
@@ -142,6 +162,7 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
             cluster: config.cluster.clone(),
             node_name: config.node_name.clone(),
             sensors,
+            policy_tx,
             metrics,
         })));
     }
@@ -154,6 +175,7 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
         poll_sensors(
             &thread_config,
             &policy_yaml,
+            policy_rx,
             sender,
             coverage_tx,
             thread_stop_poll,
@@ -239,6 +261,7 @@ pub async fn run(config: AgentConfig, shutdown: watch::Receiver<bool>) -> Result
 fn poll_sensors(
     config: &AgentConfig,
     policy_yaml: &Option<String>,
+    mut policy_rx: watch::Receiver<Option<PolicyUpdate>>,
     sender: mpsc::Sender<AgentMessage>,
     coverage_tx: watch::Sender<Option<serde_json::Value>>,
     shutdown: Arc<AtomicBool>,
@@ -294,6 +317,18 @@ fn poll_sensors(
     };
 
     while !shutdown.load(Ordering::Relaxed) {
+        if policy_rx.has_changed().unwrap_or(false) {
+            let update = policy_rx.borrow_and_update().clone();
+            if let Some(update) = update {
+                match Engine::from_yaml(&update.yaml) {
+                    Ok(next) => {
+                        engine = next;
+                        tracing::info!(version = %update.version, "policy applied");
+                    }
+                    Err(error) => tracing::warn!(%error, "policy rejected at apply time"),
+                }
+            }
+        }
         if let Err(error) = ring.poll(Duration::from_millis(200)) {
             let _ = sender.blocking_send(AgentMessage::Error(error.to_string()));
             break;

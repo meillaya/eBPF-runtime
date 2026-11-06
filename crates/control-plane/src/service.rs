@@ -9,8 +9,8 @@ use futures_core::Stream;
 use observability::Metrics;
 use protocol::v1::agent_service_server::AgentService;
 use protocol::v1::{
-    BatchAck, BatchRequest, ControlCommand, ControlRequest, HealthAck, HealthReport,
-    RegisterRequest, RegisterResponse,
+    BatchAck, BatchRequest, ControlCommand, ControlRequest, HealthAck, HealthReport, PolicyAck,
+    PolicyAckResponse, RegisterRequest, RegisterResponse,
 };
 use sqlx::PgPool;
 use tokio::sync::broadcast;
@@ -163,5 +163,32 @@ impl AgentService for AgentServiceImpl {
             .await
             .map_err(|error| Status::internal(error.to_string()))?;
         Ok(Response::new(HealthAck { accepted: true }))
+    }
+
+    async fn report_policy_ack(
+        &self,
+        request: Request<PolicyAck>,
+    ) -> Result<Response<PolicyAckResponse>, Status> {
+        let payload = request.get_ref();
+        let agent_key = match peer_spiffe_id(&request) {
+            Some(id) => id,
+            None if self.dev => payload.agent_id.clone(),
+            None => return Err(Status::unauthenticated("client certificate missing")),
+        };
+        let version: i64 = payload
+            .version
+            .parse()
+            .map_err(|_| Status::invalid_argument("policy version must be an integer"))?;
+        control_db::record_policy_ack(
+            &self.pool,
+            version,
+            &agent_key,
+            &payload.status,
+            &payload.digest,
+            &payload.message,
+        )
+        .await
+        .map_err(|error| Status::internal(error.to_string()))?;
+        Ok(Response::new(PolicyAckResponse { accepted: true }))
     }
 }

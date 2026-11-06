@@ -44,6 +44,21 @@ pub async fn serve(config: ControlConfig) -> Result<(), ControlError> {
     let cluster_id = control_db::ensure_cluster(&pool, &config.cluster).await?;
     let metrics = Arc::new(Metrics::new().expect("metric names are static"));
     let (control, _) = broadcast::channel(256);
+    let auth = if config.dev {
+        auth::AuthService::new(
+            auth::JwtVerifier::new(String::new(), String::new(), String::new()),
+            Some(auth::Role::Admin),
+        )
+    } else {
+        auth::AuthService::new(
+            auth::JwtVerifier::new(
+                config.oidc_issuer.clone(),
+                config.oidc_audience.clone(),
+                config.oidc_jwks_url.clone(),
+            ),
+            None,
+        )
+    };
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
     let service = service::AgentServiceImpl {
@@ -51,7 +66,7 @@ pub async fn serve(config: ControlConfig) -> Result<(), ControlError> {
         cluster_id,
         dev: config.dev,
         metrics: metrics.clone(),
-        control,
+        control: control.clone(),
     };
     let grpc_addr: std::net::SocketAddr = config.grpc_listen.parse().map_err(|_| {
         ControlError::Io(std::io::Error::new(
@@ -92,6 +107,8 @@ pub async fn serve(config: ControlConfig) -> Result<(), ControlError> {
         pool,
         cluster_id,
         metrics,
+        auth,
+        control,
     };
     let http_listen = config.http_listen.clone();
     let http_shutdown = shutdown_rx.clone();

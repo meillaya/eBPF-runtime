@@ -208,6 +208,268 @@ pub async fn touch_agent(pool: &PgPool, agent_key: &str) -> Result<(), DbError> 
     Ok(())
 }
 
+/// A policy version.
+#[derive(Debug, Clone, Serialize)]
+pub struct PolicyVersionRecord {
+    /// Database id.
+    pub id: Uuid,
+    /// Policy name.
+    pub name: String,
+    /// Monotonic version.
+    pub version: i64,
+    /// YAML content.
+    pub content: String,
+    /// SHA-256 digest.
+    pub digest: String,
+    /// staged, committed, applied, rejected.
+    pub status: String,
+    /// Creation epoch seconds.
+    pub created_at_epoch: i64,
+}
+
+/// Store a staged policy version.
+pub async fn stage_policy(
+    pool: &PgPool,
+    cluster_id: Uuid,
+    name: &str,
+    version: i64,
+    content: &str,
+    digest: &str,
+    author: &str,
+) -> Result<PolicyVersionRecord, DbError> {
+    let policy = sqlx::query(
+        "INSERT INTO policies (name, cluster_id) VALUES ($1, $2)
+         ON CONFLICT (cluster_id, name) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id",
+    )
+    .bind(name)
+    .bind(cluster_id)
+    .fetch_one(pool)
+    .await?;
+    let policy_id: Uuid = policy.get("id");
+    let row = sqlx::query(
+        "INSERT INTO policy_versions (policy_id, version, content, digest, status, author)
+         VALUES ($1, $2, $3, $4, 'staged', $5)
+         ON CONFLICT (policy_id, version) DO UPDATE SET
+           content = EXCLUDED.content,
+           digest = EXCLUDED.digest,
+           status = 'staged',
+           author = EXCLUDED.author
+         RETURNING id, version, content, digest, status,
+                   extract(epoch FROM created_at)::bigint AS created_at_epoch",
+    )
+    .bind(policy_id)
+    .bind(version)
+    .bind(content)
+    .bind(digest)
+    .bind(author)
+    .fetch_one(pool)
+    .await?;
+    Ok(PolicyVersionRecord {
+        id: row.get("id"),
+        name: name.to_string(),
+        version: row.get("version"),
+        content: row.get("content"),
+        digest: row.get("digest"),
+        status: row.get("status"),
+        created_at_epoch: row.get("created_at_epoch"),
+    })
+}
+
+/// List policy versions, newest first.
+pub async fn list_policies(
+    pool: &PgPool,
+    cluster_id: Uuid,
+) -> Result<Vec<PolicyVersionRecord>, DbError> {
+    let rows = sqlx::query(
+        "SELECT p.name, v.id, v.version, v.content, v.digest, v.status,
+                extract(epoch FROM v.created_at)::bigint AS created_at_epoch
+         FROM policy_versions v JOIN policies p ON p.id = v.policy_id
+         WHERE p.cluster_id = $1
+         ORDER BY v.created_at DESC LIMIT 200",
+    )
+    .bind(cluster_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| PolicyVersionRecord {
+            id: row.get("id"),
+            name: row.get("name"),
+            version: row.get("version"),
+            content: row.get("content"),
+            digest: row.get("digest"),
+            status: row.get("status"),
+            created_at_epoch: row.get("created_at_epoch"),
+        })
+        .collect())
+}
+
+/// Fetch one policy version.
+pub async fn get_policy(
+    pool: &PgPool,
+    cluster_id: Uuid,
+    version: i64,
+) -> Result<Option<PolicyVersionRecord>, DbError> {
+    let row = sqlx::query(
+        "SELECT p.name, v.id, v.version, v.content, v.digest, v.status,
+                extract(epoch FROM v.created_at)::bigint AS created_at_epoch
+         FROM policy_versions v JOIN policies p ON p.id = v.policy_id
+         WHERE p.cluster_id = $1 AND v.version = $2
+         ORDER BY v.created_at DESC LIMIT 1",
+    )
+    .bind(cluster_id)
+    .bind(version)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|row| PolicyVersionRecord {
+        id: row.get("id"),
+        name: row.get("name"),
+        version: row.get("version"),
+        content: row.get("content"),
+        digest: row.get("digest"),
+        status: row.get("status"),
+        created_at_epoch: row.get("created_at_epoch"),
+    }))
+}
+
+/// Set a policy version status.
+pub async fn set_policy_status(pool: &PgPool, version: i64, status: &str) -> Result<(), DbError> {
+    sqlx::query("UPDATE policy_versions SET status = $1 WHERE version = $2")
+        .bind(status)
+        .bind(version)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Record an agent policy acknowledgement.
+pub async fn record_policy_ack(
+    pool: &PgPool,
+    version: i64,
+    agent_key: &str,
+    status: &str,
+    digest: &str,
+    message: &str,
+) -> Result<(), DbError> {
+    let agent = sqlx::query("SELECT id FROM agents WHERE spiffe_id = $1")
+        .bind(agent_key)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| DbError::AgentMissing(agent_key.to_string()))?;
+    let agent_id: Uuid = agent.get("id");
+    sqlx::query(
+        "INSERT INTO policy_acks (policy_version, agent_id, status, digest, message)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (policy_version, agent_id) DO UPDATE SET
+           status = EXCLUDED.status,
+           digest = EXCLUDED.digest,
+           message = EXCLUDED.message,
+           updated_at = now()",
+    )
+    .bind(version)
+    .bind(agent_id)
+    .bind(status)
+    .bind(digest)
+    .bind(message)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// A policy acknowledgement row.
+#[derive(Debug, Clone, Serialize)]
+pub struct PolicyAckRecord {
+    /// Policy version.
+    pub policy_version: i64,
+    /// Agent SPIFFE id.
+    pub agent_id: String,
+    /// ready, applied, rejected.
+    pub status: String,
+    /// Digest.
+    pub digest: String,
+    /// Error message.
+    pub message: String,
+    /// Update epoch seconds.
+    pub updated_at_epoch: i64,
+}
+
+/// List acknowledgements for a policy version.
+pub async fn list_policy_acks(
+    pool: &PgPool,
+    version: i64,
+) -> Result<Vec<PolicyAckRecord>, DbError> {
+    let rows = sqlx::query(
+        "SELECT a.policy_version, a.status, a.digest, a.message,
+                extract(epoch FROM a.updated_at)::bigint AS updated_at_epoch,
+                ag.spiffe_id
+         FROM policy_acks a JOIN agents ag ON ag.id = a.agent_id
+         WHERE a.policy_version = $1 ORDER BY ag.spiffe_id",
+    )
+    .bind(version)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| PolicyAckRecord {
+            policy_version: row.get("policy_version"),
+            agent_id: row.get("spiffe_id"),
+            status: row.get("status"),
+            digest: row.get("digest"),
+            message: row.get("message"),
+            updated_at_epoch: row.get("updated_at_epoch"),
+        })
+        .collect())
+}
+
+/// Append an audit row.
+pub async fn audit(
+    pool: &PgPool,
+    actor: &str,
+    action: &str,
+    resource: &str,
+    success: bool,
+    detail: serde_json::Value,
+) -> Result<(), DbError> {
+    sqlx::query(
+        "INSERT INTO audit_log (actor, action, resource, success, detail)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(actor)
+    .bind(action)
+    .bind(resource)
+    .bind(success)
+    .bind(detail)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Recent audit rows.
+pub async fn list_audit(pool: &PgPool, limit: usize) -> Result<Vec<serde_json::Value>, DbError> {
+    let rows = sqlx::query(
+        "SELECT actor, action, resource, success, detail,
+                extract(epoch FROM created_at)::bigint AS created_at_epoch
+         FROM audit_log ORDER BY seq DESC LIMIT $1",
+    )
+    .bind(limit as i64)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            serde_json::json!({
+                "actor": row.get::<String, _>("actor"),
+                "action": row.get::<String, _>("action"),
+                "resource": row.get::<String, _>("resource"),
+                "success": row.get::<bool, _>("success"),
+                "detail": row.get::<serde_json::Value, _>("detail"),
+                "created_at_epoch": row.get::<i64, _>("created_at_epoch"),
+            })
+        })
+        .collect())
+}
+
 /// Recent events for the phase-2 API. ClickHouse replaces this in phase 5.
 pub async fn recent_events(
     pool: &PgPool,

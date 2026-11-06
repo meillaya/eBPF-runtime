@@ -26,6 +26,8 @@ pub struct DeliveryConfig {
     pub node_name: String,
     /// Sensors to report.
     pub sensors: Vec<String>,
+    /// Policy updates for the sensor thread.
+    pub policy_tx: tokio::sync::watch::Sender<Option<crate::PolicyUpdate>>,
     /// Metrics.
     pub metrics: Arc<Metrics>,
 }
@@ -41,6 +43,7 @@ pub async fn run(config: DeliveryConfig) {
         cluster,
         node_name,
         sensors,
+        policy_tx,
         metrics,
     } = config;
     let client = loop {
@@ -72,6 +75,8 @@ pub async fn run(config: DeliveryConfig) {
             }
         }
     }
+
+    start_control_watch(client.clone(), storage.clone(), policy_tx, metrics.clone());
 
     loop {
         let batches = match storage.due_batches(10) {
@@ -118,6 +123,120 @@ pub async fn run(config: DeliveryConfig) {
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
+}
+
+fn start_control_watch(
+    client: TransportClient,
+    storage: Arc<LocalStorage>,
+    policy_tx: tokio::sync::watch::Sender<Option<crate::PolicyUpdate>>,
+    metrics: Arc<Metrics>,
+) {
+    tokio::spawn(async move {
+        use futures_util::StreamExt;
+        loop {
+            match client.watch_control().await {
+                Ok(mut stream) => {
+                    while let Some(command) = stream.next().await {
+                        match command {
+                            Ok(command) => {
+                                if let Some(protocol::v1::control_command::Command::Policy(
+                                    snapshot,
+                                )) = command.command
+                                {
+                                    apply_policy(&client, &storage, &policy_tx, snapshot).await;
+                                }
+                            }
+                            Err(error) => {
+                                metrics.transport_retries_total.inc();
+                                tracing::warn!(%error, "control stream error");
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(error) => {
+                    metrics.transport_retries_total.inc();
+                    tracing::warn!(%error, "control stream connect failed");
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+    });
+}
+
+async fn apply_policy(
+    client: &TransportClient,
+    storage: &LocalStorage,
+    policy_tx: &tokio::sync::watch::Sender<Option<crate::PolicyUpdate>>,
+    snapshot: protocol::v1::PolicySnapshot,
+) {
+    let yaml = match String::from_utf8(snapshot.yaml) {
+        Ok(yaml) => yaml,
+        Err(_) => {
+            let _ = client
+                .report_policy_ack(
+                    &snapshot.version,
+                    &snapshot.digest,
+                    "rejected",
+                    "policy is not UTF-8",
+                )
+                .await;
+            return;
+        }
+    };
+    let ruleset = match rules::parse_ruleset(&yaml) {
+        Ok(ruleset) => ruleset,
+        Err(error) => {
+            let _ = client
+                .report_policy_ack(
+                    &snapshot.version,
+                    &snapshot.digest,
+                    "rejected",
+                    &error.to_string(),
+                )
+                .await;
+            return;
+        }
+    };
+    let digest = match rules::canonical_digest(&ruleset) {
+        Ok(digest) => digest,
+        Err(error) => {
+            let _ = client
+                .report_policy_ack(
+                    &snapshot.version,
+                    &snapshot.digest,
+                    "rejected",
+                    &error.to_string(),
+                )
+                .await;
+            return;
+        }
+    };
+    if digest != snapshot.digest {
+        let _ = client
+            .report_policy_ack(
+                &snapshot.version,
+                &snapshot.digest,
+                "rejected",
+                "digest mismatch",
+            )
+            .await;
+        return;
+    }
+    if let Err(error) = storage.set_policy(&snapshot.version, &digest, yaml.as_bytes()) {
+        let _ = client
+            .report_policy_ack(&snapshot.version, &digest, "rejected", &error.to_string())
+            .await;
+        return;
+    }
+    let _ = policy_tx.send(Some(crate::PolicyUpdate {
+        version: snapshot.version.clone(),
+        digest: snapshot.digest.clone(),
+        yaml,
+    }));
+    let _ = client
+        .report_policy_ack(&snapshot.version, &digest, "applied", "")
+        .await;
 }
 
 fn boot_id_hex() -> String {

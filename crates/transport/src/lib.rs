@@ -76,6 +76,7 @@ pub enum TransportError {
 }
 
 /// Agent-side client.
+#[derive(Clone)]
 pub struct TransportClient {
     inner: AgentServiceClient<Channel>,
     timeout: Duration,
@@ -201,6 +202,31 @@ impl TransportClient {
                 .await
                 .map_err(|_| tonic::Status::deadline_exceeded("watch timed out"))??;
         Ok(response.into_inner())
+    }
+
+    /// Report a policy acknowledgement.
+    pub async fn report_policy_ack(
+        &self,
+        version: &str,
+        digest: &str,
+        status: &str,
+        message: &str,
+    ) -> Result<(), TransportError> {
+        let mut client = self.inner.clone();
+        let request = protocol::v1::PolicyAck {
+            agent_id: self.agent_id.clone(),
+            version: version.to_string(),
+            digest: digest.to_string(),
+            status: status.to_string(),
+            message: message.to_string(),
+        };
+        tokio::time::timeout(
+            self.timeout,
+            client.report_policy_ack(Request::new(request)),
+        )
+        .await
+        .map_err(|_| tonic::Status::deadline_exceeded("policy ack timed out"))??;
+        Ok(())
     }
 
     /// Report health.

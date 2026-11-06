@@ -25,7 +25,9 @@ event-model = { path = "../event-model" }
 futures-util = "0.3"
 observability = { path = "../observability" }
 privacy = { path = "../privacy" }
+protocol = { path = "../protocol" }
 runtime = { path = "../runtime" }
+rules = { path = "../rules" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 storage-local = { path = "../storage-local" }
@@ -39,5 +41,6 @@ uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 control-plane = { path = "../control-plane" }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 tempfile = "3"
 tower = { version = "0.5", features = ["util"] }

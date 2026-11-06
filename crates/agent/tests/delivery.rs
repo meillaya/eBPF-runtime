@@ -24,7 +24,7 @@ async fn delivery_acks_and_clears_outbox() {
     let grpc_port = free_port();
     let http_port = free_port();
     let cluster = format!("delivery-{}", Uuid::new_v4());
-    let server = tokio::spawn(serve(ControlConfig {
+    let mut server = tokio::spawn(serve(ControlConfig {
         grpc_listen: format!("127.0.0.1:{grpc_port}"),
         http_listen: format!("127.0.0.1:{http_port}"),
         database_url: url.clone(),
@@ -32,7 +32,10 @@ async fn delivery_acks_and_clears_outbox() {
         dev: true,
         ..Default::default()
     }));
-    tokio::time::sleep(Duration::from_millis(800)).await;
+    tokio::select! {
+        _ = tokio::time::sleep(Duration::from_millis(1500)) => {},
+        result = &mut server => panic!("control plane stopped early: {result:?}"),
+    }
 
     let dir = tempfile::tempdir().unwrap();
     let storage =
@@ -73,6 +76,7 @@ async fn delivery_acks_and_clears_outbox() {
         timeout_secs: 5,
     };
     let metrics = Arc::new(Metrics::new().unwrap());
+    let (policy_tx, _policy_rx) = tokio::sync::watch::channel(None);
     let handle = tokio::spawn(agent::delivery::run(agent::delivery::DeliveryConfig {
         storage: storage.clone(),
         transport,
@@ -82,6 +86,7 @@ async fn delivery_acks_and_clears_outbox() {
         cluster,
         node_name: "node-1".to_string(),
         sensors: vec!["file".to_string()],
+        policy_tx,
         metrics,
     }));
 
@@ -93,8 +98,54 @@ async fn delivery_acks_and_clears_outbox() {
             break;
         }
     }
+
+    let rules = r#"schema_version: 1
+engine_version: "1.0.0"
+rules:
+  - id: live-policy
+    version: 1
+    severity: low
+    source: file
+    description: Live policy.
+    condition:
+      field: file.path
+      operator: eq
+      value: "/tmp/live"
+    action: alert
+"#;
+    let http = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{http_port}/api/v1");
+    let stage = http
+        .post(format!("{base}/policies/stage"))
+        .json(&serde_json::json!({"version": 7, "content": rules, "name": "default"}))
+        .send()
+        .await
+        .expect("stage");
+    assert!(stage.status().is_success());
+    let commit = http
+        .post(format!("{base}/policies/commit"))
+        .json(&serde_json::json!({"version": 7}))
+        .send()
+        .await
+        .expect("commit");
+    let commit_status = commit.status();
+    let commit_body = commit.text().await.unwrap_or_default();
+    assert!(commit_status.is_success(), "commit failed: {commit_body}");
+
+    let mut applied = false;
+    for _ in 0..20 {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        if let Ok(Some((version, _, _))) = storage.get_policy() {
+            if version == "7" {
+                applied = true;
+                break;
+            }
+        }
+    }
+
     handle.abort();
     server.abort();
     assert!(drained, "outbox did not drain");
+    assert!(applied, "policy was not applied by the agent");
     let _ = url;
 }

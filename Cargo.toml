@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "crates/agent",
+    "crates/auth",
+    "crates/cli",
     "crates/control-db",
     "crates/control-plane",
     "crates/bpf-build",
