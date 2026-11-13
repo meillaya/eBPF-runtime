@@ -1,18 +1,17 @@
 # eBPF fleet
 
-Trace process and file activity on Linux nodes and carry the events to a
-control plane. A node agent loads two eBPF sensors, decodes their ring
-buffers, stores events in an encrypted local database, and sends batches to
-a control plane over gRPC. The control plane commits each batch to
-PostgreSQL before it acknowledges it. A dashboard reads the recent data,
-and a relay projects committed batches to Kafka and ClickHouse.
+> eBPF fleet: record Linux kernel activity once, query it locally, replay it anywhere, and roll policy across the fleet.
 
-The sensors are read-only. Rules raise alerts, and the project does not
-block syscalls.
+`ebpf-fleet` records process and file activity into a self-contained
+incident bundle. Query the bundle with SQL, replay it anywhere, and use the
+optional fleet control plane when you need central history, policy
+rollouts, identity, and a dashboard. The sensors are read-only. Rules raise
+alerts, and the project does not block syscalls.
 
-![Fleet path: hooks to analytics](docs/figures/fleet-architecture.png)
+The local recorder is the front door. It does not need PostgreSQL, Kafka,
+ClickHouse, OIDC, Kubernetes, or the dashboard.
 
-## Quick start
+## Local-first quick start
 
 The build needs Linux 5.15 or newer with BTF at `/sys/kernel/btf/vmlinux`,
 Rust 1.95, clang 19, bpftool, and permission to load BPF programs.
@@ -21,18 +20,35 @@ Rust 1.95, clang 19, bpftool, and permission to load BPF programs.
 git clone https://github.com/meillaya/eBPF-runtime
 cd eBPF-runtime
 nix develop
-cargo build --release
+cargo build --release -p fleet
+sudo ./target/release/ebpf-fleet doctor
+sudo ./target/release/ebpf-fleet record --for 30s --out /tmp/incident.fleet
+./target/release/ebpf-fleet query /tmp/incident.fleet
+./target/release/ebpf-fleet replay /tmp/incident.fleet
 ```
 
-Run the original single-node tracer first:
+`record` writes a directory bundle with a manifest and Parquet event parts.
+A crash or SIGKILL leaves an incomplete bundle; `query` refuses it instead
+of silently returning partial data. SQL runs over the local `events` table:
 
 ```bash
-sudo ./target/release/ebpf-runtime check
-sudo ./target/release/ebpf-runtime run --pretty
+./target/release/ebpf-fleet query /tmp/incident.fleet \
+  "select path, count(*) as n from events where kind = 'FileOpen' group by path order by n desc limit 10"
 ```
 
-`check` loads the sensors and prints what attached. `run` streams process
-exec, file open, and rule alerts as JSON lines. Alerts go to stderr.
+The local path is intentionally separate from fleet mode. Use the
+[local KVM VM lab](docs/runbooks/vm-lab.md) for privileged tests without
+giving the host root, and the [rootful compose runbook](docs/runbooks/rootful-compose.md)
+for the full data path. Rootless Podman is scoped to the repository with
+[`scripts/podman-scoped.sh`](scripts/podman-scoped.sh).
+
+![Fleet mode: hooks to analytics](docs/figures/fleet-architecture.png)
+
+## Fleet mode quick start
+
+Fleet mode adds a node agent, PostgreSQL truth, a dashboard, Kafka and
+ClickHouse projections, OIDC, and thresholded policy rollouts. It is the
+scale-out path, not a prerequisite for local recording.
 
 For the fleet stack, start PostgreSQL, Kafka, ClickHouse, the control
 plane, and the relay with the development compose file, then open
@@ -187,6 +203,10 @@ Set `agent.transport.enabled=false` only for a local-only rollout.
 
 | Command | Purpose |
 |---|---|
+| `ebpf-fleet record` | Record process/file events into a self-contained `.fleet` bundle. |
+| `ebpf-fleet query` | Run SQL over a bundle's Parquet `events` table. |
+| `ebpf-fleet replay` | Emit the recorded event JSON stream. |
+| `ebpf-fleet doctor` | Explain BTF, debugfs, bpffs, lockdown, LSM, and capability prerequisites. |
 | `ebpf-runtime check` | Load sensors and print the attach matrix. |
 | `ebpf-runtime run` | Stream single-node events and alerts. |
 | `ebpf-runtime rules check DIR` | Parse a rule directory. |
@@ -224,6 +244,11 @@ authenticated `/api/v1` routes. Its HTTP port also serves the dashboard.
 - The sensors do not enforce policy. A deny rule is rejected at load time.
 - Only the process and file sensors are produced. The ABI defines network,
   DNS, syscall, identity, and LSM records, but no BPF program emits them.
+- Local `record` currently writes events only. Alert rows, stack capture,
+  kernel-symbolized stacks, and `pack`/`unpack` are staged behind later 0.2
+  milestones; do not present them as available yet.
+- Query is local and read-only. It does not load BPF programs or enforce
+  policy.
 - One control plane serves one cluster in this version.
 - Prometheus is always available. OTLP/HTTP metrics export is optional and
   off by default; it posts the same numeric samples as the local scrape
@@ -317,3 +342,19 @@ The build compiles the C sensors with clang 19 and embeds the CO-RE objects
 in the binary. The runtime relocates them against the running kernel with
 libbpf. clang 20 and newer produce a `memcpy` extern that libbpf cannot
 resolve on the kernels tested here, so the build rejects them.
+
+
+## License, contributing, and security
+
+The project is dual-licensed under Apache-2.0 OR MIT. See
+[LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT).
+
+Contributions use the Developer Certificate of Origin; sign every commit
+with `git commit -s`. See [CONTRIBUTING.md](CONTRIBUTING.md) and
+[DCO](DCO). Report vulnerabilities privately through
+[SECURITY.md](SECURITY.md), never in a public issue.
+
+The approved public positioning and claim rules live in
+[docs/positioning.md](docs/positioning.md). The project is recording and
+replay software, not an enforcement engine; do not claim blocking or
+security enforcement until the limits above change.

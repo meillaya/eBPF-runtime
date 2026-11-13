@@ -1,0 +1,11 @@
+# cloud-init NoCloud meta-data template for the local KVM VM lab.
+#
+# scripts/vm/lab.sh renders this template into
+#   target/vm/instances/<name>/seed/meta-data
+# The instance-id is what cloud-init uses to decide whether this is a
+# fresh instance. It must change whenever the seed changes; the lab uses
+# the instance name plus the overlay creation date so a recreated instance
+# re-runs cloud-init instead of believing it already ran.
+
+instance-id: __INSTANCE_ID__
+local-hostname: __VM_NAME__

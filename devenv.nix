@@ -26,6 +26,13 @@
     llvmPackages_19.clang-unwrapped
     llvmPackages_19.llvm
     pkg-config
+    # Local KVM VM lab (scripts/vm/lab.sh). qemu-system-x86_64 needs
+    # /dev/kvm on the host; cloud-utils provides cloud-localds for the
+    # cloud-init NoCloud seed, and xorriso is the fallback ISO writer.
+    cloud-utils
+    openssh
+    qemu
+    xorriso
   ];
 
   env = {

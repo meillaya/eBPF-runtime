@@ -381,36 +381,68 @@ int BPF_PROG(lsm_file_open, struct file *file, int ret)
 }
 
 /* ------------------------------------------------------------------------- *
- *  FILE_OPEN handler: syscall-result kprobe fallback.
+ *  FILE_OPEN handler: syscall-entry kprobe fallback.
  *
  *  On a CONFIG_BPF_LSM=n host (or a BPF-LSM-enabled host without
- *  the file_open hook installed), this kprobe carries the recorded
+ *  the file_open hook installed), these kprobes carry the recorded
  *  observation with `deny_source = KERNEL_V1_FILE_DENY_SYSCALL`.
+ *  Both `openat` and `openat2` are covered; glibc and coreutils use
+ *  `openat`, while newer runtimes use `openat2`.
  *
  *  We do NOT take argv / open_how from the syscall arguments on
- *  every kernel. The open_how pointer shape has changed across
- *  kernel revisions (the CO-RE `bpf_core_field_exists` gate is
- *  omitted here because the value at the time of the syscall
- *  return path is what consumers actually want, not the cached
- *  pre-call image). We therefore record only the path and the
- *  deny_source at the kprobe. The decoder stitches the path with
- *  the prior ATTEMPT (file create + open)
- *  to derive the final flags + mode from the create event.
+ *  every kernel. We record the path and deny_source only. The
+ *  decoder stitches the path with the prior ATTEMPT (file create +
+ *  open) to derive final flags + mode where available.
  * ------------------------------------------------------------------------- */
-SEC("kprobe/__x64_sys_openat2")
-int kp_x64_sys_openat2(struct pt_regs *ctx)
+#if defined(__TARGET_ARCH_x86)
+#define FLEET_SYSCALL_ARG_1_OFF (__builtin_offsetof(struct pt_regs, di))
+#define FLEET_SYSCALL_ARG_2_OFF (__builtin_offsetof(struct pt_regs, si))
+#define FLEET_SYSCALL_ARG_3_OFF (__builtin_offsetof(struct pt_regs, dx))
+#define FLEET_SYSCALL_ARG_4_OFF (__builtin_offsetof(struct pt_regs, r10))
+#define FLEET_SYSCALL_ARG_5_OFF (__builtin_offsetof(struct pt_regs, r8))
+#define FLEET_SYSCALL_ARG_6_OFF (__builtin_offsetof(struct pt_regs, r9))
+#elif defined(__TARGET_ARCH_arm64)
+#define FLEET_SYSCALL_ARG_1_OFF (__builtin_offsetof(struct pt_regs, regs) + 0 * sizeof(unsigned long))
+#define FLEET_SYSCALL_ARG_2_OFF (__builtin_offsetof(struct pt_regs, regs) + 1 * sizeof(unsigned long))
+#define FLEET_SYSCALL_ARG_3_OFF (__builtin_offsetof(struct pt_regs, regs) + 2 * sizeof(unsigned long))
+#define FLEET_SYSCALL_ARG_4_OFF (__builtin_offsetof(struct pt_regs, regs) + 3 * sizeof(unsigned long))
+#define FLEET_SYSCALL_ARG_5_OFF (__builtin_offsetof(struct pt_regs, regs) + 4 * sizeof(unsigned long))
+#define FLEET_SYSCALL_ARG_6_OFF (__builtin_offsetof(struct pt_regs, regs) + 5 * sizeof(unsigned long))
+#else
+#error "unsupported architecture for syscall argument decoding"
+#endif
+
+/* A kprobe on an x86 `__x64_sys_*` or arm64 `__arm64_sys_*` wrapper
+ * receives the kernel's pt_regs pointer in the first machine argument.
+ * The original syscall arguments live inside that structure, not in the
+ * probe's machine registers. Read the requested argument through
+ * bpf_probe_read_kernel so the verifier sees a bounds-checked load. */
+static __always_inline unsigned long
+syscall_arg(struct pt_regs *ctx, int index)
+{
+    unsigned long regs = (unsigned long)PT_REGS_PARM1(ctx);
+    unsigned long offset = 0;
+    switch (index) {
+    case 1: offset = FLEET_SYSCALL_ARG_1_OFF; break;
+    case 2: offset = FLEET_SYSCALL_ARG_2_OFF; break;
+    case 3: offset = FLEET_SYSCALL_ARG_3_OFF; break;
+    case 4: offset = FLEET_SYSCALL_ARG_4_OFF; break;
+    case 5: offset = FLEET_SYSCALL_ARG_5_OFF; break;
+    case 6: offset = FLEET_SYSCALL_ARG_6_OFF; break;
+    default: return 0;
+    }
+    unsigned long value = 0;
+    bpf_probe_read_kernel(&value, sizeof(value), (const void *)(regs + offset));
+    return value;
+}
+
+static __always_inline int
+emit_file_open_syscall(struct pt_regs *ctx, unsigned long arg_path)
 {
     char path_buf[KERNEL_V1_FILE_PATH_MAX] = {0};
-
-    /* Portable arch-specific syscall-arg extraction via
-     * libbpf's PT_REGS_PARM*_SYSCALL macros. On x86_64 arg1 is
-     * `di`; on arm64 it's `orig_x0`. The PT_REGS_PARM1_SYSCALL
-     * macro is portable to both. See bpf/sensors/file.bpf.c
-     * arch portability comment. */
-    long path_len = bpf_probe_read_user_str(
-        path_buf,
-        sizeof(path_buf),
-        (const char *)PT_REGS_PARM1_SYSCALL(ctx));
+    long path_len = bpf_probe_read_user_str(path_buf,
+                                            sizeof(path_buf),
+                                            (const char *)arg_path);
     bool path_truncated = (path_len < 0);
     bool path_valid = !path_truncated;
 
@@ -457,62 +489,31 @@ int kp_x64_sys_openat2(struct pt_regs *ctx)
     return 0;
 }
 
+/* openat(dirfd, pathname, flags, mode): pathname is argument 2. */
+SEC("kprobe/__x64_sys_openat")
+int kp_x64_sys_openat(struct pt_regs *ctx)
+{
+    return emit_file_open_syscall(ctx, syscall_arg(ctx, 2));
+}
+
+/* openat2(dirfd, pathname, how, size): pathname is argument 2. */
+SEC("kprobe/__x64_sys_openat2")
+int kp_x64_sys_openat2(struct pt_regs *ctx)
+{
+    return emit_file_open_syscall(ctx, syscall_arg(ctx, 2));
+}
+
 #if defined(__TARGET_ARCH_arm64)
+SEC("kprobe/__arm64_sys_openat")
+int kp_arm64_sys_openat(struct pt_regs *ctx)
+{
+    return emit_file_open_syscall(ctx, syscall_arg(ctx, 2));
+}
+
 SEC("kprobe/__arm64_sys_openat2")
 int kp_arm64_sys_openat2(struct pt_regs *ctx)
 {
-    /* arm64 uses the BPF-side `pt_regs___arm64` layout where the
-     * syscall arg1 is `orig_x0` and the saved argument registers
-     * are `regs[0..N]`. The portable `PT_REGS_PARM*_SYSCALL`
-     * macro from libbpf encodes this for both arches so the
-     * rest of the code can be written once. */
-    char path_buf[KERNEL_V1_FILE_PATH_MAX] = {0};
-    long path_len = bpf_probe_read_user_str(
-        path_buf,
-        sizeof(path_buf),
-        (const char *)PT_REGS_PARM1_SYSCALL(ctx));
-    bool path_truncated = (path_len < 0);
-    bool path_valid = !path_truncated;
-
-    __u32 record_len = (__u32)(KERNEL_V1_ABI_HEADER_LEN +
-                               KERNEL_V1_FILE_PAYLOAD_LEN);
-    struct kernel_v1_event *ev =
-        (struct kernel_v1_event *)bpf_ringbuf_reserve(&file_events,
-                                                       record_len,
-                                                       0);
-    if (!ev) {
-        return 0;
-    }
-
-    __u32 valids_base = (__u32)(KERNEL_V1_VALID_FILE_FLAGS
-                                | KERNEL_V1_VALID_FILE_MODE
-                                | KERNEL_V1_VALID_FILE_DENY_SOURCE);
-    if (path_valid) {
-        valids_base |= (__u32)KERNEL_V1_VALID_FILE_PATH;
-    }
-
-    __u8 header_flags = (__u8)0;
-    if (path_truncated) {
-        header_flags |= (__u8)KERNEL_V1_EVENT_FLAG_TRUNC;
-    }
-
-    fill_file_header(&ev->header,
-                     (__u8)KERNEL_V1_EVENT_FILE_OPEN,
-                     header_flags,
-                     record_len,
-                     valids_base);
-    stamp_kfuncs(&ev->payload);
-    __builtin_memcpy(ev->payload.file_open.path,
-                     path_buf,
-                     sizeof(path_buf));
-    ev->payload.file_open.flags = 0;
-    ev->payload.file_open.mode = 0;
-    ev->payload.file_open.deny_source =
-        (__u8)KERNEL_V1_FILE_DENY_SYSCALL;
-    ev->payload.file_open.result_flags = 0;
-    ev->payload.file_open._pad0 = 0;
-    bpf_ringbuf_submit(ev, 0);
-    return 0;
+    return emit_file_open_syscall(ctx, syscall_arg(ctx, 2));
 }
 #endif
 
@@ -583,18 +584,14 @@ emit_file_create(struct pt_regs *ctx, unsigned long arg_path,
 SEC("kprobe/__x64_sys_creat")
 int kp_x64_sys_creat(struct pt_regs *ctx)
 {
-    return emit_file_create(ctx,
-                            PT_REGS_PARM1_SYSCALL(ctx),
-                            PT_REGS_PARM2_SYSCALL(ctx));
+    return emit_file_create(ctx, syscall_arg(ctx, 1), syscall_arg(ctx, 2));
 }
 
 #if defined(__TARGET_ARCH_arm64)
 SEC("kprobe/__arm64_sys_creat")
 int kp_arm64_sys_creat(struct pt_regs *ctx)
 {
-    return emit_file_create(ctx,
-                            PT_REGS_PARM1_SYSCALL(ctx),
-                            PT_REGS_PARM2_SYSCALL(ctx));
+    return emit_file_create(ctx, syscall_arg(ctx, 1), syscall_arg(ctx, 2));
 }
 #endif
 
@@ -661,18 +658,14 @@ SEC("kprobe/__x64_sys_unlinkat")
 int kp_x64_sys_unlinkat(struct pt_regs *ctx)
 {
     /* unlinkat(dirfd=p1, pathname=p2, flags=p3) */
-    return emit_file_unlink(ctx,
-                            PT_REGS_PARM2_SYSCALL(ctx),
-                            PT_REGS_PARM3_SYSCALL(ctx));
+    return emit_file_unlink(ctx, syscall_arg(ctx, 2), syscall_arg(ctx, 3));
 }
 
 #if defined(__TARGET_ARCH_arm64)
 SEC("kprobe/__arm64_sys_unlinkat")
 int kp_arm64_sys_unlinkat(struct pt_regs *ctx)
 {
-    return emit_file_unlink(ctx,
-                            PT_REGS_PARM2_SYSCALL(ctx),
-                            PT_REGS_PARM3_SYSCALL(ctx));
+    return emit_file_unlink(ctx, syscall_arg(ctx, 2), syscall_arg(ctx, 3));
 }
 #endif
 
@@ -775,9 +768,9 @@ int kp_x64_sys_renameat2(struct pt_regs *ctx)
 {
     /* renameat2(olddirfd, oldpath, newdirfd, newpath, flags) */
     return emit_file_rename(ctx,
-                            PT_REGS_PARM2_SYSCALL(ctx),
-                            PT_REGS_PARM4_SYSCALL(ctx),
-                            PT_REGS_PARM5_SYSCALL(ctx));
+                            syscall_arg(ctx, 2),
+                            syscall_arg(ctx, 4),
+                            syscall_arg(ctx, 5));
 }
 
 #if defined(__TARGET_ARCH_arm64)
@@ -785,9 +778,9 @@ SEC("kprobe/__arm64_sys_renameat2")
 int kp_arm64_sys_renameat2(struct pt_regs *ctx)
 {
     return emit_file_rename(ctx,
-                            PT_REGS_PARM2_SYSCALL(ctx),
-                            PT_REGS_PARM4_SYSCALL(ctx),
-                            PT_REGS_PARM5_SYSCALL(ctx));
+                            syscall_arg(ctx, 2),
+                            syscall_arg(ctx, 4),
+                            syscall_arg(ctx, 5));
 }
 #endif
 
@@ -855,17 +848,13 @@ SEC("kprobe/__x64_sys_truncate")
 int kp_x64_sys_truncate(struct pt_regs *ctx)
 {
     /* truncate(path, length) */
-    return emit_file_truncate(ctx,
-                              PT_REGS_PARM1_SYSCALL(ctx),
-                              PT_REGS_PARM2_SYSCALL(ctx));
+    return emit_file_truncate(ctx, syscall_arg(ctx, 1), syscall_arg(ctx, 2));
 }
 
 #if defined(__TARGET_ARCH_arm64)
 SEC("kprobe/__arm64_sys_truncate")
 int kp_arm64_sys_truncate(struct pt_regs *ctx)
 {
-    return emit_file_truncate(ctx,
-                              PT_REGS_PARM1_SYSCALL(ctx),
-                              PT_REGS_PARM2_SYSCALL(ctx));
+    return emit_file_truncate(ctx, syscall_arg(ctx, 1), syscall_arg(ctx, 2));
 }
 #endif

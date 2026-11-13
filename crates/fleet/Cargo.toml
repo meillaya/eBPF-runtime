@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "fleet"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "ebpf-fleet: local-first kernel recording, query, and replay."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[[bin]]
+name = "ebpf-fleet"
+path = "src/main.rs"
+
+[dependencies]
+arrow = { version = "59.2.0", features = ["prettyprint"] }
+bpf-loader = { path = "../bpf-loader" }
+bundle = { path = "../bundle" }
+clap = { version = "4", features = ["derive"] }
+event-model = { path = "../event-model" }
+runtime = { path = "../runtime" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+signal-hook = "0.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[dev-dependencies]
+tempfile = "3"

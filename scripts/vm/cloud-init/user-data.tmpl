@@ -1,0 +1,56 @@
+#cloud-config
+# cloud-init NoCloud user-data template for the local KVM VM lab.
+#
+# scripts/vm/lab.sh renders this template into
+#   target/vm/instances/<name>/seed/user-data
+# and hands that directory to cloud-localds (or the xorriso/genisoimage
+# fallback) to build the NoCloud seed ISO. The tokens below are replaced
+# with sed(1); keep them unique and on their own lines where possible.
+#
+#   __VM_NAME__    instance name (same as meta-data local-hostname)
+#   __IMAGE_KEY__  image matrix key from scripts/vm/images.json
+#   __SSH_PUBKEY__ ephemeral public key under target/vm/keys
+#
+# Everything this template configures is inside the throwaway guest. The
+# lab key is generated per workspace and is not a host credential.
+
+hostname: __VM_NAME__
+prefer_fqdn_over_hostname: false
+manage_etc_hosts: true
+ssh_pwauth: false
+disable_root: true
+
+users:
+  - name: fleet
+    gecos: eBPF fleet VM lab user
+    groups:
+      - adm
+      - sudo
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - __SSH_PUBKEY__
+
+# The rootfs is disposable, so keep package work minimal but useful for
+# smoke checks and for fetching lab artifacts inside the guest.
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - jq
+
+runcmd:
+  - |
+    {
+      echo "eBPF fleet VM lab"
+      echo "image: __IMAGE_KEY__"
+      echo "kernel: $(uname -r)"
+      if [ -r /sys/kernel/btf/vmlinux ]; then
+        echo "BTF: /sys/kernel/btf/vmlinux present"
+      else
+        echo "BTF: /sys/kernel/btf/vmlinux MISSING"
+      fi
+    } > /etc/motd
+
+final_message: "fleet VM lab cloud-init complete"

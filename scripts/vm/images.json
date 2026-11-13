@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "updated": "2026-11-13",
+  "default_image": "ubuntu-24.04",
+  "description": "Base cloud images for the local KVM VM lab (scripts/vm/lab.sh). One pinned Ubuntu 24.04 x86_64 image is the supported default; the kernel-matrix entries are placeholders until their sha256 values are pinned and boot-validated.",
+  "verification": {
+    "algorithm": "sha256",
+    "policy": "fail-closed",
+    "description": "scripts/vm/lab.sh bootstrap refuses to download an image whose sha256 is null or does not match the recorded value. Every up/run boot re-hashes the cached base image before creating an overlay.",
+    "verify_command": "printf '%s  %s\\n' \"$sha256\" \"$file\" | sha256sum -c -",
+    "pin_steps": [
+      "Pick an immutable vendor build directory. Ubuntu cloud images are published once per build under https://cloud-images.ubuntu.com/releases/<release>/release-<YYYYMMDD>/ and never rewritten; do not pin the moving release/ or current/ paths.",
+      "Read the vendor checksum manifest next to the image (listed per entry as checksum_manifest) and copy the expected hash for the exact file name.",
+      "Download the image over HTTPS, verify it against the manifest (sha256sum -c for Ubuntu and Fedora, sha512sum -c for Debian) and, for Debian/Fedora, record sha256 of the verified file in this file.",
+      "Set status to pinned and run scripts/vm/lab.sh bootstrap --image <name>; the script re-downloads nothing and re-verifies the hash.",
+      "Boot it with scripts/vm/lab.sh up --image <name> and set boot_validated to true only after a successful SSH smoke run."
+    ],
+    "notes": [
+      "Ubuntu hashes were cross-checked against the SHA256SUMS manifest of the same dated build on 2026-11-13.",
+      "Debian publishes SHA-512 manifests (SHA512SUMS), Fedora publishes a PGP-signed CHECKSUM file; both are authoritative but need one translation step to the sha256 field used here.",
+      "The URLs below are the ones the lab will fetch; a mirror may be substituted by editing url and re-pinning the hash."
+    ]
+  },
+  "images": {
+    "ubuntu-24.04": {
+      "distro": "ubuntu",
+      "release": "24.04",
+      "codename": "noble",
+      "arch": "x86_64",
+      "kernel_series": "6.8",
+      "url": "https://cloud-images.ubuntu.com/releases/24.04/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img",
+      "sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+      "size_bytes": 621284352,
+      "checksum_manifest": "https://cloud-images.ubuntu.com/releases/24.04/release-20261017/SHA256SUMS",
+      "checksum_manifest_format": "sha256sum -c compatible",
+      "status": "pinned",
+      "boot_validated": true,
+      "notes": "Default lab image and the only boot-validated entry. Booted on host massive 2026-11-13 via scripts/vm/run-smoke.sh: Ubuntu 24.04.5 LTS cloud image, kernel 6.8.0-147-generic, /sys/kernel/btf/vmlinux 6103569 bytes, cloud-init DataSourceNoCloud, smoke 4/4 PASS. Build: 20261017 (release.20260926.20261017)."
+    },
+    "ubuntu-22.04": {
+      "distro": "ubuntu",
+      "release": "22.04",
+      "codename": "jammy",
+      "arch": "x86_64",
+      "kernel_series": "5.15",
+      "url": "https://cloud-images.ubuntu.com/releases/22.04/release-20261106/ubuntu-22.04-server-cloudimg-amd64.img",
+      "sha256": "f77bc6d59cb8deaa9657095736b5f5003f7705b47055f01823459715c967de6a",
+      "size_bytes": 730617344,
+      "checksum_manifest": "https://cloud-images.ubuntu.com/releases/22.04/release-20261106/SHA256SUMS",
+      "checksum_manifest_format": "sha256sum -c compatible",
+      "status": "pinned",
+      "boot_validated": false,
+      "notes": "Kernel matrix entry: 5.15 GA kernel. Hash pinned but not yet booted by the lab; enable in the matrix batch after validating ubuntu-24.04."
+    },
+    "debian-12": {
+      "distro": "debian",
+      "release": "12",
+      "codename": "bookworm",
+      "arch": "x86_64",
+      "kernel_series": "6.1",
+      "url": "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2",
+      "sha256": null,
+      "size_bytes": null,
+      "checksum_manifest": "https://cloud.debian.org/images/cloud/bookworm/latest/SHA512SUMS",
+      "checksum_manifest_format": "sha512sum -c compatible (SHA-512, not SHA-256)",
+      "status": "placeholder",
+      "boot_validated": false,
+      "pin_hint": "Debian only publishes SHA-512 manifests. Download the image, run sha512sum -c with the manifest, then set sha256 to sha256sum of the verified file. The latest/ URL moves; pin a dated build from https://cloud.debian.org/images/cloud/ if the hash changes.",
+      "notes": "Kernel matrix entry: 6.1 kernel. cloud-init NoCloud is supported by Debian generic cloud images; the default user is debian but the lab seed creates fleet with the ephemeral key."
+    },
+    "debian-13": {
+      "distro": "debian",
+      "release": "13",
+      "codename": "trixie",
+      "arch": "x86_64",
+      "kernel_series": "6.12",
+      "url": "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2",
+      "sha256": null,
+      "size_bytes": null,
+      "checksum_manifest": "https://cloud.debian.org/images/cloud/trixie/latest/SHA512SUMS",
+      "checksum_manifest_format": "sha512sum -c compatible (SHA-512, not SHA-256)",
+      "status": "placeholder",
+      "boot_validated": false,
+      "pin_hint": "Same pinning procedure as debian-12: verify SHA512SUMS, then record the sha256 of the verified qcow2 here.",
+      "notes": "Kernel matrix entry: 6.12 kernel."
+    },
+    "fedora-42": {
+      "distro": "fedora",
+      "release": "42",
+      "codename": null,
+      "arch": "x86_64",
+      "kernel_series": "6.14",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2",
+      "sha256": null,
+      "size_bytes": null,
+      "checksum_manifest": "https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-42-1.1-x86_64-CHECKSUM",
+      "checksum_manifest_format": "PGP-signed SHA256 CHECKSUM file (import the Fedora release key to verify the signature, or trust the HTTPS mirror)",
+      "status": "placeholder",
+      "boot_validated": false,
+      "archive_url": "https://archive.fedoraproject.org/pub/archive/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2",
+      "pin_hint": "Record the sha256 from the CHECKSUM file after verifying the download; if download.fedoraproject.org redirects to the archive, use archive_url and re-pin.",
+      "notes": "Kernel matrix entry: 6.14 kernel. Fedora 42 is past its upstream support window as of 2026-11, so the release tree may move to archive.fedoraproject.org and mirror availability can change; for new work prefer the current Fedora release and add it as a new entry."
+    },
+    "ubuntu-24.04-arm64": {
+      "distro": "ubuntu",
+      "release": "24.04",
+      "codename": "noble",
+      "arch": "aarch64",
+      "host_arch": "aarch64",
+      "kernel_series": "6.8",
+      "url": "https://cloud-images.ubuntu.com/releases/24.04/release-20261017/ubuntu-24.04-server-cloudimg-arm64.img",
+      "sha256": "50e24e1fb79e89116e939d90aa7738f7af48c442fa1bc2510131e0b39c50348e",
+      "size_bytes": 616522752,
+      "checksum_manifest": "https://cloud-images.ubuntu.com/releases/24.04/release-20261017/SHA256SUMS",
+      "checksum_manifest_format": "sha256sum -c compatible",
+      "status": "pinned",
+      "boot_validated": false,
+      "notes": "Kernel matrix entry for arm64: same 24.04 build as the x86_64 default. Requires an aarch64 host with KVM; the x86_64 lab host downloads only images whose arch matches, so this entry is inert here."
+    }
+  }
+}

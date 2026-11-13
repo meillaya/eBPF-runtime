@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "bundle"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Self-contained eBPF fleet incident bundles and local SQL queries."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "bundle"
+path = "src/lib.rs"
+
+[dependencies]
+arrow-array = "59.2.0"
+arrow-schema = "59.2.0"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+datafusion = "55.2.0"
+event-model = { path = "../event-model" }
+parquet = "59.2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
