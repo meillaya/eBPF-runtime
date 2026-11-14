@@ -74,7 +74,30 @@ ebpf-fleet query /tmp/incident.fleet \
   "select kind, count(*) as n from events group by kind order by n desc"
 ```
 
-## 9. Fast top view
+## 9. Which code path opened this file?
+
+0.3 records stacks by default for file opens. Join the events to the
+symbolized stack table:
+
+```bash
+ebpf-fleet query /tmp/incident.fleet "
+  select e.time, e.process_exec, e.path, s.frames
+  from events e
+  join stacks s on e.sensor = s.sensor and e.stack_id = s.stack_id
+  where e.kind = 'FileOpen' and e.path like '/etc/%'
+  order by e.time limit 10"
+```
+
+Inspect only the stack table:
+
+```bash
+ebpf-fleet query /tmp/incident.fleet --table stacks
+```
+
+Use `--stacks off` for the 0.2 minimum-overhead path, or `--stacks all` to
+add fork/exit/unlink/rename stacks.
+
+## 10. Fast top view
 
 ```bash
 ebpf-fleet top /tmp/incident.fleet
@@ -82,7 +105,7 @@ ebpf-fleet top /tmp/incident.fleet
 
 For a live view, omit the bundle. `q` quits.
 
-## 10. Compare before and after
+## 11. Compare before and after
 
 ```bash
 ebpf-fleet diff /tmp/before.fleet /tmp/after.fleet
@@ -91,7 +114,7 @@ ebpf-fleet diff /tmp/before.fleet /tmp/after.fleet
 `diff` currently compares event-kind counts. Per-process and per-path deltas
 are planned for 0.3.
 
-## 11. Share the evidence
+## 12. Share the evidence
 
 ```bash
 ebpf-fleet pack /tmp/incident.fleet /tmp/incident.tar.zst
@@ -107,5 +130,8 @@ bundle and `query` rejects it rather than returning partial data.
 - `argv` is a list column; it is available in `raw_json` and in the decoded
   event JSON. Use `select argv` to inspect it directly.
 - `time` is RFC 3339 in UTC; `time_unix_ns` is available for arithmetic.
-- Stack columns and per-process diff output arrive in 0.3; this page will be
-  updated with those queries rather than documenting them prematurely.
+- User frames from short-lived processes can remain raw addresses; kernel
+  frames and long-lived process frames usually symbolize. See
+  [verification/stacks.md](verification/stacks.md).
+- Per-process and per-path diff output, and query JSON/CSV export, are
+  follow-ups; the current `diff` is event-kind counts.
