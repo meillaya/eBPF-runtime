@@ -2,7 +2,7 @@
   "schema_version": 1,
   "updated": "2026-11-14",
   "default_image": "ubuntu-24.04",
-  "description": "Base cloud images for the local KVM VM lab (scripts/vm/lab.sh). Five x86_64 images are pinned and boot-validated: Ubuntu 24.04 (6.8), Ubuntu 22.04 (5.15), Debian 12 (6.1), Debian 13 (6.12), and Fedora 42 (6.14). The arm64 image is pinned but needs an aarch64 KVM host.",
+  "description": "Base cloud images for the local VM lab (scripts/vm/lab.sh). Five x86_64 images are pinned and boot-validated under KVM: Ubuntu 24.04 (6.8), Ubuntu 22.04 (5.15), Debian 12 (6.1), Debian 13 (6.12), and Fedora 42 (6.14). The arm64 Ubuntu 24.04 image is pinned and boot-validated for a functional smoke under QEMU TCG (this host has no native aarch64 KVM host); see docs/verification/arm64.md.",
   "verification": {
     "algorithm": "sha256",
     "policy": "fail-closed",
@@ -21,7 +21,8 @@
       "The URLs below are the ones the lab will fetch; a mirror may be substituted by editing url and re-pinning the hash.",
       "Debian 12 (6.1) and Debian 13 (6.12) were pinned on 2026-11-14 from immutable dated builds 20261112-2660 (bookworm) and 20261111-2659 (trixie): each qcow2 was downloaded over HTTPS, verified with sha512sum -c against the SHA512SUMS manifest of the same dated directory, and only then was its sha256 recorded here.",
       "Debian 12 and Debian 13 were boot-validated by the kernel matrix on 2026-11-14 (stamp 2026-11-14c): both rows PASS with FileOpen paths decoded and ProcessExit events present. Evidence: docs/verification/kernel-matrix/2026-11-14c/.",
-      "Fedora 42 was pinned on 2026-11-14 after its PGP-signed CHECKSUM file was verified with gpgv against the Fedora 42 primary key fingerprint B0F4950458F69E1150C6C5EDC8AC4916105EF944, which is listed as an obsolete OpenPGP certificate on https://fedoraproject.org/security (the live fedora.gpg bundle only carries the current Fedora 43-46 keys). The qcow2 was fetched from the immutable archive.fedoraproject.org URL and its sha256 matches the PGP-verified CHECKSUM."
+      "Fedora 42 was pinned on 2026-11-14 after its PGP-signed CHECKSUM file was verified with gpgv against the Fedora 42 primary key fingerprint B0F4950458F69E1150C6C5EDC8AC4916105EF944, which is listed as an obsolete OpenPGP certificate on https://fedoraproject.org/security (the live fedora.gpg bundle only carries the current Fedora 43-46 keys). The qcow2 was fetched from the immutable archive.fedoraproject.org URL and its sha256 matches the PGP-verified CHECKSUM.",
+      "ARM64: ubuntu-24.04-arm64 was booted on 2026-11-14 under QEMU TCG system emulation (no native aarch64 KVM host) and passed the arm64 functional row (--version, doctor --json, record 2726 events/0 decode errors, query, replay 2726 lines) on kernel 6.8.0-147-generic; guest BTF 6975252 bytes sha256 ff35ff5afb91.... TCG is functional smoke only and is never used as a performance or kernel-matrix row. Evidence: docs/verification/arm64.md and target/vm/arm64/20261114T063404Z/."
     ]
   },
   "images": {
@@ -119,8 +120,9 @@
       "checksum_manifest": "https://cloud-images.ubuntu.com/releases/24.04/release-20261017/SHA256SUMS",
       "checksum_manifest_format": "sha256sum -c compatible",
       "status": "pinned",
-      "boot_validated": false,
-      "notes": "Kernel matrix entry for arm64: same 24.04 build as the x86_64 default. Requires an aarch64 host with KVM; the x86_64 lab host downloads only images whose arch matches, so this entry is inert here."
+      "boot_validated": true,
+      "boot_accel": "tcg",
+      "notes": "Arm64 functional row image: same immutable 24.04 build as the x86_64 default. Boot-validated on 2026-11-14 under QEMU TCG system emulation on the x86_64 lab host (no native aarch64 KVM host available): boot to SSH 119s, --version, doctor --json exit 0, record 2726 events (751 distinct stacks) with 0 decode errors, query FileOpen=2191, replay 2726 lines, all 14 required checks passed. TCG is FUNCTIONAL SMOKE ONLY, not a performance row; on a native aarch64 KVM host use --accel auto or kvm. Evidence: docs/verification/arm64.md and target/vm/arm64/20261114T063404Z/."
     }
   }
 }

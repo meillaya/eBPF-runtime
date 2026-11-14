@@ -1,0 +1,47 @@
+#cloud-config
+# Lean cloud-init NoCloud user-data template for the local VM lab.
+#
+# scripts/vm/lab.sh renders this template with `--cloud-init lean` (the
+# arm64 TCG functional smoke uses it). It is identical to user-data.tmpl
+# except that it does not run apt: `package_update` and the guest package
+# list are dropped because an emulated apt run under TCG costs many
+# minutes without adding anything for a static binary.
+#
+# Tokens are replaced by sed(1):
+#
+#   __VM_NAME__    instance name (same as meta-data local-hostname)
+#   __IMAGE_KEY__  image matrix key from scripts/vm/images.json
+#   __SSH_PUBKEY__ ephemeral public key under target/vm/keys
+
+hostname: __VM_NAME__
+prefer_fqdn_over_hostname: false
+manage_etc_hosts: true
+ssh_pwauth: false
+disable_root: true
+
+users:
+  - name: fleet
+    gecos: eBPF fleet VM lab user
+    groups:
+      - adm
+      - sudo
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - __SSH_PUBKEY__
+
+runcmd:
+  - |
+    {
+      echo "eBPF fleet VM lab (lean seed; no apt packages installed)"
+      echo "image: __IMAGE_KEY__"
+      echo "kernel: $(uname -r)"
+      if [ -r /sys/kernel/btf/vmlinux ]; then
+        echo "BTF: /sys/kernel/btf/vmlinux present"
+      else
+        echo "BTF: /sys/kernel/btf/vmlinux MISSING"
+      fi
+    } > /etc/motd
+
+final_message: "fleet VM lab cloud-init complete"

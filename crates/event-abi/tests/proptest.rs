@@ -24,36 +24,47 @@
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use event_abi::{parse, Event, Header, HEADER_LEN, PAYLOAD_MAX, SCHEMA_MAJOR, SCHEMA_MINOR};
+use event_abi::{
+    parse, Event, Header, HEADER_LEN, HEADER_LEN_V1, PAYLOAD_MAX, SCHEMA_MAJOR, SCHEMA_MINOR,
+};
 use proptest::prelude::*;
 
 /// Every legal `event_kind` discriminant on the v1 wire (mirrors
 /// `EventKind::is_known`: 1..=12 | 15 | 25..=27).
 const KNOWN_KINDS: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 25, 26, 27];
 
-/// Serialize a `Header` into its 96-byte on-the-wire representation.
+/// Serialize a `Header` into the version-1 prefix of a v2 on-the-wire
+/// array (the last 8 bytes stay zero because the full header is a
+/// `HeaderV2`).
 ///
 /// SAFETY: `Header` is `#[repr(C)]` plain-old-data and the const_assert in
-/// `lib.rs` pins `size_of::<Header>() == 96 == HEADER_LEN`. Reading it as a
-/// `[u8; HEADER_LEN]` is a bitwise copy with no validity requirement. This is
-/// test-only; the cargo-fuzz targets never use unsafe.
+/// `lib.rs` pins `size_of::<Header>() == 96 == HEADER_LEN_V1`. Reading it as
+/// a `[u8; HEADER_LEN_V1]` is a bitwise copy with no validity requirement.
+/// This is test-only; the cargo-fuzz targets never use unsafe.
 fn header_to_bytes(h: &Header) -> [u8; HEADER_LEN] {
-    unsafe { core::ptr::read(core::ptr::addr_of!(*h) as *const [u8; HEADER_LEN]) }
+    let v1: [u8; HEADER_LEN_V1] =
+        unsafe { core::ptr::read(core::ptr::addr_of!(*h) as *const [u8; HEADER_LEN_V1]) };
+    let mut out = [0u8; HEADER_LEN];
+    out[..HEADER_LEN_V1].copy_from_slice(&v1);
+    out
 }
 
-/// Patch the four wire-constrained header fields of a raw 96-byte header so
-/// the record is well-formed for `parse`:
+/// Patch the wire-constrained header fields of a raw v2 header so the
+/// record is well-formed for `parse`:
 ///   - `schema_major` (offset 0, u32 LE) = SCHEMA_MAJOR
 ///   - `schema_minor` (offset 4, u32 LE) = SCHEMA_MINOR
 ///   - `header_len`   (offset 8, u32 LE) = HEADER_LEN
 ///   - `record_len`   (offset 12, u32 LE) = HEADER_LEN + payload_len
 ///   - `event_kind`   (offset 16, u8)     = `kind`
+///   - `stack_id`     (offset 96, i32 LE) = -1 (no stack)
 fn patch_header(header: &mut [u8], kind: u8, payload_len: usize) {
     header[0..4].copy_from_slice(&SCHEMA_MAJOR.to_le_bytes());
     header[4..8].copy_from_slice(&SCHEMA_MINOR.to_le_bytes());
     header[8..12].copy_from_slice(&(HEADER_LEN as u32).to_le_bytes());
     header[12..16].copy_from_slice(&((HEADER_LEN + payload_len) as u32).to_le_bytes());
     header[16] = kind;
+    header[96..100].copy_from_slice(&(-1i32).to_le_bytes());
+    header[100..104].copy_from_slice(&(-1i32).to_le_bytes());
 }
 
 /// Build a well-formed record buffer from arbitrary header bytes, an arbitrary
@@ -89,10 +100,12 @@ proptest! {
         // decode
         let ev: Event<'_> = parse(&buf).expect("well-formed record must parse");
 
-        // encode -> decode -> encode == same bytes (header roundtrip).
+        // encode -> decode -> encode == same bytes (v1 prefix roundtrip).
         let reserialized = header_to_bytes(&ev.header);
-        prop_assert_eq!(&reserialized[..], &buf[..HEADER_LEN],
-            "re-serialized header must equal the original 96 header bytes");
+        prop_assert_eq!(&reserialized[..HEADER_LEN_V1], &buf[..HEADER_LEN_V1],
+            "re-serialized header must equal the original v1 prefix bytes");
+        prop_assert!(ev.stack_id.is_none(), "patched stack_id must decode as none");
+        prop_assert!(ev.user_stack_id.is_none(), "patched user_stack_id must decode as none");
 
         // payload slice is exactly buf[HEADER_LEN..record_len].
         prop_assert_eq!(ev.payload, &buf[HEADER_LEN..],
@@ -124,8 +137,11 @@ proptest! {
         if let Ok(ev) = parse(&buf) {
             prop_assert!(ev.payload.len() <= buf.len(),
                 "payload must never exceed the input buffer");
-            prop_assert_eq!(ev.payload.len() + HEADER_LEN, ev.header.record_len as usize,
-                "payload_len must equal record_len - HEADER_LEN");
+            prop_assert_eq!(
+                ev.payload.len() + ev.header.header_len as usize,
+                ev.header.record_len as usize,
+                "payload_len must equal record_len - header_len"
+            );
             prop_assert!(ev.header.record_len as usize <= buf.len(),
                 "record_len must never exceed the buffer length");
             prop_assert!(event_abi::EventKind::is_known(ev.header.event_kind),

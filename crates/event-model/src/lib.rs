@@ -43,6 +43,17 @@ pub struct Event {
     pub tgid: u32,
     /// Cgroup v2 id.
     pub cgroup_id: u64,
+    /// Kernel stack-trace-map handle captured by the sensor at emit time,
+    /// when stack capture was enabled and the kernel returned one. The
+    /// recorder resolves it against the sensor's stack maps and stores the
+    /// symbolized frames in the bundle `stacks` table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stack_id: Option<i32>,
+    /// User stack-trace-map handle captured at emit time by sensors that
+    /// capture a user stack separately (file kprobes). `None` for kernel-
+    /// only stacks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_stack_id: Option<i32>,
     /// Monotonic timestamp in nanoseconds. Not serialized.
     #[serde(skip)]
     pub monotonic_ns: u64,
@@ -115,6 +126,57 @@ pub struct RedactionFlags {
     pub argv_redacted: bool,
     /// A free-form message was masked.
     pub message_redacted: bool,
+}
+
+/// One frame of a captured stack trace.
+///
+/// Raw addresses are always preserved: `addr` is the kernel or user
+/// virtual address exactly as read from the stack-trace map. When
+/// symbolization succeeds `symbol`, `file`, and `line` are filled in;
+/// when no symbol could be recovered they stay `None`, which is the
+/// bundle's "symbols unavailable" marker. `is_kernel` is decided by the
+/// address range at capture time, not by the symbolizer.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StackFrame {
+    /// Kernel or user virtual address, exactly as captured.
+    pub addr: u64,
+    /// Demangled or raw symbol name, when one was resolved.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
+    /// Source file, when DWARF/ELF debug info resolved it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// Source line, when DWARF/ELF debug info resolved it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    /// True for kernel frames, false for user frames.
+    pub is_kernel: bool,
+}
+
+/// One resolved stack trace: the kernel and/or user frames behind a
+/// sensor stack-map handle.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Stack {
+    /// The handle the event's `stack_id` column points at.
+    pub stack_id: i32,
+    /// Sensor that produced the stack (`process` or `file`).
+    pub sensor: String,
+    /// Frames ordered innermost-first: kernel frames, then user frames.
+    pub frames: Vec<StackFrame>,
+    /// True when the capture hit the 64-frame map depth or an unwind
+    /// source was truncated; the frame list is still usable.
+    pub truncated: bool,
+}
+
+impl Stack {
+    /// Number of frames whose raw address has no symbol (the
+    /// "symbols unavailable" count used by `record --stats`).
+    pub fn missing_symbols(&self) -> usize {
+        self.frames
+            .iter()
+            .filter(|frame| frame.symbol.is_none())
+            .count()
+    }
 }
 
 /// A rule match produced by the agent.
@@ -325,6 +387,8 @@ pub fn decode(sensor: &str, bytes: &[u8], clock: &Clock) -> Result<DecodedEvent,
         pid: (header.pid_tgid & 0xffff_ffff) as u32,
         tgid: (header.pid_tgid >> 32) as u32,
         cgroup_id: header.cgroup_id,
+        stack_id: event.stack_id,
+        user_stack_id: event.user_stack_id,
         monotonic_ns: header.ts_monotonic_ns,
         task_start_ns: None,
         path: None,
@@ -753,17 +817,39 @@ mod tests {
     use super::*;
 
     fn record(kind: u8, payload: &[u8]) -> Vec<u8> {
-        let mut bytes = vec![0u8; 96];
-        bytes[0..4].copy_from_slice(&1u32.to_le_bytes());
-        bytes[4..8].copy_from_slice(&1u32.to_le_bytes());
-        bytes[8..12].copy_from_slice(&96u32.to_le_bytes());
-        bytes[12..16].copy_from_slice(&((96 + payload.len()) as u32).to_le_bytes());
+        let mut bytes = vec![0u8; event_abi::HEADER_LEN_V1];
+        bytes[0..4].copy_from_slice(&event_abi::SCHEMA_V1_MAJOR.to_le_bytes());
+        bytes[4..8].copy_from_slice(&event_abi::SCHEMA_MINOR.to_le_bytes());
+        bytes[8..12].copy_from_slice(&(event_abi::HEADER_LEN_V1 as u32).to_le_bytes());
+        bytes[12..16]
+            .copy_from_slice(&((event_abi::HEADER_LEN_V1 + payload.len()) as u32).to_le_bytes());
         bytes[16] = kind;
         bytes[24..32].copy_from_slice(&7u64.to_le_bytes());
         bytes[32..40].copy_from_slice(&1_000_000u64.to_le_bytes());
         bytes[56..64].copy_from_slice(&((42u64 << 32) | 42).to_le_bytes());
         bytes[72..80].copy_from_slice(&99u64.to_le_bytes());
         bytes[84..88].copy_from_slice(&(event_abi::Valid::PidTgid as u32).to_le_bytes());
+        bytes.extend_from_slice(payload);
+        bytes
+    }
+
+    /// Build a version-2 record with a stack id so the decoder path for
+    /// stack-carrying events is exercised.
+    fn record_v2(kind: u8, payload: &[u8], stack_id: i32) -> Vec<u8> {
+        let mut bytes = vec![0u8; event_abi::HEADER_LEN];
+        bytes[0..4].copy_from_slice(&event_abi::SCHEMA_MAJOR.to_le_bytes());
+        bytes[4..8].copy_from_slice(&event_abi::SCHEMA_MINOR.to_le_bytes());
+        bytes[8..12].copy_from_slice(&(event_abi::HEADER_LEN as u32).to_le_bytes());
+        bytes[12..16]
+            .copy_from_slice(&((event_abi::HEADER_LEN + payload.len()) as u32).to_le_bytes());
+        bytes[16] = kind;
+        bytes[24..32].copy_from_slice(&8u64.to_le_bytes());
+        bytes[32..40].copy_from_slice(&2_000_000u64.to_le_bytes());
+        bytes[56..64].copy_from_slice(&((42u64 << 32) | 42).to_le_bytes());
+        bytes[72..80].copy_from_slice(&99u64.to_le_bytes());
+        bytes[84..88].copy_from_slice(&(event_abi::Valid::PidTgid as u32).to_le_bytes());
+        bytes[96..100].copy_from_slice(&stack_id.to_le_bytes());
+        bytes[100..104].copy_from_slice(&(-1i32).to_le_bytes());
         bytes.extend_from_slice(payload);
         bytes
     }
@@ -830,6 +916,65 @@ mod tests {
     #[test]
     fn rejects_short_record() {
         assert!(decode("process", &[0u8; 8], &Clock::new()).is_err());
+    }
+
+    #[test]
+    fn decodes_stack_id_from_v2_record() {
+        let mut payload = vec![0u8; 268];
+        payload[8..17].copy_from_slice(b"/bin/true");
+        let event = decode("process", &record_v2(2, &payload, 17), &Clock::new()).expect("decode");
+        assert_eq!(event.schema_major, 2);
+        assert_eq!(event.stack_id, Some(17));
+        assert_eq!(event.user_stack_id, None);
+        assert_eq!(event.path.as_deref(), Some("/bin/true"));
+    }
+
+    #[test]
+    fn v1_record_has_no_stack_id() {
+        let bytes = record(2, &[0u8; 8]);
+        let event = decode("process", &bytes, &Clock::new()).expect("decode");
+        assert_eq!(event.stack_id, None);
+        assert_eq!(event.schema_major, 1);
+    }
+
+    #[test]
+    fn event_json_round_trips_stack_id_and_old_json_without_it() {
+        let bytes = record_v2(2, &[0u8; 8], 3);
+        let event = decode("process", &bytes, &Clock::new()).expect("decode");
+        let json = serde_json::to_string(&event).expect("serialize");
+        assert!(json.contains("\"stack_id\":3"), "{json}");
+        let restored: Event = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(restored.stack_id, Some(3));
+        // 0.2 raw_json (no stack_id field) still deserializes.
+        let old: Event = serde_json::from_str(r#"{"time":"x","sensor":"process","kind":"ProcessExec","schema_major":1,"schema_minor":0,"event_id":"a","boot_id":"b","seq":1,"pid":1,"tgid":1,"cgroup_id":0}"#)
+            .expect("old event json");
+        assert_eq!(old.stack_id, None);
+    }
+
+    #[test]
+    fn stack_helpers_report_missing_symbols() {
+        let stack = Stack {
+            stack_id: 1,
+            sensor: "file".to_string(),
+            frames: vec![
+                StackFrame {
+                    addr: 0xffff_ffff_8100_0000,
+                    symbol: Some("do_syscall_64".to_string()),
+                    file: None,
+                    line: None,
+                    is_kernel: true,
+                },
+                StackFrame {
+                    addr: 0x7f00_0000,
+                    symbol: None,
+                    file: None,
+                    line: None,
+                    is_kernel: false,
+                },
+            ],
+            truncated: false,
+        };
+        assert_eq!(stack.missing_symbols(), 1);
     }
 
     #[test]

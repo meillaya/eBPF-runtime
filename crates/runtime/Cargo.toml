@@ -21,6 +21,12 @@ bpf-loader = { path = "../bpf-loader" }
 event-abi = { path = "../event-abi" }
 event-model = { path = "../event-model" }
 rules = { path = "../rules" }
+# Stack symbolization (kernel kallsyms/modules and user ELF/debug files).
+# 0.2.7 is the newest release whose MSRV (1.88) is below this workspace's
+# 1.95 pin. The `backtrace` default feature is not needed here, so it is
+# disabled to keep the dependency set small; DWARF, demangling, and zlib
+# (compressed debug sections) are required for useful source frames.
+blazesym = { version = "=0.2.7", default-features = false, features = ["demangle", "dwarf", "zlib"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }

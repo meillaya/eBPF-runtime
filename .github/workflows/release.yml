@@ -10,10 +10,26 @@ permissions:
   attestations: write
 
 jobs:
-  static:
-    name: static ebpf-fleet artifact
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
+  # Build, SBOM, keyless signature, and provenance attestation per
+  # architecture. Both runners are first-party GitHub-hosted images so the
+  # aarch64 build runs natively (the arm64 BPF sensors compile against the
+  # runner's own aarch64 kernel BTF; a cross-build from x86_64 would need an
+  # arm64 BTF supplied out of band).
+  build:
+    name: build ${{ matrix.arch }} static ebpf-fleet
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            # The x86_64 SBOM asset name is kept from the 0.2.x releases.
+            sbom: ebpf-fleet.spdx.json
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            sbom: ebpf-fleet-aarch64.spdx.json
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +40,7 @@ jobs:
           extra_nix_config: "experimental-features = nix-command flakes"
 
       - name: build static binary
-        run: scripts/build-static.sh
+        run: scripts/build-static.sh --arch ${{ matrix.arch }}
 
       - name: install cosign
         uses: sigstore/cosign-installer@v3
@@ -33,30 +49,66 @@ jobs:
         uses: anchore/sbom-action/download-syft@v0
 
       - name: generate SBOM
-        run: syft "file:target/release/ebpf-fleet" -o "spdx-json=target/release/ebpf-fleet.spdx.json"
+        run: |
+          syft "file:target/release/ebpf-fleet-${{ matrix.arch }}" \
+            -o "spdx-json=target/release/${{ matrix.sbom }}"
 
       - name: sign static artifact
         run: |
-          asset=target/release/ebpf-fleet
-          cp "$asset" target/release/ebpf-fleet-x86_64
-          cosign sign-blob --yes \
-            --bundle target/release/ebpf-fleet-x86_64.cosign.bundle \
-            target/release/ebpf-fleet-x86_64
-          (cd target/release && sha256sum ebpf-fleet-x86_64 > ebpf-fleet-x86_64.sha256)
-          (cd target/release && sha256sum ebpf-fleet.spdx.json > ebpf-fleet.spdx.json.sha256)
+          asset=target/release/ebpf-fleet-${{ matrix.arch }}
+          sbom=target/release/${{ matrix.sbom }}
+          cosign sign-blob --yes --bundle "$asset.cosign.bundle" "$asset"
+          (cd target/release && sha256sum "ebpf-fleet-${{ matrix.arch }}" >"ebpf-fleet-${{ matrix.arch }}.sha256")
+          (cd target/release && sha256sum "$(basename "$sbom")" >"$(basename "$sbom").sha256")
 
       - name: attest provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: target/release/ebpf-fleet-x86_64
+          subject-path: target/release/ebpf-fleet-${{ matrix.arch }}
+
+      - name: upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ebpf-fleet-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            target/release/ebpf-fleet-${{ matrix.arch }}
+            target/release/ebpf-fleet-${{ matrix.arch }}.sha256
+            target/release/ebpf-fleet-${{ matrix.arch }}.cosign.bundle
+            target/release/${{ matrix.sbom }}
+            target/release/${{ matrix.sbom }}.sha256
+
+  # One publisher for both architectures: a single release on the pushed
+  # tag, so the two matrix jobs cannot race to create it. The keyless
+  # identity contract is unchanged (release.yml @ refs/tags/*).
+  publish:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: download release assets
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: verify published assets
+        run: |
+          cd dist
+          ls -l
+          for arch in x86_64 aarch64; do
+            test -f "ebpf-fleet-$arch" || { echo "missing ebpf-fleet-$arch" >&2; exit 1; }
+            test -f "ebpf-fleet-$arch.sha256" || { echo "missing ebpf-fleet-$arch.sha256" >&2; exit 1; }
+            test -f "ebpf-fleet-$arch.cosign.bundle" || { echo "missing ebpf-fleet-$arch.cosign.bundle" >&2; exit 1; }
+          done
+          test -f ebpf-fleet.spdx.json
+          test -f ebpf-fleet-aarch64.spdx.json
+          sha256sum -c ./*.sha256
 
       - name: publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            target/release/ebpf-fleet-x86_64
-            target/release/ebpf-fleet-x86_64.sha256
-            target/release/ebpf-fleet-x86_64.cosign.bundle
-            target/release/ebpf-fleet.spdx.json
-            target/release/ebpf-fleet.spdx.json.sha256
+          files: dist/*
           generate_release_notes: true

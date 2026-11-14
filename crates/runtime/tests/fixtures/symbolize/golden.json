@@ -1,0 +1,25 @@
+{
+  "fixture": "libstack_fixture.so",
+  "source": "stack_fixture.c",
+  "compiler": "clang-19 -g -O0 -fno-omit-frame-pointer -shared -fPIC",
+  "symbols": [
+    {
+      "name": "fleet_symbolize_fixture_add",
+      "virt_offset": 4384,
+      "file": "stack_fixture.c",
+      "line": 19
+    },
+    {
+      "name": "fleet_symbolize_fixture_scale",
+      "virt_offset": 4416,
+      "file": "stack_fixture.c",
+      "line": 24
+    },
+    {
+      "name": "fleet_symbolize_fixture_chain",
+      "virt_offset": 4448,
+      "file": "stack_fixture.c",
+      "line": 30
+    }
+  ]
+}

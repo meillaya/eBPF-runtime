@@ -6,8 +6,11 @@
 #   EBPF_FLEET_VERSION=v0.2.0 sh scripts/install.sh
 #   EBPF_FLEET_PREFIX="$HOME/.local/bin" sh scripts/install.sh
 #
-# The release artifact is a static x86_64 binary today. arm64 release support
-# is tracked separately; the script fails rather than installing a wrong arch.
+# The release artifacts are static binaries for Linux x86_64 and
+# aarch64. The script maps `uname -m` to the architecture token the release
+# workflow publishes (`ebpf-fleet-<arch>`), verifies the SHA-256, and
+# verifies the keyless cosign bundle when cosign is available. It refuses to
+# install an unsupported architecture rather than installing a wrong binary.
 
 set -euo pipefail
 
@@ -21,10 +24,15 @@ case "$(uname -s)" in
   Linux) ;;
   *) echo "install: only Linux is supported" >&2; exit 1 ;;
 esac
+# Both kernel naming variants map to the release asset token. The release
+# workflow publishes ebpf-fleet-x86_64 and ebpf-fleet-aarch64; release-local.sh
+# uses the same x86_64 asset name.
 case "$(uname -m)" in
-  x86_64|amd64) asset="ebpf-fleet-x86_64" ;;
-  *) echo "install: no published artifact for $(uname -m) yet" >&2; exit 1 ;;
+  x86_64|amd64) arch="x86_64" ;;
+  aarch64|arm64) arch="aarch64" ;;
+  *) echo "install: no published artifact for $(uname -m); supported: x86_64, aarch64" >&2; exit 1 ;;
 esac
+asset="${EBPF_FLEET_ASSET:-ebpf-fleet-$arch}"
 
 if [[ -n "${EBPF_FLEET_BASE_URL:-}" ]]; then
   base="${EBPF_FLEET_BASE_URL%/}"
@@ -50,7 +58,7 @@ if command -v cosign >/dev/null 2>&1 &&
     curl -fsSL --retry 3 -o "$tmp/cosign.pub" "$key"
     key="$tmp/cosign.pub"
   fi
-  if [[ -z "$key" ]] && curl -fsSL --retry 3 -o "$tmp/cosign.pub" "$base/cosign.pub"; then
+  if [[ -z "$key" ]] && curl -fsSL --retry 3 -o "$tmp/cosign.pub" "$base/cosign.pub" 2>/dev/null; then
     key="$tmp/cosign.pub"
   fi
   if [[ -n "$key" ]]; then

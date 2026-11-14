@@ -30,7 +30,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Once;
 use std::time::Duration;
 
-use libbpf_rs::{Link, MapCore, Object, RingBuffer, RingBufferBuilder};
+use libbpf_rs::{Link, Map, MapCore, MapFlags, Object, RingBuffer, RingBufferBuilder};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -114,6 +114,8 @@ pub struct LoadedSensors {
     pub sensors: Vec<LoadedSensor>,
     /// Coverage for every sensor, including blocked ones.
     pub coverage: CoverageMatrix,
+    /// Stack capture mode the loader configured.
+    pub stack_mode: StackMode,
 }
 
 /// One raw record from a ring buffer.
@@ -123,6 +125,137 @@ pub struct RawSample {
     pub sensor: String,
     /// Record bytes.
     pub bytes: Vec<u8>,
+}
+
+/// Stack capture mode for [`load_with_options`].
+///
+/// * `Off` is the 0.2 behavior and the minimum-overhead path.
+/// * `Events` captures the 0.3 default event set: process exec and file
+///   open/create/truncate.
+/// * `All` captures every event the sensors emit (adds fork/exit and
+///   file unlink/rename).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StackMode {
+    /// No stack capture; sensors emit `stack_id = -1`.
+    #[default]
+    Off,
+    /// Capture the default event set.
+    Events,
+    /// Capture every event.
+    All,
+}
+
+impl StackMode {
+    /// Parse the CLI string form (`off`, `events`, `all`).
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "off" => Some(Self::Off),
+            "events" => Some(Self::Events),
+            "all" => Some(Self::All),
+            _ => None,
+        }
+    }
+
+    /// String form recorded in the bundle manifest.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Events => "events",
+            Self::All => "all",
+        }
+    }
+
+    /// Value written into the BPF `stack_config` map
+    /// (`KERNEL_V2_STACK_MODE_*` in `bpf/include/event_abi.h`).
+    pub fn bpf_mode(self) -> u32 {
+        match self {
+            Self::Off => 0,
+            Self::Events => 1,
+            Self::All => 2,
+        }
+    }
+
+    /// True when capture is enabled.
+    pub fn enabled(self) -> bool {
+        self != Self::Off
+    }
+}
+
+impl std::fmt::Display for StackMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Options for [`load_with_options`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LoadOptions {
+    /// Stack capture mode written into every loaded sensor.
+    pub stack_mode: StackMode,
+}
+
+impl LoadOptions {
+    /// Options with stack capture off (the 0.2 behavior).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Options with the given stack capture mode.
+    pub fn with_stack_mode(stack_mode: StackMode) -> Self {
+        Self { stack_mode }
+    }
+}
+
+/// One sensor stack resolved from the kernel stack-trace maps.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct RawStack {
+    /// Kernel frames, innermost first, exactly as captured (addresses).
+    pub kernel: Vec<u64>,
+    /// User frames, innermost first, exactly as captured (addresses).
+    /// Empty when the sensor/context could not capture a user stack.
+    pub user: Vec<u64>,
+    /// True when a stack hit the 64-frame map depth.
+    pub truncated: bool,
+}
+
+impl RawStack {
+    /// Total captured frames.
+    pub fn len(&self) -> usize {
+        self.kernel.len() + self.user.len()
+    }
+
+    /// True when no frame was captured.
+    pub fn is_empty(&self) -> bool {
+        self.kernel.is_empty() && self.user.is_empty()
+    }
+}
+
+/// Per-sensor stack capture counters summed over all CPUs.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct StackCounters {
+    /// Stacks successfully stored in the kernel stack-trace map.
+    pub kernel_captures: u64,
+    /// Kernel captures that failed (most often the stack map is full;
+    /// these are the "stack-map drops" reported by `record --stats`).
+    pub kernel_failures: u64,
+    /// User stacks successfully stored.
+    pub user_captures: u64,
+    /// User captures that failed.
+    pub user_failures: u64,
+}
+
+/// Capacity of the stack-trace maps a sensor exposes.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct StackMapInfo {
+    /// Kernel stack map entry capacity.
+    pub entries: u32,
+    /// Kernel stack map frames per stack.
+    pub frames: u32,
+    /// User stack map entry capacity, when the sensor captures user stacks.
+    pub user_entries: Option<u32>,
+    /// User stack map frames per stack, when available.
+    pub user_frames: Option<u32>,
 }
 
 /// Errors from loading.
@@ -137,11 +270,21 @@ pub enum LoaderError {
     /// The ring buffer could not be built.
     #[error("ring buffer error: {0}")]
     RingBuffer(String),
+    /// A stack map could not be read or configured.
+    #[error("stack map error: {0}")]
+    Stack(String),
 }
 
 /// Load every embedded sensor for the host architecture.
 pub fn load_all() -> Result<LoadedSensors, LoaderError> {
     load(&[])
+}
+
+/// Load the named sensors with stack capture off (the 0.2 behavior).
+///
+/// See [`load_with_options`].
+pub fn load(names: &[&str]) -> Result<LoadedSensors, LoaderError> {
+    load_with_options(names, LoadOptions::default())
 }
 
 /// Load the named sensors. An empty slice loads every embedded sensor.
@@ -150,7 +293,10 @@ pub fn load_all() -> Result<LoadedSensors, LoaderError> {
 /// matrix and omitted from [`LoadedSensors::sensors`]. The call returns
 /// an error only when no requested sensor is embedded or when a requested
 /// name is unknown.
-pub fn load(names: &[&str]) -> Result<LoadedSensors, LoaderError> {
+pub fn load_with_options(
+    names: &[&str],
+    options: LoadOptions,
+) -> Result<LoadedSensors, LoaderError> {
     static QUIET: Once = Once::new();
     QUIET.call_once(|| {
         libbpf_rs::set_print(Some((libbpf_rs::PrintLevel::Warn, |_, _| {})));
@@ -190,7 +336,7 @@ pub fn load(names: &[&str]) -> Result<LoadedSensors, LoaderError> {
     let mut coverage_entries = Vec::new();
 
     for sensor in selected {
-        let coverage = load_one(sensor, &mut loaded, lsm_bpf_active);
+        let coverage = load_one(sensor, &mut loaded, lsm_bpf_active, options);
         coverage_entries.push(coverage);
     }
 
@@ -206,6 +352,7 @@ pub fn load(names: &[&str]) -> Result<LoadedSensors, LoaderError> {
             arch: host_arch,
             sensors: coverage_entries,
         },
+        stack_mode: options.stack_mode,
     })
 }
 
@@ -233,6 +380,7 @@ fn load_one(
     sensor: &EmbeddedSensor,
     loaded: &mut Vec<LoadedSensor>,
     lsm_bpf_active: bool,
+    options: LoadOptions,
 ) -> SensorCoverage {
     let mut coverage = SensorCoverage {
         name: sensor.name.to_string(),
@@ -256,6 +404,10 @@ fn load_one(
             return coverage;
         }
     };
+
+    if let Err(error) = configure_stack_mode(&object, sensor.name, options.stack_mode) {
+        coverage.errors.push(error);
+    }
 
     let mut links = Vec::new();
     for program in object.progs_mut() {
@@ -370,6 +522,164 @@ impl LoadedSensors {
     }
 }
 
+/// Find a map by name in a loaded object.
+fn sensor_map<'a>(object: &'a Object, name: &str) -> Option<Map<'a>> {
+    object
+        .maps()
+        .find(|map| map.name().to_string_lossy() == name)
+}
+
+/// Write the loader-selected stack mode into a sensor's `stack_config`
+/// map. Sensors without the map are only an error when capture is
+/// enabled: with capture off the 0.2 behavior is preserved even for an
+/// object built before the stack feature.
+fn configure_stack_mode(object: &Object, sensor: &str, mode: StackMode) -> Result<(), String> {
+    let map_name = format!("{sensor}_stack_config");
+    let Some(map) = sensor_map(object, &map_name) else {
+        if mode.enabled() {
+            return Err(format!(
+                "{sensor}: object has no {map_name} map; rebuild the sensors"
+            ));
+        }
+        return Ok(());
+    };
+    let value = mode.bpf_mode().to_ne_bytes();
+    map.update(&0u32.to_ne_bytes(), &value, MapFlags::ANY)
+        .map_err(|error| format!("{sensor}: cannot set {map_name}: {error}"))
+}
+
+/// Decode one stack-trace-map value into frame addresses.
+///
+/// A stack-trace map value is an array of native-endian 64-bit addresses,
+/// innermost frame first, zero-padded after the last frame. Trailing zero
+/// words terminate the frame list.
+fn decode_stack_frames(raw: &[u8]) -> Vec<u64> {
+    let mut frames = Vec::with_capacity(raw.len() / 8);
+    for chunk in raw.chunks_exact(8) {
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(chunk);
+        let addr = u64::from_ne_bytes(bytes);
+        if addr == 0 {
+            break;
+        }
+        frames.push(addr);
+    }
+    frames
+}
+
+fn read_stack_frames(map: &Map<'_>, stack_id: u32) -> Result<Vec<u64>, LoaderError> {
+    let key = stack_id.to_ne_bytes();
+    let raw = map
+        .lookup(&key, MapFlags::ANY)
+        .map_err(|error| LoaderError::Stack(format!("lookup stack {stack_id}: {error}")))?;
+    Ok(raw.as_deref().map(decode_stack_frames).unwrap_or_default())
+}
+
+impl LoadedSensors {
+    /// Resolve one event's stack handles against a sensor's stack-trace
+    /// maps. `kernel_id` is the v2 header `stack_id`; `user_id` is the v2
+    /// header `user_stack_id` (both `None` when the corresponding capture
+    /// was disabled or failed).
+    ///
+    /// The returned [`RawStack`] carries the raw kernel and user frame
+    /// addresses; the recorder keeps them even when symbolization fails.
+    /// A handle whose map entry vanished yields an empty frame list rather
+    /// than an error, and a missing user-stack map is treated as "no user
+    /// frames" for forward compatibility with kernel-only sensors.
+    pub fn read_stack(
+        &self,
+        sensor: &str,
+        kernel_id: Option<i32>,
+        user_id: Option<i32>,
+    ) -> Result<RawStack, LoaderError> {
+        if kernel_id.is_none() && user_id.is_none() {
+            return Err(LoaderError::Stack(format!(
+                "sensor {sensor} event has no stack handles"
+            )));
+        }
+        let loaded = self
+            .sensors
+            .iter()
+            .find(|loaded| loaded.name == sensor)
+            .ok_or_else(|| {
+                LoaderError::Stack(format!("sensor {sensor} is not loaded; cannot read stacks"))
+            })?;
+
+        let mut kernel = Vec::new();
+        let mut user = Vec::new();
+        let mut truncated = false;
+
+        if let Some(kernel_id) = kernel_id {
+            let stack_map =
+                sensor_map(&loaded.object, &format!("{sensor}_stacks")).ok_or_else(|| {
+                    LoaderError::Stack(format!("sensor {sensor} has no {sensor}_stacks map"))
+                })?;
+            kernel = read_stack_frames(&stack_map, kernel_id as u32)?;
+            truncated |= kernel.len() >= stack_map.value_size() as usize / 8;
+        }
+        if let Some(user_id) = user_id {
+            if let Some(user_map) = sensor_map(&loaded.object, &format!("{sensor}_user_stacks")) {
+                user = read_stack_frames(&user_map, user_id as u32)?;
+                truncated |= user.len() >= user_map.value_size() as usize / 8;
+            }
+        }
+
+        Ok(RawStack {
+            kernel,
+            user,
+            truncated,
+        })
+    }
+
+    /// Sum the per-CPU stack counters of every loaded sensor.
+    ///
+    /// `kernel_failures` is the stack-map drop count reported by
+    /// `record --stats`; failures are non-fatal and never corrupt an
+    /// event (the header keeps `stack_id = -1`).
+    pub fn stack_counters(&self) -> std::collections::BTreeMap<String, StackCounters> {
+        let mut counters = std::collections::BTreeMap::new();
+        for loaded in &self.sensors {
+            let Some(map) = sensor_map(&loaded.object, &format!("{}_stack_stats", loaded.name))
+            else {
+                continue;
+            };
+            let Ok(Some(per_cpu)) = map.lookup_percpu(&0u32.to_ne_bytes(), MapFlags::ANY) else {
+                continue;
+            };
+            let mut summed = StackCounters::default();
+            for cpu in per_cpu {
+                for (index, chunk) in cpu.chunks_exact(8).enumerate() {
+                    let mut bytes = [0u8; 8];
+                    bytes.copy_from_slice(chunk);
+                    let value = u64::from_ne_bytes(bytes);
+                    match index {
+                        0 => summed.kernel_captures = summed.kernel_captures.saturating_add(value),
+                        1 => summed.kernel_failures = summed.kernel_failures.saturating_add(value),
+                        2 => summed.user_captures = summed.user_captures.saturating_add(value),
+                        3 => summed.user_failures = summed.user_failures.saturating_add(value),
+                        _ => {}
+                    }
+                }
+            }
+            counters.insert(loaded.name.clone(), summed);
+        }
+        counters
+    }
+
+    /// Capacity of a sensor's stack-trace maps, for `record --stats`.
+    pub fn stack_map_info(&self, sensor: &str) -> Option<StackMapInfo> {
+        let loaded = self.sensors.iter().find(|loaded| loaded.name == sensor)?;
+        let kernel = sensor_map(&loaded.object, &format!("{sensor}_stacks"))?;
+        let user = sensor_map(&loaded.object, &format!("{sensor}_user_stacks"));
+        Some(StackMapInfo {
+            entries: kernel.max_entries(),
+            frames: kernel.value_size() / 8,
+            user_entries: user.as_ref().map(|map| map.max_entries()),
+            user_frames: user.as_ref().map(|map| map.value_size() / 8),
+        })
+    }
+}
+
 impl RawSample {
     /// Event kind byte from the ABI header, if the record is long enough.
     pub fn kind(&self) -> Option<u8> {
@@ -434,5 +744,70 @@ mod tests {
     fn coverage_serializes_with_lowercase_status() {
         let json = serde_json::to_string(&SensorStatus::Capable).unwrap();
         assert_eq!(json, "\"capable\"");
+    }
+
+    #[test]
+    fn stack_mode_round_trips_and_maps_to_bpf_values() {
+        assert_eq!(StackMode::default(), StackMode::Off);
+        assert_eq!(StackMode::parse("off"), Some(StackMode::Off));
+        assert_eq!(StackMode::parse("events"), Some(StackMode::Events));
+        assert_eq!(StackMode::parse("all"), Some(StackMode::All));
+        assert_eq!(StackMode::parse("bogus"), None);
+        assert_eq!(StackMode::Off.bpf_mode(), 0);
+        assert_eq!(StackMode::Events.bpf_mode(), 1);
+        assert_eq!(StackMode::All.bpf_mode(), 2);
+        assert!(!StackMode::Off.enabled());
+        assert!(StackMode::Events.enabled());
+        assert!(StackMode::All.enabled());
+        assert_eq!(StackMode::Events.to_string(), "events");
+        assert_eq!(serde_json::to_string(&StackMode::All).unwrap(), "\"all\"");
+        assert_eq!(
+            LoadOptions::with_stack_mode(StackMode::Events).stack_mode,
+            StackMode::Events
+        );
+    }
+
+    #[test]
+    fn stack_frame_decoding_stops_at_zero_padding() {
+        let mut value = [0u8; 512];
+        for (index, addr) in [0xffff_ffff_8100_0000u64, 0xffff_ffff_8100_0100, 0x7f00_0000]
+            .iter()
+            .enumerate()
+        {
+            value[index * 8..index * 8 + 8].copy_from_slice(&addr.to_ne_bytes());
+        }
+        let frames = decode_stack_frames(&value);
+        assert_eq!(frames.len(), 3);
+        assert_eq!(frames[0], 0xffff_ffff_8100_0000);
+        assert_eq!(frames[2], 0x7f00_0000);
+    }
+
+    #[test]
+    fn stack_frame_decoding_accepts_a_full_depth_stack() {
+        let mut value = [0u8; 512];
+        for index in 0..64 {
+            value[index * 8..index * 8 + 8]
+                .copy_from_slice(&(0x1000u64 + index as u64).to_ne_bytes());
+        }
+        let frames = decode_stack_frames(&value);
+        assert_eq!(frames.len(), 64);
+    }
+
+    #[test]
+    fn empty_stack_value_has_no_frames() {
+        assert!(decode_stack_frames(&[0u8; 512]).is_empty());
+        assert!(decode_stack_frames(&[]).is_empty());
+    }
+
+    #[test]
+    fn raw_stack_counts_kernel_and_user_frames() {
+        let raw = RawStack {
+            kernel: vec![1, 2],
+            user: vec![3],
+            truncated: false,
+        };
+        assert_eq!(raw.len(), 3);
+        assert!(!raw.is_empty());
+        assert!(RawStack::default().is_empty());
     }
 }

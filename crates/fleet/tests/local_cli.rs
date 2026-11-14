@@ -4,7 +4,7 @@
 use std::process::Command;
 
 use bundle::{BundleWriter, CaptureInfo, HostInfo};
-use event_model::Event;
+use event_model::{Event, Stack, StackFrame};
 
 fn fixture() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
@@ -184,4 +184,128 @@ fn probe_build_and_explain_work_without_privileges() {
     let stdout = String::from_utf8_lossy(&explain.stdout);
     assert!(stdout.contains("invalid memory access"));
     assert!(stdout.contains("full verifier log"));
+}
+
+fn stack_fixture() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("stacks.fleet");
+    let mut writer = BundleWriter::create(
+        &root,
+        HostInfo::default(),
+        CaptureInfo {
+            sensors: vec!["file".to_string()],
+            duration_ms: 1_000,
+            stack_mode: "events".to_string(),
+        },
+    )
+    .unwrap();
+    let event = Event {
+        event_id: "evt-stack".to_string(),
+        time: "2026-11-13T18:00:00.000000000Z".to_string(),
+        sensor: "file".to_string(),
+        kind: "FileOpen".to_string(),
+        pid: 42,
+        tgid: 42,
+        path: Some("/etc/shadow".to_string()),
+        stack_id: Some(11),
+        ..Event::default()
+    };
+    writer.write_events(&[event]).unwrap();
+    writer
+        .write_stacks(&[Stack {
+            stack_id: 11,
+            sensor: "file".to_string(),
+            frames: vec![
+                StackFrame {
+                    addr: 0xffff_ffff_8100_0000,
+                    symbol: Some("do_syscall_64".to_string()),
+                    file: None,
+                    line: None,
+                    is_kernel: true,
+                },
+                StackFrame {
+                    addr: 0x7f00_0000_1234,
+                    symbol: Some("__libc_open64".to_string()),
+                    file: Some("/usr/lib/libc.so.6".to_string()),
+                    line: Some(42),
+                    is_kernel: false,
+                },
+            ],
+            truncated: false,
+        }])
+        .unwrap();
+    writer.finish().unwrap();
+    dir
+}
+
+#[test]
+fn query_joins_stacks_and_table_mode() {
+    let dir = stack_fixture();
+    let path = dir.path().join("stacks.fleet");
+    let binary = env!("CARGO_BIN_EXE_ebpf-fleet");
+
+    let join = Command::new(binary)
+        .args([
+            "query",
+            path.to_str().unwrap(),
+            "select e.kind, s.frames from events e join stacks s on e.sensor = s.sensor and e.stack_id = s.stack_id",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        join.status.success(),
+        "join failed: {}",
+        String::from_utf8_lossy(&join.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&join.stdout);
+    assert!(stdout.contains("FileOpen"), "missing event kind: {stdout}");
+    assert!(stdout.contains("do_syscall_64"), "missing frame: {stdout}");
+
+    let stacks = Command::new(binary)
+        .args(["query", path.to_str().unwrap(), "--table", "stacks"])
+        .output()
+        .unwrap();
+    assert!(
+        stacks.status.success(),
+        "stack table query failed: {}",
+        String::from_utf8_lossy(&stacks.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&stacks.stdout);
+    assert!(
+        stdout.contains("stack_id"),
+        "missing stack_id column: {stdout}"
+    );
+    assert!(
+        stdout.contains("__libc_open64"),
+        "missing user frame: {stdout}"
+    );
+}
+
+#[test]
+fn top_summarizes_bundle_stacks() {
+    let dir = stack_fixture();
+    let path = dir.path().join("stacks.fleet");
+    let binary = env!("CARGO_BIN_EXE_ebpf-fleet");
+    let out = Command::new(binary)
+        .args(["top", path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "top failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("top stacks"),
+        "missing stack pane: {stdout}"
+    );
+    assert!(
+        stdout.contains("do_syscall_64"),
+        "missing stack label: {stdout}"
+    );
+    assert!(
+        stdout.contains("1 resolved"),
+        "missing stack count: {stdout}"
+    );
 }

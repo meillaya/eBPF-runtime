@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: (MIT OR Apache-2.0)
  *
  * bpf/include/event_abi.h
- * Authoritative C to Rust event ABI v1.
+ * Authoritative C to Rust event ABI, version 1 and version 2.
  *
  * This header is the SINGLE SOURCE OF TRUTH for the on-the-wire byte
  * layout of every event the BPF sensor programs emit through the shared
@@ -9,23 +9,42 @@
  * against it; one is C (libbpf sensor programs), the other is Rust
  * (user-space agent, generated bindings, parser).
  *
+ * 0.3 introduced schema-major 2: the fixed header grows from 96 to 104
+ * bytes so a single `int32_t stack_id` (plus 4 bytes of tail padding)
+ * can reference a `BPF_MAP_TYPE_STACK_TRACE` entry captured at emit
+ * time. The v2 header is a strict prefix-extension of v1: bytes 0..95
+ * keep the exact v1 layout, bytes 96..99 carry `stack_id`
+ * (KERNEL_V2_ABI_STACK_NONE == -1 means "no stack"), bytes 100..103
+ * carry a second `user_stack_id` handle for the sensors that capture the
+ * user stack separately (the kernel stack and user stack live in different
+ * stack-trace maps because one `bpf_get_stackid()` call walks one or the
+ * other). A v2 producer sets `schema_major = 2`,
+ * `header_len = 104`, and `record_len = 104 + payload_len`. The v1
+ * struct and constants below remain defined so the Rust parser, the
+ * v1 golden fixtures, and old bundles keep their exact meaning. New
+ * sensors and the Rust encoder MUST use the v2 definitions.
+ *
  * The C struct layout is verified at build time by the
  * `crates/event-abi/build.rs` manifest hash plus a hand-written Rust
  * `const _: () = assert!(...)` block. The Rust parser exposes a typed
  * view that never dereferences pointers or assumes kernel struct layout.
  *
  * VERSIONING
- *   KERNEL_V1_ABI_SCHEMA_MAJOR is the wire-format major version. The
- *   Rust parser REJECTS every record whose `schema_major` differs.
- *   KERNEL_V1_ABI_SCHEMA_MINOR records additive (backward-compatible)
- *   evolutions; the parser tolerates any 0..=u32::MAX and exposes the
- *   value to consumers but does not branch on it.
+ *   KERNEL_V1_ABI_SCHEMA_MAJOR / KERNEL_V2_ABI_SCHEMA_MAJOR are the
+ *   wire-format major versions. The Rust parser ACCEPTS every record
+ *   whose `schema_major` is 1 or 2 and REJECTS anything else. For v1
+ *   the header length must be 96; for v2 it must be 104 (a future minor
+ *   may append fields and grow header_len again, so the parser consumes
+ *   the payload from `header_len` and only requires that the v2
+ *   extension is present). KERNEL_*_SCHEMA_MINOR records additive
+ *   (backward-compatible) evolutions; the parser tolerates any
+ *   u32 value and exposes it to consumers but does not branch on it.
  *
- * WIRE LAYOUT (96 bytes, natural alignment, native-endian)
+ * WIRE LAYOUT (v1: 96 bytes; v2: 104 bytes, natural alignment, native-endian)
  *   off  size  field                      notes
- *    0    4   schema_major                == KERNEL_V1_ABI_SCHEMA_MAJOR
- *    4    4   schema_minor                == KERNEL_V1_ABI_SCHEMA_MINOR
- *    8    4   header_len                  == sizeof(struct kernel_v1_header)
+ *    0    4   schema_major                1 or 2
+ *    4    4   schema_minor                schema minor revision
+ *    8    4   header_len                  96 (v1) or 104 (v2)
  *   12    4   record_len                  total bytes incl. header+payload
  *   16    1   event_kind                  enum kernel_v1_event_kind
  *   17    3   _pad0[3]                    align for seq
@@ -40,13 +59,17 @@
  *   80    4   processor_id                bpf_get_smp_processor_id()
  *   84    4   valids                      bitmask of enum kernel_v1_valid
  *   88    8   ns_pid                      active PID namespace inode
- *  --- 96-byte boundary ---
+ *  --- 96-byte v1 boundary / v2 extension starts ---
+ *   96    4   stack_id                    v2 only; -1 means no stack
+ *  100    4   user_stack_id               v2 only; -1 means no user stack
+ *  --- 104-byte v2 boundary ---
  *
- * The v1 layout intentionally fits 96 bytes (1.5 cache lines). The
- * remaining namespace valid bits (NS_USER/UTS/IPC/TIME) and the
- * KERNEL_V1_VALID_KFUNC_USED bit are forward-compat placeholders for
- * the next minor revision; the v1 producer MUST set them to zero. The
- * header never carries kernel struct pointers; only identity scalars.
+ * The v1 layout intentionally fits 96 bytes (1.5 cache lines) and the
+ * v2 layout fits 104 bytes (13/16 of two lines at 8-byte alignment).
+ * The remaining namespace valid bits (NS_USER/UTS/IPC/TIME) and the
+ * KERNEL_V1_VALID_KFUNC_USED bit are forward-compat placeholders; the
+ * producers MUST set them to zero. The header never carries kernel
+ * struct pointers; only identity scalars.
  *
  * ENDIANNESS: native (host). The kernel always reads its own layout
  * (little-endian on every supported platform: x86_64, arm64). Producer
@@ -91,11 +114,43 @@
 #include <stdint.h>
 #endif
 
-/* Schema constants. */
+/* Schema constants.
+ *
+ * KERNEL_V1_* describe the 0.1/0.2 wire format and stay frozen: v1
+ * golden fixtures, committed v1 bundles, and old consumer builds keep
+ * their exact meaning. New producers MUST use the KERNEL_V2_* values.
+ */
 #define KERNEL_V1_ABI_SCHEMA_MAJOR ((uint32_t)1u)
 #define KERNEL_V1_ABI_SCHEMA_MINOR ((uint32_t)0u)
 #define KERNEL_V1_ABI_HEADER_LEN   ((uint32_t)96u)
 #define KERNEL_V1_ABI_PAYLOAD_MAX  ((uint32_t)4096u)
+
+/* v2 schema (0.3 stack capture). */
+#define KERNEL_V2_ABI_SCHEMA_MAJOR ((uint32_t)2u)
+#define KERNEL_V2_ABI_SCHEMA_MINOR ((uint32_t)0u)
+#define KERNEL_V2_ABI_HEADER_LEN   ((uint32_t)104u)
+#define KERNEL_V2_ABI_PAYLOAD_MAX  ((uint32_t)4096u)
+/* Sentinel for "this event carries no stack id". A real stack id is a
+ * non-negative 32-bit handle returned by bpf_get_stackid(). */
+#define KERNEL_V2_ABI_STACK_NONE   ((int32_t)-1)
+/* Shared BPF stack-trace-map geometry: 16 384 unique stack shapes and
+ * up to 64 frames per stack (512-byte value, the kernel's
+ * PERF_MAX_STACK_DEPTH default is 127 which is above this bound). Both
+ * process and file sensors use the same geometry so the loader and the
+ * bundle stack table have one shape to reason about. */
+#define KERNEL_V2_ABI_STACK_DEPTH         ((uint32_t)64u)
+#define KERNEL_V2_ABI_STACK_MAP_ENTRIES   ((uint32_t)16384u)
+#define KERNEL_V2_ABI_STACK_VALUE_SIZE    \
+    ((uint32_t)(KERNEL_V2_ABI_STACK_DEPTH * sizeof(uint64_t)))
+/* Stack capture mode written by the loader into each sensor's
+ * `stack_config` array map. OFF keeps the minimum-overhead path (one
+ * array lookup on hot events is avoided by the programs reading the
+ * mode once per event handler); EVENTS captures the 0.3 default set
+ * (process exec, file open/create/truncate); ALL additionally captures
+ * fork/exit/unlink/rename. */
+#define KERNEL_V2_STACK_MODE_OFF    ((uint32_t)0u)
+#define KERNEL_V2_STACK_MODE_EVENTS ((uint32_t)1u)
+#define KERNEL_V2_STACK_MODE_ALL    ((uint32_t)2u)
 
 /* EventKind: every semantic event the platform can emit (16 values).
  * The proto contract (proto/kernel/v1/events/v1/events.proto::EventKind)
@@ -756,6 +811,51 @@ _Static_assert((offsetof(struct kernel_v1_header, valids)) == 84,
                "valids must be at offset 84");
 _Static_assert((offsetof(struct kernel_v1_header, ns_pid)) == 88,
                "ns_pid must be at offset 88");
+
+/* Version 2 on-the-wire header (104 bytes). It is the v1 header plus a
+ * stack id and tail padding. The embedded `v1` member is what the C
+ * sensors fill; the fields beyond offset 96 are only understood by a
+ * schema-major-2 consumer. Keeping the v2 header as a struct that
+ * embeds the v1 struct (rather than duplicating 96 bytes of fields)
+ * makes it impossible for the shared prefix to drift.
+ *
+ * The v2 producer MUST:
+ *   - set `v1.schema_major = KERNEL_V2_ABI_SCHEMA_MAJOR`,
+ *   - set `v1.header_len   = KERNEL_V2_ABI_HEADER_LEN`,
+ *   - set `v1.record_len   = KERNEL_V2_ABI_HEADER_LEN + payload_len`,
+ *   - set `stack_id` to KERNEL_V2_ABI_STACK_NONE or a
+ *     bpf_get_stackid(..., 0) kernel-stack handle,
+ *   - set `user_stack_id` to KERNEL_V2_ABI_STACK_NONE or a
+ *     bpf_get_stackid(..., BPF_F_USER_STACK) user-stack handle.
+ *
+ * Both handles are optional and independent: a sensor that captures only
+ * one stack class leaves the other field KERNEL_V2_ABI_STACK_NONE. The
+ * pair lets a consumer reassemble one logical stack (kernel frames then
+ * user frames) without a side table, so two different user stacks can
+ * never be confused even when they share a kernel-stack handle.
+ */
+struct kernel_v2_header {
+    struct kernel_v1_header v1;     /* off  0..95, exact v1 layout */
+    int32_t  stack_id;              /* off  96: kernel stack handle or -1 */
+    int32_t  user_stack_id;         /* off 100: user stack handle or -1 */
+};
+
+_Static_assert(KERNEL_V2_ABI_HEADER_LEN == 104u,
+               "KERNEL_V2_ABI_HEADER_LEN must equal 104");
+_Static_assert(KERNEL_V2_ABI_SCHEMA_MAJOR == 2u,
+               "KERNEL_V2_ABI_SCHEMA_MAJOR must equal 2");
+_Static_assert(KERNEL_V2_ABI_STACK_NONE == -1,
+               "KERNEL_V2_ABI_STACK_NONE must equal -1");
+_Static_assert(sizeof(struct kernel_v2_header) == KERNEL_V2_ABI_HEADER_LEN,
+               "kernel_v2_header size must equal KERNEL_V2_ABI_HEADER_LEN");
+_Static_assert((offsetof(struct kernel_v2_header, v1)) == 0,
+               "kernel_v2_header.v1 must be at offset 0");
+_Static_assert((offsetof(struct kernel_v2_header, stack_id)) == 96,
+               "stack_id must be at offset 96");
+_Static_assert((offsetof(struct kernel_v2_header, user_stack_id)) == 100,
+               "user_stack_id must be at offset 100");
+_Static_assert(sizeof(struct kernel_v2_header) == sizeof(struct kernel_v1_header) + 8u,
+               "kernel_v2_header must be the v1 header plus 8 bytes");
 
 /* Pure function: return the canonical C string name of an event kind.
  * Used by sensor-side trace logging and by the Rust `kind_name` helper.

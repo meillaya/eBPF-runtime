@@ -29,15 +29,38 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::all)]
 
-/// Schema major version. Bumped on a wire-incompatible change.
-pub const SCHEMA_MAJOR: u32 = 1;
+/// Schema major version emitted by current producers. Bumped to 2 in
+/// 0.3 for the stack-id extension; the parser also accepts the frozen
+/// [`SCHEMA_V1_MAJOR`] records so 0.2 fixtures and old bundles keep
+/// working.
+pub const SCHEMA_MAJOR: u32 = 2;
 /// Schema minor version. Bumped on an additive, backward-compatible change.
 pub const SCHEMA_MINOR: u32 = 0;
-/// On-the-wire header length in bytes. MUST equal `size_of::<Header>()`.
-pub const HEADER_LEN: usize = 96;
+/// The frozen version-1 wire schema major, accepted by the parser.
+pub const SCHEMA_V1_MAJOR: u32 = 1;
+/// Version-1 header length in bytes. MUST equal `size_of::<Header>()`.
+pub const HEADER_LEN_V1: usize = 96;
+/// On-the-wire header length in bytes for current (v2) records. MUST
+/// equal `size_of::<HeaderV2>()`.
+pub const HEADER_LEN: usize = 104;
 /// Bounded payload max in bytes. The parser rejects records whose
 /// payload exceeds this constant.
 pub const PAYLOAD_MAX: usize = 4096;
+/// `stack_id` value meaning "this event has no stack".
+pub const STACK_ID_NONE: i32 = -1;
+/// Maximum frames a sensor stack-trace map stores per stack.
+pub const STACK_DEPTH: u32 = 64;
+/// Number of unique stacks a sensor stack-trace map stores.
+pub const STACK_MAP_ENTRIES: u32 = 16_384;
+/// Byte size of one stack-trace-map value (64 × 8-byte frame addresses).
+pub const STACK_VALUE_SIZE: usize = STACK_DEPTH as usize * 8;
+/// Stack capture mode written into the sensor `stack_config` map.
+pub const STACK_MODE_OFF: u32 = 0;
+/// Stack capture mode: capture the 0.3 default event set (process exec,
+/// file open/create/truncate).
+pub const STACK_MODE_EVENTS: u32 = 1;
+/// Stack capture mode: capture every event the sensors emit.
+pub const STACK_MODE_ALL: u32 = 2;
 
 /// Every semantic event the platform can emit. The values match the C
 /// `enum kernel_v1_event_kind`. `repr(u8)` matches the
@@ -223,6 +246,9 @@ pub const EVENT_FLAG_REDACTED: u8 = 0x02;
 /// On-the-wire header. Layout-fixed: 96 bytes, natural alignment,
 /// native-endian. `#[repr(C)]` guarantees the field order matches the
 /// C struct; the const_assert in `src/lib.rs` pins the size.
+///
+/// This is the FROZEN version-1 header. Current producers emit
+/// [`HeaderV2`], which embeds this struct unchanged at offset 0.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Header {
@@ -243,6 +269,37 @@ pub struct Header {
     pub processor_id: u32,
     pub valids: u32,
     pub ns_pid: u64,
+}
+
+/// Version-2 on-the-wire header. Layout-fixed: 104 bytes,
+/// native-endian. It is the v1 header bytes 0..95 followed by a kernel
+/// stack handle and a user stack handle (either may be -1), mirroring
+/// `struct kernel_v2_header` in `bpf/include/event_abi.h`.
+///
+/// The embedded [`Header`] is what `event_abi::parse` returns; the
+/// parser additionally exposes `stack_id` as `Option<i32>` and hides
+/// this wrapper from consumers that do not need it.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeaderV2 {
+    pub v1: Header,
+    /// Kernel stack-trace-map handle, or [`STACK_ID_NONE`].
+    pub stack_id: i32,
+    /// User stack-trace-map handle, or [`STACK_ID_NONE`]. Sensors that
+    /// capture only kernel stacks leave this `-1`.
+    pub user_stack_id: i32,
+}
+
+impl HeaderV2 {
+    /// Kernel stack id as a plain `Option`, mapping `-1` to `None`.
+    pub fn stack_id(&self) -> Option<i32> {
+        (self.stack_id != STACK_ID_NONE).then_some(self.stack_id)
+    }
+
+    /// User stack id as a plain `Option`, mapping `-1` to `None`.
+    pub fn user_stack_id(&self) -> Option<i32> {
+        (self.user_stack_id != STACK_ID_NONE).then_some(self.user_stack_id)
+    }
 }
 
 impl Header {

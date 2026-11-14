@@ -51,7 +51,8 @@ of silently returning partial data. SQL runs over the local `events` table:
   "select path, count(*) as n from events where kind = 'FileOpen' group by path order by n desc limit 10"
 ```
 
-The local path is intentionally separate from fleet mode. Use the
+The local path is intentionally separate from fleet mode. See
+[docs/recipes.md](docs/recipes.md) for incident-debugging queries. Use the
 [local KVM VM lab](docs/runbooks/vm-lab.md) for privileged tests without
 giving the host root, and the [rootful compose runbook](docs/runbooks/rootful-compose.md)
 for the full data path. Rootless Podman is scoped to the repository with

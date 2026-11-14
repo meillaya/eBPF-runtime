@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "stamp": "20261114T055041Z",
+  "workload": "mixed",
+  "stacks": "off",
+  "duration_s": 5,
+  "wall_s": 6.121,
+  "events": 57768,
+  "events_per_sec": 9437.67,
+  "user_s": 0.40,
+  "sys_s": 0.28,
+  "cpu_s": 0.680,
+  "cpu_pct": 11.11,
+  "maxrss_kb": 27672,
+  "bundle_bytes": 35688196,
+  "query_avg_ms": 51.697,
+  "record_summary": "recorded 57768 events (0 decode errors) into //target/bench/20261114T055041Z/bundle"
+}

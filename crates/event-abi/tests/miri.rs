@@ -1,9 +1,10 @@
 // tests/miri.rs: event-abi
 //
-// Miri configuration / soundness tests for the single `unsafe` boundary in
-// the crate: the `core::ptr::read_unaligned` of the 96-byte header inside
-// `event_abi::parse` (src/lib.rs). Miri interprets these tests and reports
-// any undefined behaviour in the pointer arithmetic / unaligned read.
+// Miri configuration / soundness tests for the `unsafe` boundaries in the
+// crate: the `core::ptr::read_unaligned` of the version-1 header prefix and
+// the `read_unaligned` of the v2 `stack_id` word inside `event_abi::parse`
+// (src/lib.rs). Miri interprets these tests and reports any undefined
+// behaviour in the pointer arithmetic / unaligned reads.
 //
 // The whole file is gated on `#[cfg(miri)]` so it only compiles and runs
 // under `cargo miri test -p event-abi`; a normal `cargo test` build sees an
@@ -11,10 +12,11 @@
 //
 //     MIRIFLAGS="-Zmiri-strict-provenance" cargo miri test -p event-abi
 //
-// The tests build well-formed records (no unsafe needed to construct bytes)
-// and place the 96-byte header at every alignment offset 0..8 inside a
-// larger buffer, then parse the misaligned slice. `read_unaligned` must be
-// sound at all alignments; Miri fails the run if it is not.
+// The tests build well-formed v2 records (no unsafe needed to construct
+// bytes) and place the 104-byte header at every alignment offset 0..8
+// inside a larger buffer, then parse the misaligned slice.
+// `read_unaligned` must be sound at all alignments; Miri fails the run if
+// it is not.
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
@@ -22,8 +24,9 @@
 
 use event_abi::{parse, HEADER_LEN, PAYLOAD_MAX, SCHEMA_MAJOR, SCHEMA_MINOR};
 
-/// Build a well-formed record buffer (96-byte header + `payload_len` bytes)
-/// using only safe byte patches, so no unsafe is required to construct the input.
+/// Build a well-formed v2 record buffer (104-byte header + `payload_len`
+/// bytes) using only safe byte patches, so no unsafe is required to construct
+/// the input.
 fn build_record(payload_len: usize, kind: u8) -> Vec<u8> {
     let mut buf = vec![0u8; HEADER_LEN + payload_len];
     buf[0..4].copy_from_slice(&SCHEMA_MAJOR.to_le_bytes());
@@ -31,6 +34,8 @@ fn build_record(payload_len: usize, kind: u8) -> Vec<u8> {
     buf[8..12].copy_from_slice(&(HEADER_LEN as u32).to_le_bytes());
     buf[12..16].copy_from_slice(&((HEADER_LEN + payload_len) as u32).to_le_bytes());
     buf[16] = kind; // a known kind (e.g. 1 = PROCESS_FORK)
+    buf[96..100].copy_from_slice(&(-1i32).to_le_bytes()); // no kernel stack
+    buf[100..104].copy_from_slice(&(-1i32).to_le_bytes()); // no user stack
     for b in buf[HEADER_LEN..].iter_mut() {
         *b = 0xAB;
     }
@@ -47,6 +52,8 @@ fn parse_header_at_every_alignment() {
         padded[offset..].copy_from_slice(&record);
         let ev = parse(&padded[offset..]).expect("well-formed record must parse at any alignment");
         assert_eq!(ev.header.event_kind, 1);
+        assert_eq!(ev.stack_id, None);
+        assert_eq!(ev.user_stack_id, None);
         assert_eq!(ev.payload.len(), 32);
         assert_eq!(ev.header.record_len as usize, record.len());
     }

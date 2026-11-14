@@ -30,7 +30,9 @@ symbols, and writes `target/release/ebpf-fleet.sha256`.
 
 ## Current limits
 
-- x86_64 only. arm64 needs an aarch64 static build and a separate runner.
+- x86_64 and aarch64 static artifacts; the aarch64 cross-build and a
+  functional TCG row are documented in `docs/verification/arm64.md`, with a
+  native aarch64 KVM row still pending.
 - The binary is static glibc, not musl; it has no runtime glibc dependency
   but still relies on the kernel ABI and Linux UAPI.
 - The release workflow requires GitHub Actions billing and OIDC; until that

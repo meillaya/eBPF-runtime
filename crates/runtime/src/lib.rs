@@ -10,7 +10,9 @@ pub mod cli;
 pub mod decode;
 pub mod process_table;
 pub mod rules_engine;
+pub mod symbolize;
 
 pub use decode::{decode, Clock, DecodeFailure, DecodedEvent};
 pub use process_table::ProcessTable;
 pub use rules_engine::{Alert, Engine, EngineError};
+pub use symbolize::{SymbolizeError, SymbolizeStats, Symbolizer};

@@ -6,7 +6,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use crate::generated::{Header, Valid, HEADER_LEN};
+use crate::generated::{Header, Valid, HEADER_LEN, HEADER_LEN_V1};
 
 /// `True` iff the field's valid bit is set in `header.valids`.
 pub fn verify_field(header: &Header, field: Valid) -> bool {
@@ -23,11 +23,24 @@ pub fn is_redacted(header: &Header) -> bool {
     header.flags & crate::generated::EVENT_FLAG_REDACTED != 0
 }
 
-/// Compute the wire record length needed for a header + payload of
-/// `payload_len` bytes. Clamps to `[HEADER_LEN, HEADER_LEN + PAYLOAD_MAX]`.
+/// Compute the wire record length needed for a version-2 (current)
+/// header + payload of `payload_len` bytes. Clamps to
+/// `[HEADER_LEN, HEADER_LEN + PAYLOAD_MAX]`.
 pub fn compute_record_len(payload_len: usize) -> usize {
     let total = HEADER_LEN.saturating_add(payload_len);
     let max = HEADER_LEN + crate::generated::PAYLOAD_MAX;
+    if total > max {
+        max
+    } else {
+        total
+    }
+}
+
+/// Compute the wire record length needed for a version-1 (frozen)
+/// header + payload of `payload_len` bytes.
+pub fn compute_record_len_v1(payload_len: usize) -> usize {
+    let total = HEADER_LEN_V1.saturating_add(payload_len);
+    let max = HEADER_LEN_V1 + crate::generated::PAYLOAD_MAX;
     if total > max {
         max
     } else {

@@ -206,8 +206,11 @@ int main(void) {
      * already failed the compile. We still print it so the build log
      * carries a positive confirmation. */
     printf("KERNEL_V1_ABI_HEADER_LEN=%u\n", (unsigned)KERNEL_V1_ABI_HEADER_LEN);
-    printf("KERNEL_V1_ABI_PAYLOAD_MAX=%u\n", (unsigned)KERNEL_V1_ABI_PAYLOAD_MAX);
+    printf("KERNEL_V2_ABI_HEADER_LEN=%u\n", (unsigned)KERNEL_V2_ABI_HEADER_LEN);
+    printf("KERNEL_V2_ABI_PAYLOAD_MAX=%u\n", (unsigned)KERNEL_V2_ABI_PAYLOAD_MAX);
     printf("sizeof(struct kernel_v1_header)=%zu\n", sizeof(struct kernel_v1_header));
+    printf("sizeof(struct kernel_v2_header)=%zu\n", sizeof(struct kernel_v2_header));
+    printf("offsetof(kernel_v2_header, stack_id)=%zu\n", offsetof(struct kernel_v2_header, stack_id));
     return 0;
 }
 "#;
@@ -245,10 +248,11 @@ int main(void) {
     }
 
     // 2. Write the manifest. Constants are taken from the C header
-    //    definition; the Rust const_assert in src/lib.rs pins the
-    //    same numbers from the other direction. Drift between the two
-    //    sides fails the next `cargo nextest run -p event-abi`.
-    let manifest_path = write_manifest(&out_dir, &header_sha, &bindings_sha, 1, 0, 96, 4096)?;
+    //    definition (current schema = v2); the Rust const_assert in
+    //    src/lib.rs pins the same numbers from the other direction.
+    //    Drift between the two sides fails the next
+    //    `cargo nextest run -p event-abi`.
+    let manifest_path = write_manifest(&out_dir, &header_sha, &bindings_sha, 2, 0, 104, 4096)?;
     println!(
         "cargo:warning=event-abi: manifest written to {}",
         manifest_path.display()

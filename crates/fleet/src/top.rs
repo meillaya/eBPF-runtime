@@ -11,7 +11,7 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use event_model::Event;
+use event_model::{Event, Stack};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
@@ -32,11 +32,48 @@ struct Counters {
     processes: BTreeMap<String, u64>,
     paths: BTreeMap<String, u64>,
     recent: VecDeque<String>,
+    /// Resolved stacks in the bundle.
+    stack_total: u64,
+    /// Frames across all resolved stacks.
+    stack_frames: u64,
+    /// Frames that kept a raw address but no symbol.
+    stack_missing_symbols: u64,
+    /// Events that carry a `stack_id` (capture was enabled for them).
+    events_with_stacks: u64,
+    /// Top stack labels (innermost resolved symbol, else raw address).
+    stacks: BTreeMap<String, u64>,
 }
 
 impl Counters {
+    /// Fold one resolved stack into the counters. Called by bundle mode
+    /// when `top` loads a bundle's `stacks` table.
+    fn observe_stack(&mut self, stack: &Stack) {
+        self.stack_total += 1;
+        self.stack_frames += stack.frames.len() as u64;
+        for frame in &stack.frames {
+            if frame.symbol.is_none() {
+                self.stack_missing_symbols += 1;
+            }
+        }
+        let label = stack
+            .frames
+            .iter()
+            .find_map(|frame| frame.symbol.clone())
+            .unwrap_or_else(|| {
+                stack
+                    .frames
+                    .first()
+                    .map(|frame| format!("{:#x}", frame.addr))
+                    .unwrap_or_else(|| "empty".to_string())
+            });
+        *self.stacks.entry(label).or_default() += 1;
+    }
+
     fn observe(&mut self, event: &Event) {
         self.total += 1;
+        if event.stack_id.is_some() {
+            self.events_with_stacks += 1;
+        }
         *self.by_kind.entry(event.kind.clone()).or_default() += 1;
         let process = event
             .process_exec
@@ -116,6 +153,14 @@ async fn run_bundle(path: PathBuf, refresh_ms: u64) -> Result<(), String> {
                 counters.decode_errors += 1;
             }
         }
+    }
+
+    for stack in bundle
+        .read_stacks()
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        counters.observe_stack(&stack);
     }
 
     if !io::stdout().is_terminal() {
@@ -236,8 +281,11 @@ fn draw(frame: &mut ratatui::Frame, counters: &Counters, title: &str, rate: f64)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(format!(
-            "  {rate:.0}/s  {} decode errors",
-            counters.decode_errors
+            "  {rate:.0}/s  {} decode errors  {} stacks ({} frames, {} unsymbolized)",
+            counters.decode_errors,
+            counters.stack_total,
+            counters.stack_frames,
+            counters.stack_missing_symbols
         )),
         Span::styled("  q/esc quit", Style::default().fg(Color::DarkGray)),
     ]))
@@ -274,7 +322,11 @@ fn draw(frame: &mut ratatui::Frame, counters: &Counters, title: &str, rate: f64)
         .join("\n");
     let bottom = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
+        .constraints([
+            Constraint::Percentage(22),
+            Constraint::Percentage(43),
+            Constraint::Percentage(35),
+        ])
         .split(outer[2]);
     frame.render_widget(
         Paragraph::new(kind_text)
@@ -288,6 +340,10 @@ fn draw(frame: &mut ratatui::Frame, counters: &Counters, title: &str, rate: f64)
                 .title("Recent events"),
         ),
         bottom[1],
+    );
+    frame.render_widget(
+        count_table("Top stacks", &Counters::top(&counters.stacks)),
+        bottom[2],
     );
 }
 
@@ -329,6 +385,19 @@ fn print_summary(counters: &Counters, path: &std::path::Path) {
     println!("\nevent kinds");
     for (kind, count) in counters.by_kind.iter().rev().take(10) {
         println!("{count:>10}  {kind}");
+    }
+    println!(
+        "\nstacks: {} resolved, {} frames ({} without symbols), {} events carry a stack id",
+        counters.stack_total,
+        counters.stack_frames,
+        counters.stack_missing_symbols,
+        counters.events_with_stacks
+    );
+    if !counters.stacks.is_empty() {
+        println!("\ntop stacks");
+        for (name, count) in Counters::top(&counters.stacks) {
+            println!("{count:>10}  {name}");
+        }
     }
     let _ = io::stdout().flush();
 }

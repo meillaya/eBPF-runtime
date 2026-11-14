@@ -15,12 +15,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use arrow::array::Array;
+use bpf_loader::{LoadOptions, StackMode};
 use bundle::{Bundle, BundleWriter, CaptureInfo, HostInfo, Manifest};
 use clap::{Args, Parser, Subcommand};
-use event_model::Event;
+use event_model::{Event, Stack};
 use runtime::decode::{decode, Clock};
 use runtime::process_table::ProcessTable;
 use runtime::rules_engine::Engine;
+use runtime::symbolize::Symbolizer;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use signal_hook::consts::{SIGINT, SIGTERM};
@@ -76,9 +78,16 @@ struct RecordArgs {
     /// Only record events for this pid or tgid.
     #[arg(long)]
     pid: Option<u32>,
-    /// Stack mode. Only `off` is supported in this milestone.
-    #[arg(long, default_value = "off")]
+    /// Stack capture mode.
+    ///
+    /// `events` (the 0.3 default) captures process exec and file
+    /// open/create/truncate; `all` also captures process fork/exit and file
+    /// unlink/rename; `off` keeps the minimum-overhead 0.2 path.
+    #[arg(long, default_value = "events", value_parser = ["off", "events", "all"])]
     stacks: String,
+    /// Print stack capture and symbolization statistics as JSON.
+    #[arg(long)]
+    stats: bool,
     /// Flush after this many events.
     #[arg(long, default_value_t = 1000)]
     batch_events: usize,
@@ -87,12 +96,42 @@ struct RecordArgs {
     max_events: u64,
 }
 
+/// Aggregated per-sensor stack capture counters for `record --stats`.
+#[derive(Debug, Default, Serialize)]
+struct StackCaptureStats {
+    kernel_captures: u64,
+    kernel_failures: u64,
+    user_captures: u64,
+    user_failures: u64,
+}
+
+impl StackCaptureStats {
+    fn add(&mut self, counters: &bpf_loader::StackCounters) {
+        self.kernel_captures = self
+            .kernel_captures
+            .saturating_add(counters.kernel_captures);
+        self.kernel_failures = self
+            .kernel_failures
+            .saturating_add(counters.kernel_failures);
+        self.user_captures = self.user_captures.saturating_add(counters.user_captures);
+        self.user_failures = self.user_failures.saturating_add(counters.user_failures);
+    }
+}
+
 #[derive(Debug, Args)]
 struct QueryArgs {
     /// Bundle directory.
     bundle: PathBuf,
-    /// SQL against the `events` table. Defaults to a kind summary.
+    /// SQL against the `events` and `stacks` tables. Defaults to a kind
+    /// summary over `events` (or the stack table with `--table stacks`).
+    ///
+    /// The tables join on `(sensor, stack_id)`:
+    /// `select e.kind, e.path, s.frames from events e join stacks s
+    ///  on e.sensor = s.sensor and e.stack_id = s.stack_id`.
     sql: Option<String>,
+    /// Default table for the generated SQL when no SQL is given.
+    #[arg(long, value_parser = ["events", "stacks"])]
+    table: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -269,18 +308,19 @@ async fn main() -> ExitCode {
 }
 
 fn record(args: RecordArgs) -> Result<(), String> {
-    if args.stacks != "off" {
-        return Err(format!(
-            "--stacks {} is not implemented yet; stack capture is a later milestone",
+    let stack_mode = StackMode::parse(&args.stacks).ok_or_else(|| {
+        format!(
+            "invalid --stacks {} (expected off, events, or all)",
             args.stacks
-        ));
-    }
+        )
+    })?;
     if args.batch_events == 0 {
         return Err("--batch-events must be greater than zero".to_string());
     }
 
     let names: Vec<&str> = args.sensors.iter().map(String::as_str).collect();
-    let sensors = bpf_loader::load(&names).map_err(|error| error.to_string())?;
+    let sensors = bpf_loader::load_with_options(&names, LoadOptions::with_stack_mode(stack_mode))
+        .map_err(|error| error.to_string())?;
     for sensor in &sensors.coverage.sensors {
         if sensor.status == bpf_loader::SensorStatus::Blocked {
             eprintln!(
@@ -299,7 +339,7 @@ fn record(args: RecordArgs) -> Result<(), String> {
     let capture = CaptureInfo {
         sensors: args.sensors.clone(),
         duration_ms: args.duration.saturating_mul(1000),
-        stack_mode: "off".to_string(),
+        stack_mode: stack_mode.as_str().to_string(),
     };
     let mut writer =
         BundleWriter::create(&args.out, host, capture).map_err(|error| error.to_string())?;
@@ -314,6 +354,15 @@ fn record(args: RecordArgs) -> Result<(), String> {
     let mut pending: Vec<Event> = Vec::with_capacity(args.batch_events);
     let mut event_count = 0u64;
     let mut decode_errors = 0u64;
+    // Record-time symbolization. Stacks are de-duplicated on
+    // (sensor, kernel handle, user handle): identical stacks share one
+    // recorder-assigned bundle id, so one symbolization covers many events
+    // and the bundle key stays joinable on (sensor, stack_id).
+    let mut symbolizer = stack_mode.enabled().then(Symbolizer::new);
+    let mut stacks: Vec<Stack> = Vec::new();
+    let mut stack_keys: std::collections::HashMap<(String, Option<i32>, Option<i32>), usize> =
+        std::collections::HashMap::new();
+    let mut stack_read_errors = 0u64;
 
     while !shutdown.load(Ordering::Relaxed) {
         if deadline
@@ -345,6 +394,55 @@ fn record(args: RecordArgs) -> Result<(), String> {
                     continue;
                 }
             }
+            if let Some(symbolizer) = symbolizer.as_mut() {
+                let kernel_id = event.stack_id;
+                let user_id = event.user_stack_id;
+                if kernel_id.is_some() || user_id.is_some() {
+                    let key = (sample.sensor.clone(), kernel_id, user_id);
+                    if let Some(index) = stack_keys.get(&key).copied() {
+                        if let Some(existing) = stacks.get(index) {
+                            event.stack_id = Some(existing.stack_id);
+                        }
+                    } else {
+                        match sensors.read_stack(&sample.sensor, kernel_id, user_id) {
+                            Ok(raw) => {
+                                // Bundle stack ids are assigned by the
+                                // recorder: the raw BPF handles only
+                                // identify frames, and a kernel handle is
+                                // shared by many distinct user stacks.
+                                let bundle_id = stacks.len() as i32 + 1;
+                                let stack = symbolizer.symbolize(
+                                    &sample.sensor,
+                                    bundle_id,
+                                    event.tgid,
+                                    &raw,
+                                );
+                                if stack.frames.is_empty() {
+                                    // Every captured frame was unusable;
+                                    // do not leave a dangling join key.
+                                    event.stack_id = None;
+                                    event.user_stack_id = None;
+                                } else {
+                                    event.stack_id = Some(bundle_id);
+                                    stack_keys.insert(key, stacks.len());
+                                    stacks.push(stack);
+                                }
+                            }
+                            Err(error) => {
+                                stack_read_errors += 1;
+                                // A dangling reference is worse than no
+                                // reference: clear the handles so the
+                                // event never joins to an unrelated stack.
+                                event.stack_id = None;
+                                event.user_stack_id = None;
+                                if stack_read_errors <= 3 {
+                                    eprintln!("warning: cannot read stack: {error}");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             pending.push(event);
             event_count += 1;
             if pending.len() >= args.batch_events {
@@ -370,21 +468,86 @@ fn record(args: RecordArgs) -> Result<(), String> {
             .write_events(&pending)
             .map_err(|error| error.to_string())?;
     }
+    if !stacks.is_empty() {
+        writer
+            .write_stacks(&stacks)
+            .map_err(|error| error.to_string())?;
+    }
     let bundle = writer.finish().map_err(|error| error.to_string())?;
     eprintln!(
-        "recorded {} events ({} decode errors) into {}",
+        "recorded {} events and {} distinct stacks ({} decode errors) into {}",
         bundle.manifest().counts.events,
+        bundle.manifest().counts.stacks,
         decode_errors,
         bundle.root().display()
+    );
+    if args.stats {
+        print_record_stats(
+            &sensors,
+            symbolizer
+                .as_ref()
+                .map(Symbolizer::stats)
+                .unwrap_or_default(),
+            &stack_mode,
+            &bundle,
+            decode_errors,
+            stack_read_errors,
+        )?;
+    }
+    Ok(())
+}
+
+/// Print `record --stats` as stable JSON: stack capture counters (including
+/// stack-map drops), stack-map geometry, and symbolization coverage. Stack
+/// capture failures are non-fatal; they show up here rather than as errors.
+fn print_record_stats(
+    sensors: &bpf_loader::LoadedSensors,
+    symbolization: runtime::symbolize::SymbolizeStats,
+    stack_mode: &StackMode,
+    bundle: &Bundle,
+    decode_errors: u64,
+    stack_read_errors: u64,
+) -> Result<(), String> {
+    let mut capture = StackCaptureStats::default();
+    for counters in sensors.stack_counters().values() {
+        capture.add(counters);
+    }
+    let mut maps = serde_json::Map::new();
+    for sensor in &sensors.sensors {
+        if let Some(info) = sensors.stack_map_info(&sensor.name) {
+            maps.insert(
+                sensor.name.clone(),
+                serde_json::to_value(info).map_err(|error| error.to_string())?,
+            );
+        }
+    }
+    let output = serde_json::json!({
+        "stack_mode": stack_mode.as_str(),
+        "events": bundle.manifest().counts.events,
+        "decode_errors": decode_errors,
+        "stacks_written": bundle.manifest().counts.stacks,
+        "stack_map_drops": capture.kernel_failures,
+        "stack_capture": capture,
+        "stack_maps": maps,
+        "symbolization": symbolization,
+        "stack_read_errors": stack_read_errors,
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output).map_err(|error| error.to_string())?
     );
     Ok(())
 }
 
 async fn query(args: QueryArgs) -> Result<(), String> {
     let bundle = Bundle::open(&args.bundle).map_err(|error| error.to_string())?;
-    let sql = args.sql.unwrap_or_else(|| {
-        "select kind, count(*) as n from events group by kind order by n desc".to_string()
-    });
+    let default_sql = match args.table.as_deref() {
+        Some("stacks") => {
+            "select stack_id, sensor, frames, truncated from stacks order by sensor, stack_id"
+        }
+        _ => "select kind, count(*) as n from events group by kind order by n desc",
+    };
+    let sql = args.sql.unwrap_or_else(|| default_sql.to_string());
     let batches = bundle
         .query(&sql)
         .await
