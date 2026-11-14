@@ -88,11 +88,13 @@ scripts/vm/run-smoke.sh --keep       # leave the VM running for debugging
 | `down` | Stop an instance and remove its overlay/seed; `--all` stops every instance and any orphan QEMU process for this lab root; `--purge` removes the instance directory too. |
 | `status` | Base images with size/date, instances with running/stale/stopped state, PID, SSH port and image, plus orphan QEMU detection. |
 | `collect` | Copy per-instance QEMU/console logs and, when running, guest diagnostics (`uname`, `os-release`, `cloud-init status`, BTF, sudo, dmesg, network) under `target/vm/collected/<UTC timestamp>/`. `--all` collects every instance. |
+| `copy` | Stream one file between the host and a running VM over the same SSH path `run` uses (no scp/sftp, no extra guest packages): `copy --name <n> <local> <guest-path>` uploads, `copy --name <n> --from-guest <guest-path> <local>` downloads. The transfer is size-checked and fails closed. |
 
 Common options (all commands): `--image <name>` (image key from
 `scripts/vm/images.json`), `--name <instance>` (default: the image key
 with dots replaced by hyphens), `--port`, `--cpus`, `--memory`,
-`--disk-size`, `--timeout`, `--help`. `bootstrap` also accepts
+`--disk-size`, `--timeout`, `--help`. `copy` adds `--from-guest` to reverse
+the transfer direction. `bootstrap` also accepts
 `--all-images` (every pinned image for the host architecture) and
 `--force` (redownload the cached base image). `down` and `collect`
 accept `--all`; `down` additionally accepts `--purge`.
@@ -217,39 +219,68 @@ Pin procedure (also encoded in `verification.pin_steps` in the JSON):
 `bootstrap --all-images` fetches every `pinned` image whose `arch`
 matches the host, so an x86_64 host does not download the arm64 entry.
 
-## Kernel-matrix expansion path
+## Kernel matrix
 
-The follow-on work for the 0.2 plan is to run the sensor build and smoke
-checks against several guest kernels. The lab is shaped for that:
+The kernel matrix runs the same static `target/release/ebpf-fleet` binary on
+pinned guest kernels and writes machine-readable evidence. The runner is
+`scripts/vm/run-matrix.sh`; for every image it boots a VM, copies the static
+binary in over `lab.sh copy`, verifies the guest sha256, runs
+`doctor --json`, `record --for 8` with deterministic process/file activity,
+`query` for kind counts and `FileOpen` paths, `replay`, a process-only probe
+record (to check the `sched_process_exit` raw tracepoint), exports the
+bundle, writes a per-row JSON file and tears the VM down even on failure.
 
 ```bash
-# After pinning debian-12, debian-13 and fedora-42 in images.json:
-for image in ubuntu-22.04 debian-12 debian-13 fedora-42; do
-  name="matrix-${image//./-}"
-  scripts/vm/lab.sh bootstrap --image "$image"
-  scripts/vm/lab.sh up --image "$image" --name "$name" --timeout 300
-  scripts/vm/lab.sh run --name "$name" -- 'uname -r; ls -l /sys/kernel/btf/vmlinux'
-  scripts/vm/lab.sh collect --name "$name"
-  scripts/vm/lab.sh down --name "$name"
-done
+# Run the pinned rows (each image boots once, results under target/vm/matrix/):
+nix develop --impure --command scripts/vm/run-matrix.sh \
+  --image ubuntu-24.04 --image ubuntu-22.04
+
+# Every pinned image matching the host architecture:
+nix develop --impure --command scripts/vm/run-matrix.sh --all-pinned
+
+# Add a Debian/Fedora/arm64 row once its image is pinned in images.json:
+nix develop --impure --command scripts/vm/run-matrix.sh --image debian-12
 ```
 
-- Start with `ubuntu-24.04` (already pinned) as the control. The next
-  pinned entry is `ubuntu-22.04` (5.15 kernel); Debian and Fedora need
-  their checksum translation step first.
+The runner is fail-closed: unpinned images, a non-static binary, a failed
+boot, a failed record/query/replay, a missing `FileOpen` path or an
+unexpected kernel series fail the run instead of skipping a row. Evidence:
+
+```
+target/vm/matrix/<stamp>/
+  matrix-summary.json          row table, host facts, pass/fail counts
+  <image>.json                 kernel release, BTF sha256, sensor results,
+                               counts, replay first line, per-check results
+  <image>/                     raw artifacts: doctor.json, record stderr,
+                               query tables, replay.jsonl, exported bundle,
+                               guest facts ([bundle], [btf], [security], ...),
+                               console/qemu logs
+```
+
+The live results (exact kernel releases, image sha256 values, pass/fail) are
+recorded in
+[docs/verification/kernel-matrix.md](../verification/kernel-matrix.md).
+Known limitation reproduced by the matrix: the `sched_process_exit` raw
+tracepoint does not attach on the pinned Ubuntu kernels, so bundles contain
+`ProcessFork`/`ProcessExec` but no `ProcessExit` events; the process-only
+probe in each row JSON records that evidence.
+
+The rest of the old expansion path still applies to new images:
+
 - Debian and Fedora cloud images also understand the NoCloud datasource;
   the `fleet` user is created by the same template. Their default users
   (`debian`, `fedora`) remain unused.
-- Package installation on first boot (`package_update: true`) can still
-  be running after SSH is ready; use
-  `lab.sh run --name <name> -- 'cloud-init status --wait'` before a
-  matrix step that depends on the packages.
+- Package installation on first boot (`package_update: true`) can still be
+  running after SSH is ready; the matrix runner polls for
+  `cloud-init status` `done` plus `jq`/`tar`/passwordless sudo before it
+  records, and the manual equivalent is
+  `lab.sh run --name <name> -- 'cloud-init status --wait'`.
 - arm64 needs a native aarch64 KVM host; the lab never emulates. When one
   is available, `--image ubuntu-24.04-arm64` boots the pinned arm64 build
   with the same commands.
 - Host-size guidance: 16 CPUs / ~62 GiB RAM supports several 2-4 GiB
-  guests at once; each guest needs its own SSH port and instance name,
-  and only setup/teardown is serialized by `flock`.
+  guests at once; each guest needs its own SSH port and instance name, and
+  only setup/teardown is serialized by `flock`.
 
 ## Troubleshooting
 

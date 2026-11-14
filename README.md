@@ -45,7 +45,11 @@ The local path is intentionally separate from fleet mode. Use the
 [local KVM VM lab](docs/runbooks/vm-lab.md) for privileged tests without
 giving the host root, and the [rootful compose runbook](docs/runbooks/rootful-compose.md)
 for the full data path. Rootless Podman is scoped to the repository with
-[`scripts/podman-scoped.sh`](scripts/podman-scoped.sh).
+[`scripts/podman-scoped.sh`](scripts/podman-scoped.sh). The current kernel
+matrix is recorded in
+[docs/verification/kernel-matrix.md](docs/verification/kernel-matrix.md)
+(Ubuntu 24.04 and 22.04 PASS; known `sched_process_exit` limitation called
+out).
 
 ![Fleet mode: hooks to analytics](docs/figures/fleet-architecture.png)
 

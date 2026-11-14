@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "updated": "2026-11-13",
+  "updated": "2026-11-14",
   "default_image": "ubuntu-24.04",
-  "description": "Base cloud images for the local KVM VM lab (scripts/vm/lab.sh). One pinned Ubuntu 24.04 x86_64 image is the supported default; the kernel-matrix entries are placeholders until their sha256 values are pinned and boot-validated.",
+  "description": "Base cloud images for the local KVM VM lab (scripts/vm/lab.sh). Two pinned Ubuntu x86_64 images are boot-validated: 24.04 (6.8) is the supported default and 22.04 (5.15) is the kernel-matrix LTS row. The Debian/Fedora/arm64 entries are placeholders until their sha256 values are pinned and boot-validated.",
   "verification": {
     "algorithm": "sha256",
     "policy": "fail-closed",
@@ -16,7 +16,7 @@
       "Boot it with scripts/vm/lab.sh up --image <name> and set boot_validated to true only after a successful SSH smoke run."
     ],
     "notes": [
-      "Ubuntu hashes were cross-checked against the SHA256SUMS manifest of the same dated build on 2026-11-13.",
+      "Ubuntu hashes were cross-checked against the SHA256SUMS manifest of the same dated build on 2026-11-13; the ubuntu-22.04 image was downloaded, re-hashed and booted by the lab on 2026-11-14.",
       "Debian publishes SHA-512 manifests (SHA512SUMS), Fedora publishes a PGP-signed CHECKSUM file; both are authoritative but need one translation step to the sha256 field used here.",
       "The URLs below are the ones the lab will fetch; a mirror may be substituted by editing url and re-pinning the hash."
     ]
@@ -35,7 +35,7 @@
       "checksum_manifest_format": "sha256sum -c compatible",
       "status": "pinned",
       "boot_validated": true,
-      "notes": "Default lab image and the only boot-validated entry. Booted on host massive 2026-11-13 via scripts/vm/run-smoke.sh: Ubuntu 24.04.5 LTS cloud image, kernel 6.8.0-147-generic, /sys/kernel/btf/vmlinux 6103569 bytes, cloud-init DataSourceNoCloud, smoke 4/4 PASS. Build: 20261017 (release.20260926.20261017)."
+      "notes": "Default lab image. Booted on host massive 2026-11-13 via scripts/vm/run-smoke.sh: Ubuntu 24.04.5 LTS cloud image, kernel 6.8.0-147-generic, /sys/kernel/btf/vmlinux 6103569 bytes, cloud-init DataSourceNoCloud, smoke 4/4 PASS. Build: 20261017 (release.20260926.20261017). Kernel-matrix row 2026-11-14 via scripts/vm/run-matrix.sh: PASS, kernel 6.8.0-147-generic, BTF sha256 8c10e7e1..., 3492 events recorded (2927 FileOpen, 269 ProcessFork, 271 ProcessExec), no ProcessExit events (sched_process_exit raw-tracepoint attach limitation reproduced). Evidence: target/vm/matrix/2026-11-14/ubuntu-24.04.json."
     },
     "ubuntu-22.04": {
       "distro": "ubuntu",
@@ -49,8 +49,8 @@
       "checksum_manifest": "https://cloud-images.ubuntu.com/releases/22.04/release-20261106/SHA256SUMS",
       "checksum_manifest_format": "sha256sum -c compatible",
       "status": "pinned",
-      "boot_validated": false,
-      "notes": "Kernel matrix entry: 5.15 GA kernel. Hash pinned but not yet booted by the lab; enable in the matrix batch after validating ubuntu-24.04."
+      "boot_validated": true,
+      "notes": "Kernel-matrix LTS row. Booted and validated on 2026-11-14 via scripts/vm/run-matrix.sh: Ubuntu 22.04.5 LTS, kernel 5.15.0-203-generic, /sys/kernel/btf/vmlinux 5290474 bytes (sha256 36e118be...), 3225 events recorded (2663 FileOpen, 267 ProcessFork, 270 ProcessExec), no ProcessExit events (sched_process_exit raw-tracepoint attach limitation reproduced). FileOpen paths decoded through the kprobe/pt_regs path on a kernel whose lsm list has no bpf, e.g. /tmp/matrix-probe/created-by-matrix. Evidence: target/vm/matrix/2026-11-14/ubuntu-22.04.json."
     },
     "debian-12": {
       "distro": "debian",

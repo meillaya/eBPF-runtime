@@ -25,6 +25,7 @@
 #   down        stop a VM and remove its overlay; --all stops every VM
 #   status      show base images and instances with liveness/SSH details
 #   collect     copy VM logs and a guest diagnostic bundle under target/vm
+#   copy        copy one file between the host and a running VM over SSH
 #
 # Options:
 #   --image <name>      image key from scripts/vm/images.json
@@ -42,6 +43,8 @@
 #   --force             bootstrap: rewrite the cached base image
 #   --all               down/collect: operate on every instance
 #   --purge             down: delete the instance directory, not just state
+#   --from-guest        copy: guest source -> local destination (default is
+#                       local source -> guest destination)
 #   --help              show this help
 #
 # Run inside the devenv shell so qemu, cloud-localds, openssh, jq and
@@ -93,8 +96,10 @@ bootstrap_all=0
 force=0
 down_all=0
 purge=0
+from_guest=0
 cmd=""
 run_cmd=()
+pos_args=()
 
 info() { printf 'lab: %s\n' "$*" >&2; }
 warn() { printf 'lab: warning: %s\n' "$*" >&2; }
@@ -163,6 +168,7 @@ while (($# > 0)); do
     --force) force=1; shift ;;
     --all) down_all=1; shift ;;
     --purge) purge=1; shift ;;
+    --from-guest) from_guest=1; shift ;;
     --)
       shift
       while (($# > 0)); do
@@ -176,9 +182,11 @@ while (($# > 0)); do
     *)
       if [[ -z "$cmd" ]]; then
         case "$arg" in
-          bootstrap | up | run | ssh | down | status | collect) cmd="$arg" ;;
+          bootstrap | up | run | ssh | down | status | collect | copy) cmd="$arg" ;;
           *) die "unknown command: $arg (try --help)" ;;
         esac
+      elif [[ "$cmd" == "copy" ]]; then
+        pos_args+=("$arg")
       else
         die "unexpected argument: $arg (put guest commands after --, see --help)"
       fi
@@ -190,6 +198,10 @@ done
 if [[ -z "$cmd" ]]; then
   usage >&2
   exit 2
+fi
+
+if ((from_guest)) && [[ "$cmd" != "copy" ]]; then
+  die "--from-guest is only valid with the copy command"
 fi
 
 validate_positive_int() {
@@ -974,6 +986,56 @@ cmd_run() {
   instance_ssh "$dir" batch "${run_cmd[@]}"
 }
 
+# copy: stream one file between the host and a running guest over the same
+# SSH path `run` uses (no scp/sftp, no extra guest packages). Binary-safe:
+# batch SSH never allocates a pseudo-terminal for a remote command.
+cmd_copy() {
+  ((${#run_cmd[@]} == 0)) ||
+    die "copy takes <source> <destination> as plain arguments, not after --"
+  ((${#pos_args[@]} == 2)) ||
+    die "copy needs exactly two arguments: <source> <destination> (use --from-guest to download)"
+  preflight_ssh
+  load_images_json
+  resolve_instance
+  local src="${pos_args[0]}" dst="${pos_args[1]}" dir="$INSTANCE_DIR"
+  [[ -d "$dir" ]] ||
+    die "no instance named $INSTANCE_NAME under target/vm/instances; start one with 'scripts/vm/lab.sh up'"
+  instance_alive "$dir" ||
+    die "instance $INSTANCE_NAME is not running; start it with 'scripts/vm/lab.sh up --image $INSTANCE_IMAGE_KEY --name $INSTANCE_NAME'"
+  local q_src q_dst q_tmp expected got tmp
+  printf -v q_src '%q' "$src"
+  printf -v q_dst '%q' "$dst"
+  if ((from_guest)); then
+    tmp="$dst.part.$$"
+    mkdir -p -- "$(dirname -- "$dst")" || die "cannot create destination directory for $dst"
+    if ! instance_ssh "$dir" batch "cat -- $q_src" >"$tmp"; then
+      rm -f -- "$tmp"
+      die "failed to read $INSTANCE_NAME:$src (is the path readable by user $ssh_user?)"
+    fi
+    got="$(stat -c %s "$tmp" 2>/dev/null || echo unknown)"
+    expected="$(instance_ssh "$dir" batch "wc -c < $q_src" 2>/dev/null | tr -d '[:space:]')" || expected=""
+    if [[ -n "$expected" && "$got" != "$expected" ]]; then
+      rm -f -- "$tmp"
+      die "size mismatch downloading $INSTANCE_NAME:$src (guest $expected bytes, local $got bytes)"
+    fi
+    mv -f -- "$tmp" "$dst"
+    info "copied $INSTANCE_NAME:$src -> $dst ($(file_size_human "$dst"))"
+    return 0
+  fi
+  [[ -f "$src" ]] || die "local source is not a regular file: $src"
+  tmp="$dst.part.$$"
+  printf -v q_tmp '%q' "$tmp"
+  if ! instance_ssh "$dir" batch "cat > $q_tmp && mv -f -- $q_tmp $q_dst" <"$src"; then
+    instance_ssh "$dir" batch "rm -f -- $q_tmp" >/dev/null 2>&1 || true
+    die "failed to write $INSTANCE_NAME:$dst (is the directory writable by user $ssh_user?)"
+  fi
+  expected="$(stat -c %s "$src")"
+  got="$(instance_ssh "$dir" batch "wc -c < $q_dst" 2>/dev/null | tr -d '[:space:]')" || got=""
+  [[ "$got" == "$expected" ]] ||
+    die "size mismatch uploading to $INSTANCE_NAME:$dst (local $expected bytes, guest ${got:-unknown} bytes)"
+  info "copied $src -> $INSTANCE_NAME:$dst ($(file_size_human "$src"))"
+}
+
 cmd_ssh() {
   preflight_ssh
   load_images_json
@@ -1133,5 +1195,6 @@ case "$cmd" in
   down) cmd_down ;;
   status) cmd_status ;;
   collect) cmd_collect ;;
+  copy) cmd_copy ;;
   *) die "internal error: unhandled command '$cmd'" ;;
 esac
