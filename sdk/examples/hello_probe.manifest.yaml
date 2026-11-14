@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
+# Probe manifest (version 1) for sdk/examples/hello_probe.bpf.c.
+#
+# Build the object first:
+#
+#   ebpf-fleet probe build sdk/examples/hello_probe.bpf.c \
+#     --out target/probe-sdk/hello_probe.bpf.o
+#
+# Then run it as root (the example attaches the stable
+# sched_process_exec tracepoint and emits one event per successful exec):
+#
+#   sudo ebpf-fleet probe run \
+#     --manifest sdk/examples/hello_probe.manifest.yaml \
+#     --allow-unpinned --duration 5
+#
+# This example is deliberately NOT pinned: `fleet probe run` refuses to load
+# an unpinned object unless --allow-unpinned is passed explicitly. For any
+# real deployment, pin the exact object bytes:
+#
+#   sha256sum target/probe-sdk/hello_probe.bpf.o
+#
+# and add the digest as a `sha256:` field (64 lowercase hex characters). With
+# a pin present the runtime refuses to load an object whose bytes changed.
+#
+# The object path is resolved against this manifest's directory, so the
+# relative path works from any current directory.
+version: 1
+name: hello
+description: Emit one event per successful exec from the sched_process_exec tracepoint.
+object: ../../target/probe-sdk/hello_probe.bpf.o
+section: tracepoint/sched/sched_process_exec
+attach: tracepoint
+ringbuf: hello_events
+supported_kernel: ">=5.8 (BPF ring buffers and BTF/CO-RE)"
+events:
+  envelope: fprb
+  version: 1
+  kinds:
+    - kind: 1
+      name: exec
+      # Matches `struct hello_probe_exec` in hello_probe.bpf.c: a 16-byte
+      # NUL-padded comm followed by the task start time.
+      fields:
+        - { name: comm, type: string, size: 16 }
+        - { name: task_start_ns, type: u64 }

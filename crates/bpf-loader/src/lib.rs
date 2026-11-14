@@ -6,6 +6,15 @@
 //! result records one entry per sensor: attached programs, skipped
 //! sections, and the error for every failed attach.
 //!
+//! [`load_object`]/[`LoadedObject`] are the dynamic path used by
+//! `fleet probe run`: they open one external CO-RE object from the
+//! filesystem, load it, attach a program by ELF section, and build a ring
+//! buffer by map name while keeping the object and links alive. The
+//! two-phase [`open_object`] API lets a caller validate the section and map
+//! names before any kernel resource is created. This path never decides
+//! whether an object may be loaded; the probe runtime applies the manifest,
+//! SHA-256 pin, and root-only checks first.
+//!
 //! A sensor that attaches no program is dropped, so a caller never holds
 //! an object that observes nothing. Programs in `cgroup/`, `cgroup_skb/`,
 //! and `classifier` sections need a cgroup or network device handle; this
@@ -25,6 +34,18 @@
 //! ```
 
 #![forbid(unsafe_code)]
+
+mod dynamic;
+
+pub use crate::dynamic::load_object;
+pub use crate::dynamic::open_object;
+pub use crate::dynamic::DynamicMap;
+pub use crate::dynamic::DynamicObjectError;
+pub use crate::dynamic::DynamicProgram;
+pub use crate::dynamic::LoadedObject;
+pub use crate::dynamic::OpenedObject;
+pub use crate::dynamic::RawRecord;
+pub use crate::dynamic::UnloadReport;
 
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Once;

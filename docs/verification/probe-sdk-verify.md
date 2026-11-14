@@ -22,5 +22,6 @@ is separately covered by `cargo test -p probe` (it correctly reports
 `permission_denied` rather than claiming success).
 
 This proves object build, CO-RE relocation, map creation, and verifier
-acceptance. It does not prove attachment or runtime decoding of SDK events;
-both are explicitly out of this slice.
+acceptance. Attachment and runtime decoding of SDK events are out of this 0.2
+slice and are covered by the 0.3 runtime evidence in
+[`probe-runtime.md`](probe-runtime.md).

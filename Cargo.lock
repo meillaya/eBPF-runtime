@@ -737,6 +737,7 @@ dependencies = [
  "libbpf-rs",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.19",
 ]
 
@@ -4138,6 +4139,9 @@ dependencies = [
  "bpf-build",
  "libbpf-rs",
  "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.10.9",
  "thiserror 2.0.19",
 ]
 

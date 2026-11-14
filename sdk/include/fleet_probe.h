@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 OR MIT
  *
  * sdk/include/fleet_probe.h
- * C probe SDK for the eBPF fleet 0.2 slice.
+ * C probe SDK for the eBPF fleet 0.3 runtime slice.
  *
  * WHAT THIS IS
  *   A small, dependency-free header for hand-written BPF CO-RE probes that
@@ -11,13 +11,15 @@
  *   an event.
  *
  * WHAT THIS IS NOT
- *   This is a header and a build/verify tool, not a DSL or a compiler.
- *   There is no probe language, no code generation, no schema compiler, and
- *   no runtime loader here. A probe is an ordinary libbpf-style C file that
- *   includes this header and is compiled by `crates/probe` or by the
- *   equivalent clang command below. The event envelope below is the SDK
- *   contract for custom probes. It is NOT the sensor event ABI in
- *   `bpf/include/event_abi.h`; the runtime does not decode SDK events yet.
+ *   This is a header and a build/verify/run tool, not a DSL or a compiler.
+ *   There is no probe language, no code generation, and no schema compiler.
+ *   A probe is an ordinary libbpf-style C file that includes this header and
+ *   is compiled by `crates/probe` or by the equivalent clang command below.
+ *   The event envelope below is the SDK contract for custom probes;
+ *   `crates/bpf-loader` loads and attaches the object and `fleet probe run`
+ *   decodes these records. It is NOT the sensor event ABI in
+ *   `bpf/include/event_abi.h` and the runtime keeps the two decoders
+ *   separate.
  *
  * TOOLCHAIN
  *   Compile with clang 19 only:
@@ -81,7 +83,7 @@
  *      headers in the supported order.
  *   2. Declare the GPL license string shown above.
  *   3. Declare one ring-buffer map with FLEET_PROBE_RINGBUF, named
- *      `<probe>_events` so a future loader can discover it the same way the
+ *      `<probe>_events` so the runtime can discover it the same way the
  *      sensors loader discovers `<sensor>_events`.
  *   4. Attach a program to a stable section such as
  *      `tracepoint/sched/sched_process_exec`; avoid host-specific kprobe
@@ -89,8 +91,12 @@
  *   5. Build a payload on the stack and call fleet_probe_submit() with a
  *      compile-time constant payload size, or reserve with
  *      fleet_probe_reserve() when the probe fills the payload in place.
+ *   6. Describe the object, section, attach type, ring-buffer map, and event
+ *      kinds in a probe manifest (version 1) so `fleet probe run` can verify
+ *      the SHA-256 pin, attach, decode, and unload it.
  *
- *   A complete example lives in `sdk/examples/hello_probe.bpf.c`; it is
+ *   A complete example lives in `sdk/examples/hello_probe.bpf.c` with its
+ *   manifest in `sdk/examples/hello_probe.manifest.yaml`; the C file is
  *   compiled by the `probe` crate's unit test on every `cargo test -p probe`.
  */
 

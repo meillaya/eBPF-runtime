@@ -15,9 +15,18 @@
  *           -c sdk/examples/hello_probe.bpf.c \
  *           -o target/probe-sdk/tests/hello_probe.bpf.o
  *
- * The object is a diagnostic fixture, not a sensor. It is not embedded in
- * the runtime and the runtime does not decode its events yet. `fleet probe
- * verify` will be able to load it once the Lead wires the CLI.
+ * The object is an example probe, not a sensor: it is not embedded in the
+ * runtime. It is loaded from its probe manifest instead:
+ *
+ *     ebpf-fleet probe build sdk/examples/hello_probe.bpf.c \
+ *       --out target/probe-sdk/hello_probe.bpf.o
+ *     sudo ebpf-fleet probe run \
+ *       --manifest sdk/examples/hello_probe.manifest.yaml \
+ *       --allow-unpinned --duration 5
+ *
+ * `fleet probe run` verifies the optional sha256 pin, loads the object,
+ * attaches this tracepoint program, decodes the FPRB events with the
+ * manifest's payload layout, and unloads on stop. See docs/probe-sdk.md.
  */
 
 #include "fleet_probe.h"
@@ -26,8 +35,9 @@
  * (used by fleet_probe_submit) and any LSM program are GPL-only. */
 char _license[] SEC("license") = "GPL";
 
-/* The map name follows the `<probe>_events` convention so a future loader
- * can discover it like the sensors' `<sensor>_events` maps. */
+/* The map name follows the `<probe>_events` convention; the probe manifest
+ * names it in `ringbuf:` so the runtime can discover it the same way the
+ * sensors loader finds its `<sensor>_events` maps. */
 FLEET_PROBE_RINGBUF(hello_events, FLEET_PROBE_RINGBUF_BYTES);
 
 /* Probe-defined event kind for this example. SDK kinds are 16-bit and

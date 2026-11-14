@@ -1,0 +1,300 @@
+{
+  "schema_version": 1,
+  "status": "pass",
+  "date": "2026-11-14",
+  "scope": "custom probe runtime: probe manifest v1, dynamic load/attach, FPRB decode, probe_events bundle table, clean unload",
+  "host": {
+    "name": "massive",
+    "arch": "x86_64",
+    "host_kernel": "7.3.3-1-cachyos",
+    "accelerator": "kvm",
+    "lab": "scripts/vm/lab.sh",
+    "instance": "probe-runtime-test",
+    "instance_removed_after_test": true
+  },
+  "guest": {
+    "image": "ubuntu-24.04",
+    "image_sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+    "os": "Ubuntu 24.04.5 LTS",
+    "kernel": "6.8.0-147-generic",
+    "btf": "/sys/kernel/btf/vmlinux present"
+  },
+  "binary": {
+    "path": "target/release/ebpf-fleet",
+    "build": "scripts/build-static.sh",
+    "sha256": "04c5963e1cd9dd5b3edd8f0a6ed535729ada6f9ea7360cb932f721130236d204",
+    "size_bytes": 137248296,
+    "kind": "x86_64 static-pie (stripped)"
+  },
+  "object": {
+    "source": "sdk/examples/hello_probe.bpf.c",
+    "sha256": "9829ccc9f90381d4c46fc59802e2eacb4edfd870359d6da9bd63740a65a1e0fd",
+    "size_bytes": 1003048,
+    "clang": "19.1.7 (pinned dev shell)",
+    "section": "tracepoint/sched/sched_process_exec",
+    "program": "hello_probe_exec",
+    "ringbuf_map": "hello_events",
+    "ringbuf_max_entries": 262144
+  },
+  "manifest": {
+    "source": "sdk/examples/hello_probe.manifest.yaml",
+    "guest_copy": "target/vm/probe-runtime/hello.manifest.yaml (pinned copy)",
+    "version": 1,
+    "name": "hello",
+    "pinned": true,
+    "sha256": "9829ccc9f90381d4c46fc59802e2eacb4edfd870359d6da9bd63740a65a1e0fd",
+    "attach": "tracepoint",
+    "payload_layout": [
+      {
+        "name": "comm",
+        "type": "string",
+        "size": 16
+      },
+      {
+        "name": "task_start_ns",
+        "type": "u64"
+      }
+    ]
+  },
+  "verify": {
+    "command": "sudo /tmp/probe/ebpf-fleet probe verify /tmp/probe/hello_probe.bpf.o --json",
+    "status": "loaded",
+    "programs": [
+      {
+        "name": "hello_probe_exec",
+        "section": "tracepoint/sched/sched_process_exec",
+        "prog_type": "Tracepoint"
+      }
+    ],
+    "maps": [
+      {
+        "name": "hello_events",
+        "map_type": "RingBuf",
+        "max_entries": 262144
+      }
+    ]
+  },
+  "run_bundle": {
+    "command": "sudo /tmp/probe/ebpf-fleet probe run --manifest /tmp/probe/hello.manifest.yaml --duration 5 --out /tmp/probe/hello.fleet",
+    "summary": {
+      "probe": "hello",
+      "manifest": "/tmp/probe/hello.manifest.yaml",
+      "object": "/tmp/probe/hello_probe.bpf.o",
+      "object_sha256": "9829ccc9f90381d4c46fc59802e2eacb4edfd870359d6da9bd63740a65a1e0fd",
+      "pinned": true,
+      "section": "tracepoint/sched/sched_process_exec",
+      "attach": "tracepoint",
+      "ringbuf": "hello_events",
+      "attached_programs": [
+        "hello_probe_exec"
+      ],
+      "duration_ms": 5000,
+      "events": 118,
+      "decode_errors": 0,
+      "payload_errors": 0,
+      "bundle": "/tmp/probe/hello.fleet",
+      "bundle_probe_events": 118,
+      "links_detached": 1,
+      "unloaded": true,
+      "stop": "duration"
+    },
+    "query_command": "sudo /tmp/probe/ebpf-fleet query /tmp/probe/hello.fleet --table probe_events",
+    "query_rows": 118,
+    "query_kinds": [
+      {
+        "probe": "hello",
+        "kind": 1,
+        "kind_name": "exec",
+        "n": 118
+      }
+    ],
+    "query_sample": [
+      {
+        "time": "2026-11-14T07:11:01.688479Z",
+        "pid": 18041,
+        "tgid": 18041,
+        "cgroup_id": 12051,
+        "payload_json": {
+          "comm": "true",
+          "task_start_ns": 546358177965
+        }
+      },
+      {
+        "time": "2026-11-14T07:11:01.689262Z",
+        "pid": 18042,
+        "tgid": 18042,
+        "cgroup_id": 12051,
+        "payload_json": {
+          "comm": "sleep",
+          "task_start_ns": 546359027725
+        }
+      },
+      {
+        "time": "2026-11-14T07:11:01.720409Z",
+        "pid": 18043,
+        "tgid": 18043,
+        "cgroup_id": 12051,
+        "payload_json": {
+          "comm": "true",
+          "task_start_ns": 546390107437
+        }
+      }
+    ]
+  },
+  "run_json_stdout": {
+    "command": "sudo /tmp/probe/ebpf-fleet probe run --manifest /tmp/probe/hello.manifest.yaml --duration 4",
+    "summary": {
+      "probe": "hello",
+      "manifest": "/tmp/probe/hello.manifest.yaml",
+      "object": "/tmp/probe/hello_probe.bpf.o",
+      "object_sha256": "9829ccc9f90381d4c46fc59802e2eacb4edfd870359d6da9bd63740a65a1e0fd",
+      "pinned": true,
+      "section": "tracepoint/sched/sched_process_exec",
+      "attach": "tracepoint",
+      "ringbuf": "hello_events",
+      "attached_programs": [
+        "hello_probe_exec"
+      ],
+      "duration_ms": 4000,
+      "events": 78,
+      "decode_errors": 0,
+      "payload_errors": 0,
+      "bundle": null,
+      "bundle_probe_events": 0,
+      "links_detached": 1,
+      "unloaded": true,
+      "stop": "duration"
+    },
+    "stdout_json_lines": 78,
+    "sample_events": [
+      {
+        "probe": "hello",
+        "kind": 1,
+        "kind_name": "exec",
+        "time": "2026-11-14T07:11:06.935541Z",
+        "time_unix_ns": 1794640266935541000,
+        "pid": 18211,
+        "tgid": 18211,
+        "cgroup_id": 12051,
+        "payload": {
+          "comm": "true",
+          "task_start_ns": 551611128340
+        },
+        "raw": "465052420100010030000000480000000000000018000000f1629b6e800000002347000023470000132f0000000000007472756500000000000000000000000014da956e80000000"
+      },
+      {
+        "probe": "hello",
+        "kind": 1,
+        "kind_name": "exec",
+        "time": "2026-11-14T07:11:06.936425Z",
+        "time_unix_ns": 1794640266936425000,
+        "pid": 18212,
+        "tgid": 18212,
+        "cgroup_id": 12051,
+        "payload": {
+          "comm": "sleep",
+          "task_start_ns": 551612061470
+        },
+        "raw": "465052420100010030000000480000000000000018000000c9e1a86e800000002447000024470000132f000000000000736c65657000000000000000000000001e17a46e80000000"
+      },
+      {
+        "probe": "hello",
+        "kind": 1,
+        "kind_name": "exec",
+        "time": "2026-11-14T07:11:06.967543Z",
+        "time_unix_ns": 1794640266967543000,
+        "pid": 18213,
+        "tgid": 18213,
+        "cgroup_id": 12051,
+        "payload": {
+          "comm": "true",
+          "task_start_ns": 551643157169
+        },
+        "raw": "465052420100010030000000480000000000000018000000b4b48370800000002547000025470000132f00000000000074727565000000000000000000000000b1927e7080000000"
+      }
+    ]
+  },
+  "run_unpinned_opt_in": {
+    "command": "sudo /tmp/probe/ebpf-fleet probe run --manifest /tmp/probe/hello-unpinned.manifest.yaml --allow-unpinned --duration 3",
+    "summary": {
+      "probe": "hello",
+      "manifest": "/tmp/probe/hello-unpinned.manifest.yaml",
+      "object": "/tmp/probe/hello_probe.bpf.o",
+      "object_sha256": "9829ccc9f90381d4c46fc59802e2eacb4edfd870359d6da9bd63740a65a1e0fd",
+      "pinned": false,
+      "section": "tracepoint/sched/sched_process_exec",
+      "attach": "tracepoint",
+      "ringbuf": "hello_events",
+      "attached_programs": [
+        "hello_probe_exec"
+      ],
+      "duration_ms": 3000,
+      "events": 38,
+      "decode_errors": 0,
+      "payload_errors": 0,
+      "bundle": null,
+      "bundle_probe_events": 0,
+      "links_detached": 1,
+      "unloaded": true,
+      "stop": "duration"
+    },
+    "stdout_json_lines": 38
+  },
+  "unload": {
+    "pre_run_programs": 0,
+    "pre_run_maps": 0,
+    "post_run_programs": 0,
+    "post_run_maps": 0,
+    "links_detached": 1,
+    "unloaded": true,
+    "command": "sudo bpftool prog show | grep -c hello_probe; sudo bpftool map show | grep -c hello_events"
+  },
+  "negative_cases": [
+    {
+      "case": "missing-privilege",
+      "exit_code": 1,
+      "error": "ebpf-fleet: `ebpf-fleet probe run` loads and attaches a BPF object and is root-only (effective uid 1000); re-run as root, for example `sudo ebpf-fleet probe run --manifest <MANIFEST>`"
+    },
+    {
+      "case": "hash-mismatch",
+      "exit_code": 1,
+      "error": "ebpf-fleet: probe object hash mismatch for /tmp/probe/hello_probe.bpf.o: manifest pins 0000000000000000000000000000000000000000000000000000000000000000, object is 9829ccc9f90381d4c46fc59802e2eacb4edfd870359d6da9bd63740a65a1e0fd; rebuild the object or update the pin with `sha256sum /tmp/probe/hello_probe.bpf.o`"
+    },
+    {
+      "case": "unpinned-refused",
+      "exit_code": 1,
+      "error": "ebpf-fleet: manifest /tmp/probe/hello-unpinned.manifest.yaml has no sha256 pin: refusing to load an unpinned probe object. Add `sha256: \"9829ccc9f90381d4c46fc59802e2eacb4edfd870359d6da9bd63740a65a1e0fd\"` to the manifest or pass --allow-unpinned to opt in explicitly"
+    },
+    {
+      "case": "wrong-section",
+      "exit_code": 1,
+      "error": "ebpf-fleet: manifest section `kprobe/does_not_exist` is not in /tmp/probe/hello_probe.bpf.o; object sections: tracepoint/sched/sched_process_exec"
+    },
+    {
+      "case": "verifier-rejection-run",
+      "exit_code": 1,
+      "error": "ebpf-fleet: cannot load probe object /tmp/probe/bad_probe.bpf.o: Permission denied (os error 13); if the kernel verifier rejected the object, run `ebpf-fleet probe verify /tmp/probe/bad_probe.bpf.o --json` for the verifier log"
+    }
+  ],
+  "verifier_negative": {
+    "object": "target/vm/probe-runtime/bad_probe.bpf.o (out-of-bounds stack-read fixture, not checked in)",
+    "verify_command": "sudo /tmp/probe/ebpf-fleet probe verify /tmp/probe/bad_probe.bpf.o --json",
+    "verify_status": "rejected",
+    "verify_programs": [
+      {
+        "name": "bad_probe",
+        "section": "tracepoint/sched/sched_process_exec",
+        "prog_type": "Tracepoint"
+      }
+    ],
+    "verify_hints": [
+      "the kernel verifier rejected at least one program; call VerifyReport::explanation() or probe::explain(&report.verifier_log) for the matched causes and source lines",
+      "the last instruction or source annotation in the verifier log is closest to the failure",
+      "fix the C source and rebuild; do not patch the object"
+    ],
+    "run_command": "sudo /tmp/probe/ebpf-fleet probe run --manifest /tmp/probe/bad.manifest.yaml --duration 1",
+    "run_exit_code": 1,
+    "run_error": "cannot load probe object /tmp/probe/bad_probe.bpf.o: Permission denied (os error 13); if the kernel verifier rejected the object, run `ebpf-fleet probe verify /tmp/probe/bad_probe.bpf.o --json` for the verifier log",
+    "note": "The kernel reports a verifier rejection as EACCES; verify/probe run classify it as rejected, not permission-denied. Missing privileges are EPERM."
+  }
+}

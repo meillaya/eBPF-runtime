@@ -16,9 +16,10 @@ use std::time::{Duration, Instant};
 
 use arrow::array::Array;
 use bpf_loader::{LoadOptions, StackMode};
-use bundle::{Bundle, BundleWriter, CaptureInfo, HostInfo, Manifest};
+use bundle::{Bundle, BundleWriter, CaptureInfo, HostInfo, Manifest, ProbeEventRecord};
 use clap::{Args, Parser, Subcommand};
 use event_model::{Event, Stack};
+use probe::{decode_payload, decode_record, hex, ProbeManifest};
 use runtime::decode::{decode, Clock};
 use runtime::process_table::ProcessTable;
 use runtime::rules_engine::Engine;
@@ -122,15 +123,16 @@ impl StackCaptureStats {
 struct QueryArgs {
     /// Bundle directory.
     bundle: PathBuf,
-    /// SQL against the `events` and `stacks` tables. Defaults to a kind
-    /// summary over `events` (or the stack table with `--table stacks`).
+    /// SQL against the `events`, `stacks`, and `probe_events` tables.
+    /// Defaults to a kind summary over `events` (or the stack / probe-event
+    /// table with `--table`).
     ///
     /// The tables join on `(sensor, stack_id)`:
     /// `select e.kind, e.path, s.frames from events e join stacks s
     ///  on e.sensor = s.sensor and e.stack_id = s.stack_id`.
     sql: Option<String>,
     /// Default table for the generated SQL when no SQL is given.
-    #[arg(long, value_parser = ["events", "stacks"])]
+    #[arg(long, value_parser = ["events", "stacks", "probe_events"])]
     table: Option<String>,
 }
 
@@ -190,6 +192,8 @@ enum ProbeCommand {
     Verify(ProbeVerifyArgs),
     /// Explain a captured verifier log.
     Explain(ProbeExplainArgs),
+    /// Attach a probe from its manifest, decode its events, and unload.
+    Run(ProbeRunArgs),
 }
 
 #[derive(Debug, Args)]
@@ -220,6 +224,64 @@ struct ProbeExplainArgs {
     /// Print machine-readable JSON.
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ProbeRunArgs {
+    /// Probe manifest YAML (version 1). The manifest names the object,
+    /// section, attach type, ring-buffer map, and event kinds.
+    #[arg(long)]
+    manifest: PathBuf,
+    /// Stop after this many seconds. Zero runs until interrupted.
+    #[arg(long, default_value_t = 0)]
+    duration: u64,
+    /// Write decoded events into a local bundle instead of printing JSON
+    /// lines. The bundle has an `events` table (empty) and a `probe_events`
+    /// table; query it with `ebpf-fleet query <bundle> --table probe_events`.
+    #[arg(long)]
+    out: Option<PathBuf>,
+    /// Load a manifest that has no sha256 pin. Refused by default: pin the
+    /// object bytes before letting the runtime load them.
+    #[arg(long)]
+    allow_unpinned: bool,
+}
+
+/// One decoded probe event as a JSON line on stdout when no bundle is written.
+#[derive(Serialize)]
+struct ProbeEventLine<'a> {
+    probe: &'a str,
+    kind: u16,
+    kind_name: Option<&'a str>,
+    time: String,
+    time_unix_ns: Option<i64>,
+    pid: u32,
+    tgid: u32,
+    cgroup_id: u64,
+    payload: serde_json::Value,
+    raw: String,
+}
+
+/// Machine-readable result of one `probe run` lifecycle.
+#[derive(Debug, Serialize)]
+struct ProbeRunSummary {
+    probe: String,
+    manifest: String,
+    object: String,
+    object_sha256: String,
+    pinned: bool,
+    section: String,
+    attach: String,
+    ringbuf: String,
+    attached_programs: Vec<String>,
+    duration_ms: u64,
+    events: u64,
+    decode_errors: u64,
+    payload_errors: u64,
+    bundle: Option<String>,
+    bundle_probe_events: u64,
+    links_detached: usize,
+    unloaded: bool,
+    stop: &'static str,
 }
 
 #[derive(Debug, Args)]
@@ -293,6 +355,7 @@ async fn main() -> ExitCode {
             ProbeCommand::Build(build) => probe_build(build),
             ProbeCommand::Verify(verify) => probe_verify(verify),
             ProbeCommand::Explain(explain) => probe_explain(explain),
+            ProbeCommand::Run(run) => probe_run(run),
         },
         Command::Policy(args) => match args.command {
             PolicyCommand::Test(test) => policy_test(test).await,
@@ -544,6 +607,10 @@ async fn query(args: QueryArgs) -> Result<(), String> {
     let default_sql = match args.table.as_deref() {
         Some("stacks") => {
             "select stack_id, sensor, frames, truncated from stacks order by sensor, stack_id"
+        }
+        Some("probe_events") => {
+            "select probe, kind, kind_name, count(*) as n from probe_events \
+             group by probe, kind, kind_name order by n desc"
         }
         _ => "select kind, count(*) as n from events group by kind order by n desc",
     };
@@ -828,6 +895,276 @@ fn probe_verify(args: ProbeVerifyArgs) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!("probe did not load: {:?}", report.status))
+    }
+}
+
+/// Attach a custom probe from its manifest, decode its ring-buffer events,
+/// and unload. This is the only command that loads custom probe code into the
+/// kernel, and it is deliberately root-only, explicit, and pinned-by-default.
+fn probe_run(args: ProbeRunArgs) -> Result<(), String> {
+    let manifest = ProbeManifest::load(&args.manifest)
+        .map_err(|error| format!("{}: {error}", args.manifest.display()))?;
+    let object_path = manifest.resolve_object(&args.manifest);
+    let object_sha256 = manifest
+        .verify_object_sha256(&object_path)
+        .map_err(|error| error.to_string())?;
+    if !manifest.pinned() && !args.allow_unpinned {
+        return Err(format!(
+            "manifest {} has no sha256 pin: refusing to load an unpinned probe object. Add \
+             `sha256: \"{object_sha256}\"` to the manifest or pass --allow-unpinned to opt in \
+             explicitly",
+            args.manifest.display()
+        ));
+    }
+
+    // Open and validate the object before asking the kernel for anything: a
+    // wrong section or missing ring-buffer map is a manifest error, not a
+    // privileged operation.
+    let opened = bpf_loader::open_object(&object_path).map_err(|error| error.to_string())?;
+    if !opened.has_section(&manifest.section) {
+        return Err(format!(
+            "manifest section `{}` is not in {}; object sections: {}",
+            manifest.section,
+            object_path.display(),
+            opened.section_list()
+        ));
+    }
+    if !opened.has_ringbuf(&manifest.ringbuf) {
+        return Err(format!(
+            "manifest ringbuf map `{}` is not a ring buffer in {}; object maps: {}",
+            manifest.ringbuf,
+            object_path.display(),
+            opened.map_list()
+        ));
+    }
+    require_root()?;
+
+    eprintln!(
+        "probe {}: loading {} and attaching section {}",
+        manifest.name,
+        object_path.display(),
+        manifest.section
+    );
+    let mut loaded = opened.load().map_err(|error| error.to_string())?;
+    let attached_programs = loaded
+        .attach(&manifest.section)
+        .map_err(|error| error.to_string())?;
+    let (ring, records) = loaded
+        .ring_reader(&manifest.ringbuf)
+        .map_err(|error| error.to_string())?;
+
+    let mut writer = match &args.out {
+        Some(path) => Some(
+            BundleWriter::create(
+                path,
+                host_info(),
+                CaptureInfo {
+                    sensors: vec![manifest.name.clone()],
+                    duration_ms: args.duration.saturating_mul(1000),
+                    stack_mode: "off".to_string(),
+                },
+            )
+            .map_err(|error| error.to_string())?,
+        ),
+        None => None,
+    };
+
+    let shutdown = Arc::new(AtomicBool::new(false));
+    signal_hook::flag::register(SIGINT, shutdown.clone()).map_err(|error| error.to_string())?;
+    signal_hook::flag::register(SIGTERM, shutdown.clone()).map_err(|error| error.to_string())?;
+
+    let clock = Clock::new();
+    let deadline = (args.duration > 0).then(|| Instant::now() + Duration::from_secs(args.duration));
+    let mut pending: Vec<ProbeEventRecord> = Vec::new();
+    let mut events = 0u64;
+    let mut decode_errors = 0u64;
+    let mut payload_errors = 0u64;
+    let mut ring_error = false;
+    while !shutdown.load(Ordering::Relaxed) {
+        if deadline
+            .map(|deadline| Instant::now() >= deadline)
+            .unwrap_or(false)
+        {
+            break;
+        }
+        if let Err(error) = ring.poll(Duration::from_millis(200)) {
+            eprintln!("warning: ring buffer: {error}");
+            ring_error = true;
+            break;
+        }
+        for record in records.try_iter() {
+            let event = match decode_record(&record.bytes) {
+                Ok(event) => event,
+                Err(error) => {
+                    decode_errors += 1;
+                    if decode_errors <= 3 {
+                        eprintln!("warning: cannot decode probe event: {error}");
+                    }
+                    continue;
+                }
+            };
+            let raw = hex(&record.bytes);
+            let (kind_name, payload) = match manifest.kind(event.kind) {
+                Some(kind) => match decode_payload(kind, &event.payload) {
+                    Ok(payload) => (Some(kind.name.clone()), payload),
+                    Err(error) => {
+                        payload_errors += 1;
+                        if payload_errors <= 3 {
+                            eprintln!("warning: {error}");
+                        }
+                        continue;
+                    }
+                },
+                // An undeclared kind is not malformed: preserve the payload
+                // verbatim so the event is still queryable.
+                None => (
+                    None,
+                    serde_json::json!({
+                        "undeclared": true,
+                        "hex": hex(&event.payload),
+                    }),
+                ),
+            };
+            let time = clock.format(event.ts_ns);
+            let time_unix_ns = bundle::rfc3339_to_unix_ns(&time);
+            if let Some(writer) = writer.as_mut() {
+                pending.push(ProbeEventRecord {
+                    probe: manifest.name.clone(),
+                    kind: event.kind,
+                    kind_name: kind_name.clone(),
+                    time_unix_ns,
+                    time: Some(time),
+                    pid: event.pid,
+                    tgid: event.tgid,
+                    cgroup_id: event.cgroup_id,
+                    payload_json: serde_json::to_string(&payload)
+                        .map_err(|error| error.to_string())?,
+                    raw: Some(raw),
+                });
+                if pending.len() >= PROBE_EVENT_BATCH {
+                    writer
+                        .write_probe_events(&pending)
+                        .map_err(|error| error.to_string())?;
+                    pending.clear();
+                }
+            } else {
+                let line = ProbeEventLine {
+                    probe: &manifest.name,
+                    kind: event.kind,
+                    kind_name: kind_name.as_deref(),
+                    time,
+                    time_unix_ns,
+                    pid: event.pid,
+                    tgid: event.tgid,
+                    cgroup_id: event.cgroup_id,
+                    payload,
+                    raw,
+                };
+                println!(
+                    "{}",
+                    serde_json::to_string(&line).map_err(|error| error.to_string())?
+                );
+            }
+            events += 1;
+        }
+    }
+
+    let stop = if shutdown.load(Ordering::Relaxed) {
+        "signal"
+    } else if ring_error {
+        "ring-buffer-error"
+    } else {
+        "duration"
+    };
+
+    let report = loaded.unload();
+    if events == 0 {
+        // The writer is still un-finished here, so dropping it removes the
+        // hidden temporary bundle directory: a failed capture never leaves an
+        // empty-looking bundle behind.
+        return Err(format!(
+            "probe {} attached but emitted no decoded events during the run \
+             ({} decode errors, {} payload errors, stop: {stop}); generate activity on the \
+             attached tracepoint or check the probe program",
+            manifest.name, decode_errors, payload_errors
+        ));
+    }
+
+    let (bundle_path, bundle_probe_events) = match writer {
+        Some(mut writer) => {
+            if !pending.is_empty() {
+                writer
+                    .write_probe_events(&pending)
+                    .map_err(|error| error.to_string())?;
+            }
+            let bundle = writer.finish().map_err(|error| error.to_string())?;
+            (
+                Some(bundle.root().display().to_string()),
+                bundle.manifest().counts.probe_events,
+            )
+        }
+        None => (None, 0),
+    };
+
+    let summary = ProbeRunSummary {
+        probe: manifest.name.clone(),
+        manifest: args.manifest.display().to_string(),
+        object: object_path.display().to_string(),
+        object_sha256,
+        pinned: manifest.pinned(),
+        section: manifest.section.clone(),
+        attach: manifest.attach.as_str().to_string(),
+        ringbuf: manifest.ringbuf.clone(),
+        attached_programs,
+        duration_ms: args.duration.saturating_mul(1000),
+        events,
+        decode_errors,
+        payload_errors,
+        bundle: bundle_path,
+        bundle_probe_events,
+        links_detached: report.links_detached,
+        unloaded: true,
+        stop,
+    };
+    let json = serde_json::to_string_pretty(&summary).map_err(|error| error.to_string())?;
+    if summary.bundle.is_some() {
+        println!("{json}");
+    } else {
+        // stdout carries only event JSON lines in the no-bundle mode.
+        eprintln!("{json}");
+    }
+    Ok(())
+}
+
+/// Records per Parquet part in a probe bundle.
+const PROBE_EVENT_BATCH: usize = 256;
+
+/// Effective uid from `/proc/self/status` (the `Uid:` line is
+/// `real effective saved fs`).
+fn effective_uid() -> Option<u32> {
+    let status = fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|line| line.starts_with("Uid:"))?;
+    line.split_whitespace().nth(2)?.parse().ok()
+}
+
+/// `fleet probe run` loads custom BPF code, so it refuses to run for anyone
+/// but root. The kernel capability alternative (CAP_BPF + CAP_PERFMON +
+/// CAP_SYS_ADMIN) is intentionally not advertised here: a root-only gate is
+/// simpler to audit for a command that attaches arbitrary operator-supplied
+/// programs.
+fn require_root() -> Result<(), String> {
+    match effective_uid() {
+        Some(0) => Ok(()),
+        Some(uid) => Err(format!(
+            "`ebpf-fleet probe run` loads and attaches a BPF object and is root-only \
+             (effective uid {uid}); re-run as root, for example `sudo ebpf-fleet probe run \
+             --manifest <MANIFEST>`"
+        )),
+        None => Err(
+            "`ebpf-fleet probe run` is root-only, but the effective uid could not be read from \
+             /proc/self/status"
+                .to_string(),
+        ),
     }
 }
 

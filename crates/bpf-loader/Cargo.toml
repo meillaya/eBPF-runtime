@@ -24,3 +24,6 @@ thiserror = "2"
 
 [build-dependencies]
 bpf-build = { path = "../bpf-build" }
+
+[dev-dependencies]
+tempfile = "3"

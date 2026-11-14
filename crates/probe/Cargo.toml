@@ -4,7 +4,7 @@ name = "probe"
 version = "0.2.2"
 edition = "2021"
 rust-version = "1.95.0"
-description = "Build, verify, and explain custom C probes for the eBPF fleet SDK."
+description = "Build, verify, explain, and decode custom C probes for the eBPF fleet SDK."
 license = "Apache-2.0 OR MIT"
 publish = false
 
@@ -16,4 +16,7 @@ path = "src/lib.rs"
 bpf-build = { path = "../bpf-build" }
 libbpf-rs = { version = "0.26", features = ["vendored"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.10"
 thiserror = "2"

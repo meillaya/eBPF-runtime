@@ -18,11 +18,11 @@ use std::sync::Arc;
 
 use arrow_array::builder::{
     BooleanBuilder, Int32Builder, Int64Builder, ListBuilder, StringBuilder, StructBuilder,
-    UInt32Builder, UInt64Builder,
+    UInt16Builder, UInt32Builder, UInt64Builder,
 };
 use arrow_array::{
-    Array, ArrayRef, BooleanArray, Int32Array, ListArray, RecordBatch, StringArray, StructArray,
-    UInt32Array, UInt64Array,
+    Array, ArrayRef, BooleanArray, Int32Array, Int64Array, ListArray, RecordBatch, StringArray,
+    StructArray, UInt16Array, UInt32Array, UInt64Array,
 };
 use arrow_schema::{DataType, Field, Fields, Schema, SchemaRef};
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -39,7 +39,9 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 /// Bundle manifest format version written by this crate (0.3: adds the
-/// `stacks` table and `events.stack_id`).
+/// `stacks` table, `events.stack_id`, and the optional `probe_events`
+/// table). A bundle written without `probe_events` still opens in this
+/// build and exposes an empty `probe_events` table.
 pub const FORMAT: &str = "ebpf-fleet.bundle/v2";
 /// Frozen 0.2 bundle format. The reader still accepts it so old incident
 /// bundles stay queryable (its `stacks` table is exposed empty).
@@ -162,6 +164,12 @@ pub struct Counts {
     pub alerts: u64,
     /// Number of stack rows written.
     pub stacks: u64,
+    /// Number of custom-probe event rows written to `probe_events`.
+    ///
+    /// Defaulted so a bundle manifest written before the probe runtime (or a
+    /// hand-built v1 fixture) deserializes with zero probe rows.
+    #[serde(default)]
+    pub probe_events: u64,
     /// Sensor/subsystem drop counters.
     pub dropped: std::collections::BTreeMap<String, u64>,
 }
@@ -175,6 +183,36 @@ pub struct FileInfo {
     pub rows: u64,
     /// SHA-256 of the part.
     pub sha256: String,
+}
+
+/// One decoded custom-probe event written to the `probe_events` table.
+///
+/// The runtime decodes the fixed `FPRB` SDK envelope and the probe manifest's
+/// payload layout into `payload_json`; `raw` keeps the complete ring-buffer
+/// record as lowercase hex so no captured byte is lost when the manifest
+/// layout is incomplete or the decoder is stricter than a future probe.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProbeEventRecord {
+    /// Probe name from the manifest.
+    pub probe: String,
+    /// Probe-defined event kind (`FPRB` header field).
+    pub kind: u16,
+    /// Declared kind name, when the manifest declares this kind.
+    pub kind_name: Option<String>,
+    /// Wall-clock time in Unix nanoseconds (nullable, like `events`).
+    pub time_unix_ns: Option<i64>,
+    /// RFC 3339 wall-clock time (nullable, like `events`).
+    pub time: Option<String>,
+    /// Thread id.
+    pub pid: u32,
+    /// Thread group id.
+    pub tgid: u32,
+    /// Cgroup v2 id.
+    pub cgroup_id: u64,
+    /// Decoded payload as a JSON object.
+    pub payload_json: String,
+    /// Complete record bytes as lowercase hex.
+    pub raw: Option<String>,
 }
 
 /// On-disk manifest.
@@ -226,6 +264,7 @@ pub struct BundleWriter {
     manifest: Manifest,
     next_part: u32,
     next_stack_part: u32,
+    next_probe_part: u32,
     finished: bool,
 }
 
@@ -258,12 +297,14 @@ impl BundleWriter {
         }
         fs::create_dir_all(temp_path.join("events"))?;
         fs::create_dir_all(temp_path.join("stacks"))?;
+        fs::create_dir_all(temp_path.join("probe_events"))?;
         Ok(Self {
             final_path,
             temp_path,
             manifest: Manifest::new(host, capture),
             next_part: 0,
             next_stack_part: 0,
+            next_probe_part: 0,
             finished: false,
         })
     }
@@ -314,6 +355,33 @@ impl BundleWriter {
         self.manifest.files.push(FileInfo {
             path: relative,
             rows: stacks.len() as u64,
+            sha256,
+        });
+        Ok(())
+    }
+
+    /// Append one Parquet part of decoded custom-probe events.
+    ///
+    /// `probe_events` is an optional table: a bundle with no parts still opens
+    /// and queries as an empty table, so a v1/v2 bundle recorded before the
+    /// probe runtime stays readable.
+    pub fn write_probe_events(&mut self, events: &[ProbeEventRecord]) -> Result<(), BundleError> {
+        if events.is_empty() {
+            return Ok(());
+        }
+        let relative = format!("probe_events/part-{:05}.parquet", self.next_probe_part);
+        self.next_probe_part += 1;
+        let full = self.temp_path.join(&relative);
+        let batch = probe_events_to_batch(events)?;
+        let file = File::create(&full)?;
+        let mut writer = ArrowWriter::try_new(file, batch.schema(), None)?;
+        writer.write(&batch)?;
+        writer.close()?;
+        let sha256 = sha256_file(&full)?;
+        self.manifest.counts.probe_events += events.len() as u64;
+        self.manifest.files.push(FileInfo {
+            path: relative,
+            rows: events.len() as u64,
             sha256,
         });
         Ok(())
@@ -558,17 +626,27 @@ impl Bundle {
         })
     }
 
-    /// Execute SQL against the bundle's `events` and `stacks` tables.
+    /// Execute SQL against the bundle's `events`, `stacks`, and
+    /// `probe_events` tables.
     ///
-    /// Both tables are always registered. A v1 (0.2) bundle is read with
+    /// Every table is always registered. A v1 (0.2) bundle is read with
     /// the frozen v1 event schema and exposes an empty `stacks` table, so
     /// the same join SQL keeps the same shape but returns no stack rows.
-    /// v2 bundles join on `(sensor, stack_id)`:
+    /// A bundle written before the probe runtime exposes an empty
+    /// `probe_events` table. v2 bundles join events and stacks on
+    /// `(sensor, stack_id)`:
     ///
     /// ```sql
     /// select e.kind, e.path, s.frames
     /// from events e join stacks s
     ///   on e.sensor = s.sensor and e.stack_id = s.stack_id
+    /// ```
+    ///
+    /// Custom-probe rows are queried directly:
+    ///
+    /// ```sql
+    /// select probe, kind_name, count(*) as n from probe_events
+    /// group by probe, kind_name order by n desc
     /// ```
     pub async fn query(&self, sql: &str) -> Result<Vec<RecordBatch>, BundleError> {
         self.execute(sql, true).await
@@ -629,16 +707,78 @@ impl Bundle {
         Ok(stacks)
     }
 
+    /// Read the whole `probe_events` table back into typed records.
+    ///
+    /// A bundle written before the probe runtime (or a plain sensor bundle)
+    /// has no probe parts and returns an empty vector.
+    pub async fn read_probe_events(&self) -> Result<Vec<ProbeEventRecord>, BundleError> {
+        let batches = self
+            .execute(
+                "select probe, kind, kind_name, time_unix_ns, time, pid, tgid, cgroup_id, \
+                 payload_json, raw from probe_events order by time_unix_ns, pid, kind",
+                false,
+            )
+            .await?;
+        let mut records = Vec::new();
+        for batch in &batches {
+            let (
+                Some(probes),
+                Some(kinds),
+                Some(names),
+                Some(times_unix),
+                Some(times),
+                Some(pids),
+                Some(tgids),
+                Some(cgroups),
+                Some(payloads),
+                Some(raws),
+            ) = (
+                batch.column(0).as_any().downcast_ref::<StringArray>(),
+                batch.column(1).as_any().downcast_ref::<UInt16Array>(),
+                batch.column(2).as_any().downcast_ref::<StringArray>(),
+                batch.column(3).as_any().downcast_ref::<Int64Array>(),
+                batch.column(4).as_any().downcast_ref::<StringArray>(),
+                batch.column(5).as_any().downcast_ref::<UInt32Array>(),
+                batch.column(6).as_any().downcast_ref::<UInt32Array>(),
+                batch.column(7).as_any().downcast_ref::<UInt64Array>(),
+                batch.column(8).as_any().downcast_ref::<StringArray>(),
+                batch.column(9).as_any().downcast_ref::<StringArray>(),
+            )
+            else {
+                continue;
+            };
+            for row in 0..batch.num_rows() {
+                records.push(ProbeEventRecord {
+                    probe: probes.value(row).to_string(),
+                    kind: kinds.value(row),
+                    kind_name: (!names.is_null(row)).then(|| names.value(row).to_string()),
+                    time_unix_ns: (!times_unix.is_null(row)).then(|| times_unix.value(row)),
+                    time: (!times.is_null(row)).then(|| times.value(row).to_string()),
+                    pid: pids.value(row),
+                    tgid: tgids.value(row),
+                    cgroup_id: cgroups.value(row),
+                    payload_json: payloads.value(row).to_string(),
+                    raw: (!raws.is_null(row)).then(|| raws.value(row).to_string()),
+                });
+            }
+        }
+        Ok(records)
+    }
+
     async fn execute(
         &self,
         sql: &str,
-        require_events: bool,
+        require_data: bool,
     ) -> Result<Vec<RecordBatch>, BundleError> {
         let event_paths = self.parquet_paths("events/")?;
-        if event_paths.is_empty() && require_events {
-            return Err(BundleError::Invalid(
-                "bundle has no event parts".to_string(),
-            ));
+        let stack_paths = self.parquet_paths("stacks/")?;
+        let probe_paths = self.parquet_paths("probe_events/")?;
+        if require_data
+            && event_paths.is_empty()
+            && stack_paths.is_empty()
+            && probe_paths.is_empty()
+        {
+            return Err(BundleError::Invalid("bundle has no data parts".to_string()));
         }
         let events = if self.format_version >= 2 {
             event_schema()
@@ -651,11 +791,15 @@ impl Bundle {
         } else {
             register_parquet_table(&ctx, "events", event_paths, events)?;
         }
-        let stack_paths = self.parquet_paths("stacks/")?;
         if stack_paths.is_empty() {
             register_empty_table(&ctx, "stacks", stacks_schema())?;
         } else {
             register_parquet_table(&ctx, "stacks", stack_paths, stacks_schema())?;
+        }
+        if probe_paths.is_empty() {
+            register_empty_table(&ctx, "probe_events", probe_events_schema())?;
+        } else {
+            register_parquet_table(&ctx, "probe_events", probe_paths, probe_events_schema())?;
         }
         let frame = ctx.sql(sql).await?;
         Ok(frame.collect().await?)
@@ -759,7 +903,7 @@ fn events_to_batch(events: &[Event]) -> Result<RecordBatch, BundleError> {
     for event in events {
         event_id.append_value(&event.event_id);
         time.append_value(&event.time);
-        time_unix_ns.append_option(parse_time_ns(&event.time));
+        time_unix_ns.append_option(rfc3339_to_unix_ns(&event.time));
         boot_id.append_value(&event.boot_id);
         seq.append_value(event.seq);
         sensor.append_value(&event.sensor);
@@ -902,6 +1046,66 @@ fn stacks_schema() -> SchemaRef {
     ]))
 }
 
+/// Schema of the bundle `probe_events` table.
+fn probe_events_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
+        Field::new("probe", DataType::Utf8, false),
+        Field::new("kind", DataType::UInt16, false),
+        Field::new("kind_name", DataType::Utf8, true),
+        Field::new("time_unix_ns", DataType::Int64, true),
+        Field::new("time", DataType::Utf8, true),
+        Field::new("pid", DataType::UInt32, false),
+        Field::new("tgid", DataType::UInt32, false),
+        Field::new("cgroup_id", DataType::UInt64, false),
+        Field::new("payload_json", DataType::Utf8, false),
+        Field::new("raw", DataType::Utf8, true),
+    ]))
+}
+
+fn probe_events_to_batch(events: &[ProbeEventRecord]) -> Result<RecordBatch, BundleError> {
+    let schema = probe_events_schema();
+    let mut probe = StringBuilder::new();
+    let mut kind = UInt16Builder::new();
+    let mut kind_name = StringBuilder::new();
+    let mut time_unix_ns = Int64Builder::new();
+    let mut time = StringBuilder::new();
+    let mut pid = UInt32Builder::new();
+    let mut tgid = UInt32Builder::new();
+    let mut cgroup_id = UInt64Builder::new();
+    let mut payload_json = StringBuilder::new();
+    let mut raw = StringBuilder::new();
+
+    for event in events {
+        probe.append_value(&event.probe);
+        kind.append_value(event.kind);
+        append_opt(&mut kind_name, event.kind_name.as_deref());
+        match event.time_unix_ns {
+            Some(value) => time_unix_ns.append_value(value),
+            None => time_unix_ns.append_null(),
+        }
+        append_opt(&mut time, event.time.as_deref());
+        pid.append_value(event.pid);
+        tgid.append_value(event.tgid);
+        cgroup_id.append_value(event.cgroup_id);
+        payload_json.append_value(&event.payload_json);
+        append_opt(&mut raw, event.raw.as_deref());
+    }
+
+    let columns: Vec<ArrayRef> = vec![
+        Arc::new(probe.finish()),
+        Arc::new(kind.finish()),
+        Arc::new(kind_name.finish()),
+        Arc::new(time_unix_ns.finish()),
+        Arc::new(time.finish()),
+        Arc::new(pid.finish()),
+        Arc::new(tgid.finish()),
+        Arc::new(cgroup_id.finish()),
+        Arc::new(payload_json.finish()),
+        Arc::new(raw.finish()),
+    ];
+    Ok(RecordBatch::try_new(schema, columns)?)
+}
+
 fn stacks_to_batch(stacks: &[Stack]) -> Result<RecordBatch, BundleError> {
     let schema = stacks_schema();
     let mut stack_id = Int32Builder::new();
@@ -983,7 +1187,11 @@ fn schema_sha256() -> String {
     sha256_bytes(canonical.as_bytes())
 }
 
-fn parse_time_ns(value: &str) -> Option<i64> {
+/// Parse an RFC 3339 timestamp written by the recorder into Unix nanoseconds.
+///
+/// Returns `None` when the text is not RFC 3339 or the instant does not fit in
+/// an `i64` nanosecond count.
+pub fn rfc3339_to_unix_ns(value: &str) -> Option<i64> {
     DateTime::parse_from_rfc3339(value)
         .ok()
         .and_then(|time| time.timestamp_nanos_opt())
@@ -1037,6 +1245,21 @@ mod tests {
         }
     }
 
+    fn probe_event(kind: u16, name: &str, pid: u32, payload_json: &str) -> ProbeEventRecord {
+        ProbeEventRecord {
+            probe: "hello".to_string(),
+            kind,
+            kind_name: Some(name.to_string()),
+            time_unix_ns: Some(1_794_592_800_123_456_000),
+            time: Some("2026-11-13T18:00:00.123456Z".to_string()),
+            pid,
+            tgid: pid,
+            cgroup_id: 4242,
+            payload_json: payload_json.to_string(),
+            raw: Some("4650524201000100".to_string()),
+        }
+    }
+
     #[test]
     fn writes_and_validates_a_bundle() {
         let dir = tempfile::tempdir().unwrap();
@@ -1069,8 +1292,8 @@ mod tests {
         assert_eq!(Bundle::open(&root).unwrap().manifest().counts.events, 3);
     }
 
-    #[test]
-    fn packs_and_unpacks_a_bundle() {
+    #[tokio::test]
+    async fn packs_and_unpacks_a_bundle() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("incident.fleet");
         let mut writer =
@@ -1078,14 +1301,19 @@ mod tests {
         writer
             .write_events(&[event("a", "ProcessExec", 10, Some("/bin/bash"))])
             .unwrap();
+        writer
+            .write_probe_events(&[probe_event(1, "exec", 10, r#"{"comm":"bash"}"#)])
+            .unwrap();
         let bundle = writer.finish().unwrap();
         let archive = dir.path().join("incident.fleet.tar.zst");
         bundle.pack(&archive).unwrap();
         let extracted = dir.path().join("restored.fleet");
         let restored = Bundle::unpack(&archive, &extracted).unwrap();
         assert_eq!(restored.manifest().counts.events, 1);
+        assert_eq!(restored.manifest().counts.probe_events, 1);
         assert_eq!(restored.root(), extracted);
         assert!(Bundle::open(&extracted).is_ok());
+        assert_eq!(restored.read_probe_events().await.unwrap().len(), 1);
     }
 
     #[test]
@@ -1378,6 +1606,20 @@ mod tests {
             .value(0);
         assert_eq!(count, 0);
         assert!(bundle.read_stacks().await.unwrap().is_empty());
+        assert!(bundle.read_probe_events().await.unwrap().is_empty());
+        let probe_events = bundle
+            .query("select count(*) as n from probe_events")
+            .await
+            .unwrap();
+        assert_eq!(
+            probe_events[0]
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap()
+                .value(0),
+            0
+        );
 
         // Replay reads raw_json, which the v1 writer always wrote.
         let replay = bundle
@@ -1448,5 +1690,135 @@ mod tests {
             batches.iter().map(|batch| batch.num_rows()).sum::<usize>(),
             2
         );
+    }
+}
+
+#[cfg(test)]
+mod probe_event_tests {
+    use super::*;
+
+    fn probe_event(kind: u16, name: &str, pid: u32, payload_json: &str) -> ProbeEventRecord {
+        ProbeEventRecord {
+            probe: "hello".to_string(),
+            kind,
+            kind_name: Some(name.to_string()),
+            time_unix_ns: Some(1_794_592_800_123_456_000),
+            time: Some("2026-11-13T18:00:00.123456Z".to_string()),
+            pid,
+            tgid: pid,
+            cgroup_id: 4242,
+            payload_json: payload_json.to_string(),
+            raw: Some("4650524201000100".to_string()),
+        }
+    }
+
+    #[tokio::test]
+    async fn writes_and_reads_probe_events() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("probe.fleet");
+        let mut writer = BundleWriter::create(
+            &root,
+            HostInfo::default(),
+            CaptureInfo {
+                sensors: vec!["hello".to_string()],
+                duration_ms: 2_000,
+                stack_mode: "off".to_string(),
+            },
+        )
+        .unwrap();
+        writer
+            .write_probe_events(&[
+                probe_event(1, "exec", 10, r#"{"comm":"bash","task_start_ns":42}"#),
+                probe_event(1, "exec", 11, r#"{"comm":"true","task_start_ns":43}"#),
+            ])
+            .unwrap();
+        let bundle = writer.finish().unwrap();
+        assert_eq!(bundle.manifest().counts.probe_events, 2);
+        assert_eq!(bundle.manifest().counts.events, 0);
+        assert_eq!(bundle.manifest().capture.sensors, vec!["hello"]);
+
+        let records = bundle.read_probe_events().await.unwrap();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].probe, "hello");
+        assert_eq!(records[0].kind, 1);
+        assert_eq!(records[0].kind_name.as_deref(), Some("exec"));
+        assert_eq!(
+            records[0].payload_json,
+            r#"{"comm":"bash","task_start_ns":42}"#
+        );
+        assert_eq!(records[0].cgroup_id, 4242);
+        assert!(records[0]
+            .raw
+            .as_deref()
+            .is_some_and(|raw| raw.starts_with("46505242")));
+
+        let batches = bundle
+            .query("select probe, kind, count(*) as n from probe_events group by probe, kind")
+            .await
+            .unwrap();
+        assert_eq!(batches.iter().map(RecordBatch::num_rows).sum::<usize>(), 1);
+
+        // A probe-only bundle has no sensor event parts; querying `events`
+        // still works and simply returns no rows.
+        let events = bundle
+            .query("select count(*) as n from events")
+            .await
+            .unwrap();
+        assert_eq!(
+            events[0]
+                .column(0)
+                .as_any()
+                .downcast_ref::<arrow_array::Int64Array>()
+                .unwrap()
+                .value(0),
+            0
+        );
+
+        let reopened = Bundle::open(&root).unwrap();
+        assert_eq!(reopened.read_probe_events().await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn bundles_without_probe_events_expose_an_empty_table() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("sensor.fleet");
+        let mut writer =
+            BundleWriter::create(&root, HostInfo::default(), CaptureInfo::default()).unwrap();
+        writer
+            .write_events(&[Event {
+                event_id: "evt-1".to_string(),
+                time: "2026-11-13T18:00:00.000000000Z".to_string(),
+                sensor: "process".to_string(),
+                kind: "ProcessExec".to_string(),
+                ..Event::default()
+            }])
+            .unwrap();
+        let bundle = writer.finish().unwrap();
+        assert_eq!(bundle.manifest().counts.probe_events, 0);
+        assert!(bundle.read_probe_events().await.unwrap().is_empty());
+
+        let counts = bundle
+            .query("select count(*) as n from probe_events")
+            .await
+            .unwrap();
+        assert_eq!(counts.len(), 1);
+        assert_eq!(
+            counts[0]
+                .column(0)
+                .as_any()
+                .downcast_ref::<arrow_array::Int64Array>()
+                .unwrap()
+                .value(0),
+            0
+        );
+    }
+
+    #[test]
+    fn rfc3339_conversion_is_public_and_lossless_for_micros() {
+        assert_eq!(
+            rfc3339_to_unix_ns("2026-11-13T18:00:00.123456Z"),
+            Some(1_794_592_800_123_456_000)
+        );
+        assert_eq!(rfc3339_to_unix_ns("not a time"), None);
     }
 }

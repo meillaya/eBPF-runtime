@@ -21,7 +21,6 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::PoisonError;
 
-use libbpf_rs::ErrorKind as LibbpfErrorKind;
 use libbpf_rs::ObjectBuilder;
 use libbpf_rs::PrintLevel;
 use serde::Serialize;
@@ -185,6 +184,35 @@ pub fn verify(object: &Path) -> Result<VerifyReport, VerifyError> {
     Ok(report)
 }
 
+/// Linux `EPERM`; the kernel uses it when the process lacks the privilege to
+/// load BPF. A verifier rejection is reported as `EACCES`, which libbpf-rs
+/// also classifies as a permission error, so the raw errno decides between
+/// [`VerifyStatus::PermissionDenied`] and [`VerifyStatus::Rejected`].
+const EPERM: i32 = 1;
+
+fn classify_load_error(error: &libbpf_rs::Error) -> VerifyStatus {
+    match raw_os_error(error) {
+        Some(EPERM) => VerifyStatus::PermissionDenied,
+        _ => VerifyStatus::Rejected,
+    }
+}
+
+/// Extract the underlying OS error code from a libbpf error.
+///
+/// libbpf-rs does not expose the raw errno and its source chain hides the
+/// inner `io::Error`, but its `Display` form ends an `io::Error` with the
+/// standard `(os error N)` suffix. Parsing that suffix is the only way to
+/// distinguish `EPERM` (missing privileges) from `EACCES` (verifier
+/// rejection) after libbpf-rs has folded both into `PermissionDenied`.
+fn raw_os_error(error: &libbpf_rs::Error) -> Option<i32> {
+    let text = error.to_string();
+    let marker = "(os error ";
+    let start = text.rfind(marker)? + marker.len();
+    let rest = &text[start..];
+    let end = rest.find(')')?;
+    rest[..end].parse().ok()
+}
+
 /// libbpf print callback that appends every message to [`CAPTURED_LOG`].
 fn capture(_level: PrintLevel, message: String) {
     if let Ok(mut log) = CAPTURED_LOG.lock() {
@@ -259,10 +287,7 @@ fn verify_object(object: &Path) -> VerifyReport {
         }
         Err(error) => {
             report.verifier_log = take_captured_log();
-            report.status = match error.kind() {
-                LibbpfErrorKind::PermissionDenied => VerifyStatus::PermissionDenied,
-                _ => VerifyStatus::Rejected,
-            };
+            report.status = classify_load_error(&error);
             report.error = Some(format!("load: {error}"));
             report.hints = match report.status {
                 VerifyStatus::PermissionDenied => vec![
