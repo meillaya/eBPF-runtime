@@ -181,18 +181,28 @@ async fn expect_snapshot(
 }
 
 async fn audit_has(http: &reqwest::Client, base: &str, action: &str) -> bool {
-    let audit: Value = http
-        .get(format!("{base}/audit"))
-        .send()
-        .await
-        .expect("audit")
-        .json()
-        .await
-        .expect("audit json");
-    audit["audit"]
-        .as_array()
-        .map(|rows| rows.iter().any(|row| row["action"] == action))
-        .unwrap_or(false)
+    // The rollout status can become visible before the audit insert commits.
+    // Poll briefly so the assertion is about the durable audit row, not a
+    // scheduler race on a fast CI runner.
+    for _ in 0..50 {
+        let audit: Value = http
+            .get(format!("{base}/audit"))
+            .send()
+            .await
+            .expect("audit")
+            .json()
+            .await
+            .expect("audit json");
+        let found = audit["audit"]
+            .as_array()
+            .map(|rows| rows.iter().any(|row| row["action"] == action))
+            .unwrap_or(false);
+        if found {
+            return true;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    false
 }
 
 #[tokio::test]
