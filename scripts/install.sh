@@ -26,7 +26,9 @@ case "$(uname -m)" in
   *) echo "install: no published artifact for $(uname -m) yet" >&2; exit 1 ;;
 esac
 
-if [[ "$version" == "latest" ]]; then
+if [[ -n "${EBPF_FLEET_BASE_URL:-}" ]]; then
+  base="${EBPF_FLEET_BASE_URL%/}"
+elif [[ "$version" == "latest" ]]; then
   base="https://github.com/$repo/releases/latest/download"
 else
   base="https://github.com/$repo/releases/download/$version"
@@ -41,8 +43,18 @@ curl -fsSL --retry 3 -o "$tmp/$asset.sha256" "$checksum_url"
 
 if command -v cosign >/dev/null 2>&1 &&
    curl -fsSL --retry 3 -o "$tmp/$asset.cosign.bundle" "$base/$asset.cosign.bundle"; then
-  echo "install: verifying cosign signature"
-  cosign verify-blob     --bundle "$tmp/$asset.cosign.bundle"     --certificate-identity-regexp "https://github.com/$repo/.github/workflows/release.yml@refs/tags/.*"     --certificate-oidc-issuer "https://token.actions.githubusercontent.com"     "$tmp/$asset"
+  if [[ -n "${EBPF_FLEET_COSIGN_PUB:-}" ]]; then
+    key="${EBPF_FLEET_COSIGN_PUB}"
+    if [[ ! -f "$key" ]]; then
+      curl -fsSL --retry 3 -o "$tmp/cosign.pub" "$base/cosign.pub"
+      key="$tmp/cosign.pub"
+    fi
+    echo "install: verifying cosign signature with release key"
+    cosign verify-blob --key "$key" --bundle "$tmp/$asset.cosign.bundle" "$tmp/$asset"
+  else
+    echo "install: verifying keyless cosign signature"
+    cosign verify-blob     --bundle "$tmp/$asset.cosign.bundle"     --certificate-identity-regexp "https://github.com/$repo/.github/workflows/release.yml@refs/tags/.*"     --certificate-oidc-issuer "https://token.actions.githubusercontent.com"     "$tmp/$asset"
+  fi
 else
   echo "install: cosign signature not checked (cosign or bundle unavailable)" >&2
 fi
