@@ -207,10 +207,22 @@ native_build() {
     die "glibc.static has no lib directory: $glibc_static"
   }
 
-  nix develop --no-pure-eval --accept-flake-config -c \
-    cargo rustc -p fleet --release --locked -- \
-    -C target-feature=+crt-static \
-    -L "native=$glibc_static/lib"
+  if [[ "$target" == "aarch64" ]]; then
+    # Nix's devshell sets CC=clang; libbpf-sys vendors elfutils and its
+    # configure passes GCC-only warning flags that clang rejects. Passing
+    # CC/CXX through `env` overrides the devshell default for the Rust
+    # build; BPF compilation still uses the pinned clang explicitly.
+    nix develop --no-pure-eval --accept-flake-config -c \
+      env CC=gcc CXX=g++ \
+      cargo rustc -p fleet --release --locked -- \
+      -C target-feature=+crt-static \
+      -L "native=$glibc_static/lib"
+  else
+    nix develop --no-pure-eval --accept-flake-config -c \
+      cargo rustc -p fleet --release --locked -- \
+      -C target-feature=+crt-static \
+      -L "native=$glibc_static/lib"
+  fi
 
   bin="target/release/ebpf-fleet"
   [[ -x "$bin" ]] || die "missing $bin"
