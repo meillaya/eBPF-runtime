@@ -22,7 +22,7 @@ artifact; the release process is documented in
 [docs/runbooks/release.md](docs/runbooks/release.md).
 
 Released static binaries are available on the
-[0.2.0 release](https://github.com/meillaya/eBPF-runtime/releases/tag/v0.2.0):
+[latest release](https://github.com/meillaya/eBPF-runtime/releases/latest):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/meillaya/eBPF-runtime/main/scripts/install.sh | sudo sh

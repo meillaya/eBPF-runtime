@@ -10,16 +10,6 @@ Trust and clean-build release; no local CLI changes.
 - Poll the durable rollout audit row in the rejected-ack test.
 - Release from green `main` rather than a feature tip.
 
-## 0.2.1 — 2026-11-14
-
-Trust and clean-build release; no local CLI changes.
-
-- Keyless GitHub Actions release path with cosign, provenance, and SBOM.
-- Clean CI sensor builds: autopoint in the dev shell, explicit libbpf
-  include discovery, and compatibility with older libbpf headers.
-- Poll the durable rollout audit row in the rejected-ack test.
-- Release from green `main` rather than a feature tip.
-
 ## 0.2.0 — 2026-11-14
 
 The first local-first release. The headline is the `ebpf-fleet` local
