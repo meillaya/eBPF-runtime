@@ -99,6 +99,7 @@ pub fn build_to(out_dir: &Path) -> Result<Vec<BpfArtifact>, BuildError> {
     let arch_macro = arch_macro(&arch)?;
 
     write_vmlinux(&bpftool, out_dir)?;
+    strip_libbpf_1_6_conflicts(&out_dir.join("vmlinux.h"))?;
     let btf_sha = sha256_file(Path::new("/sys/kernel/btf/vmlinux")).ok();
 
     let mut artifacts = Vec::with_capacity(SENSORS.len());
@@ -112,21 +113,25 @@ pub fn build_to(out_dir: &Path) -> Result<Vec<BpfArtifact>, BuildError> {
         }
 
         let object = out_dir.join(format!("{sensor}.{arch}.bpf.o"));
+        let mut args: Vec<String> = vec![
+            "-O2".to_string(),
+            "-g".to_string(),
+            "-Wall".to_string(),
+            "-Wno-missing-declarations".to_string(),
+            "-Wno-address-of-packed-member".to_string(),
+            "-Wno-comment".to_string(),
+            "-target".to_string(),
+            "bpf".to_string(),
+            format!("-D__TARGET_ARCH_{arch_macro}"),
+            format!("-I{}", include_dir.display()),
+            format!("-I{}", out_dir.display()),
+        ];
+        for include in libbpf_include_dirs() {
+            args.push(format!("-I{}", include.display()));
+        }
+        args.push("-c".to_string());
         let output = Command::new(&clang)
-            .args([
-                "-O2",
-                "-g",
-                "-Wall",
-                "-Wno-missing-declarations",
-                "-Wno-address-of-packed-member",
-                "-Wno-comment",
-                "-target",
-                "bpf",
-                &format!("-D__TARGET_ARCH_{arch_macro}"),
-                &format!("-I{}", include_dir.display()),
-                &format!("-I{}", out_dir.display()),
-                "-c",
-            ])
+            .args(&args)
             .arg(&source)
             .arg("-o")
             .arg(&object)
@@ -210,6 +215,32 @@ fn arch_macro(arch: &str) -> Result<&'static str, BuildError> {
             "unsupported artifact architecture `{other}`"
         ))),
     }
+}
+
+/// Include directories that provide libbpf's BPF helper headers.
+///
+/// `bpf-build` invokes clang directly, so it cannot rely on a compiler
+/// wrapper's implicit Nix include flags. Ask pkg-config for libbpf's include
+/// path; fall back to the standard system path when pkg-config is absent.
+/// This keeps sensor builds working in CI as well as inside the Nix shell.
+pub fn libbpf_include_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(output) = Command::new("pkg-config")
+        .args(["--cflags-only-I", "libbpf"])
+        .output()
+    {
+        if output.status.success() {
+            for token in String::from_utf8_lossy(&output.stdout).split_whitespace() {
+                if let Some(path) = token.strip_prefix("-I") {
+                    dirs.push(PathBuf::from(path));
+                }
+            }
+        }
+    }
+    if dirs.is_empty() && Path::new("/usr/include/bpf/bpf_helpers.h").is_file() {
+        dirs.push(PathBuf::from("/usr/include"));
+    }
+    dirs
 }
 
 fn find_clang() -> Result<PathBuf, BuildError> {
@@ -309,6 +340,28 @@ fn write_vmlinux(bpftool: &Path, out_dir: &Path) -> Result<(), BuildError> {
     if fs::metadata(&vmlinux).map(|m| m.len()).unwrap_or(0) == 0 {
         return Err(BuildError::BtfUnavailable);
     }
+    Ok(())
+}
+
+/// Remove kernel kfunc declarations that conflict with the libbpf headers
+/// shipped by older nixpkgs revisions.
+///
+/// libbpf 1.6's `bpf_helpers.h` declares `bpf_stream_vprintk` without the
+/// `__weak __ksym` attributes that newer `vmlinux.h` files carry, so clang
+/// reports conflicting types. The sensors do not call this kfunc; dropping
+/// the generated declaration keeps CO-RE builds working with both the older
+/// Nix libbpf and the newer Arch/container libbpf.
+fn strip_libbpf_1_6_conflicts(path: &Path) -> Result<(), BuildError> {
+    let text = fs::read_to_string(path)?;
+    if !text.contains("bpf_stream_vprintk") {
+        return Ok(());
+    }
+    let filtered: String = text
+        .lines()
+        .filter(|line| !line.contains("bpf_stream_vprintk"))
+        .map(|line| format!("{line}\n"))
+        .collect();
+    fs::write(path, filtered)?;
     Ok(())
 }
 

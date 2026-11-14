@@ -170,6 +170,7 @@ pub fn build(
     if fleet_headers.is_dir() {
         resolved_include_dirs.push(fleet_headers);
     }
+    resolved_include_dirs.extend(bpf_build::libbpf_include_dirs());
     resolved_include_dirs.extend(include_dirs.iter().cloned());
 
     if let Some(parent) = output.parent() {
