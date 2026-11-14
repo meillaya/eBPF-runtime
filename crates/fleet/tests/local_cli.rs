@@ -64,3 +64,80 @@ fn query_and_replay_a_bundle() {
         "missing event: {stdout}"
     );
 }
+
+#[test]
+fn policy_simulation_matches_and_enforces_expectations() {
+    let dir = fixture();
+    let path = dir.path().join("incident.fleet");
+    let binary = env!("CARGO_BIN_EXE_ebpf-fleet");
+    let rules = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../rules/default")
+        .canonicalize()
+        .unwrap();
+    let expect = dir.path().join("expect.yaml");
+    std::fs::write(
+        &expect,
+        "rule: sensitive-file-write-intent\nmin_matches: 1\nmax_matches: 1\n",
+    )
+    .unwrap();
+
+    let out = Command::new(binary)
+        .args([
+            "policy",
+            "test",
+            path.to_str().unwrap(),
+            "--rules",
+            rules.to_str().unwrap(),
+            "--expect",
+            expect.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "policy test failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("sensitive-file-write-intent"));
+    assert!(stdout.contains("PASS"));
+
+    std::fs::write(
+        &expect,
+        "rule: sensitive-file-write-intent\nmin_matches: 2\n",
+    )
+    .unwrap();
+    let failing = Command::new(binary)
+        .args([
+            "policy",
+            "test",
+            path.to_str().unwrap(),
+            "--rules",
+            rules.to_str().unwrap(),
+            "--expect",
+            expect.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!failing.status.success());
+}
+
+#[test]
+fn top_summarizes_a_bundle_without_a_terminal() {
+    let dir = fixture();
+    let path = dir.path().join("incident.fleet");
+    let binary = env!("CARGO_BIN_EXE_ebpf-fleet");
+    let out = Command::new(binary)
+        .args(["top", path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "top failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("events"));
+    assert!(stdout.contains("top processes"));
+    assert!(stdout.contains("FileOpen"));
+}

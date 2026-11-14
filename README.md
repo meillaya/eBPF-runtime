@@ -214,6 +214,8 @@ Set `agent.transport.enabled=false` only for a local-only rollout.
 | `ebpf-fleet doctor` | Explain BTF, debugfs, bpffs, lockdown, LSM, and capability prerequisites. |
 | `ebpf-fleet pack` / `unpack` | Move a bundle as a checksummed `.tar.zst` archive. |
 | `ebpf-fleet diff` | Compare event-kind counts between two bundles. |
+| `ebpf-fleet policy test` | Evaluate a rule pack against a bundle and enforce an expectation file. |
+| `ebpf-fleet top` | Live or bundle TUI for top processes, file paths, event kinds, and recent events. |
 | `ebpf-runtime check` | Load sensors and print the attach matrix. |
 | `ebpf-runtime run` | Stream single-node events and alerts. |
 | `ebpf-runtime rules check DIR` | Parse a rule directory. |
@@ -252,8 +254,10 @@ authenticated `/api/v1` routes. Its HTTP port also serves the dashboard.
 - Only the process and file sensors are produced. The ABI defines network,
   DNS, syscall, identity, and LSM records, but no BPF program emits them.
 - Local `record` currently writes events only. Alert rows, stack capture,
-  kernel-symbolized stacks, and the interactive `top` view are staged behind
-  later 0.2 milestones; do not present them as available yet.
+  and kernel-symbolized stacks are staged behind later 0.2 milestones; do not
+  present them as available yet.
+- `policy test` evaluates plain conditions only; sequence rules are counted
+  and skipped, matching the runtime engine behavior.
 - Query is local and read-only. It does not load BPF programs or enforce
   policy.
 - One control plane serves one cluster in this version.

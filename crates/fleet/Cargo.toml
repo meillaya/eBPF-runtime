@@ -17,10 +17,13 @@ arrow = { version = "59.2.0", features = ["prettyprint"] }
 bpf-loader = { path = "../bpf-loader" }
 bundle = { path = "../bundle" }
 clap = { version = "4", features = ["derive"] }
+crossterm = "0.29.0"
+ratatui = "0.30.2"
 event-model = { path = "../event-model" }
 runtime = { path = "../runtime" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml = "0.9"
 sha2 = "0.10"
 signal-hook = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

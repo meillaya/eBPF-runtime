@@ -20,9 +20,12 @@ use clap::{Args, Parser, Subcommand};
 use event_model::Event;
 use runtime::decode::{decode, Clock};
 use runtime::process_table::ProcessTable;
+use runtime::rules_engine::Engine;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use signal_hook::consts::{SIGINT, SIGTERM};
+
+mod top;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -51,6 +54,10 @@ enum Command {
     Unpack(UnpackArgs),
     /// Compare event-kind counts between two bundles.
     Diff(DiffArgs),
+    /// Show live or bundle top processes, files, and event kinds.
+    Top(TopArgs),
+    /// Evaluate a rule pack against a recorded bundle.
+    Policy(PolicyArgs),
 }
 
 #[derive(Debug, Args)]
@@ -128,6 +135,54 @@ struct DiffArgs {
     after: PathBuf,
 }
 
+#[derive(Debug, Args)]
+struct TopArgs {
+    /// Bundle directory. Omit for the live view.
+    bundle: Option<PathBuf>,
+    /// Refresh interval in milliseconds.
+    #[arg(long, default_value_t = 500)]
+    refresh_ms: u64,
+    /// Live view stop after this many seconds.
+    #[arg(long)]
+    duration: Option<u64>,
+}
+
+#[derive(Debug, Args)]
+struct PolicyArgs {
+    #[command(subcommand)]
+    command: PolicyCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum PolicyCommand {
+    /// Evaluate rules against a bundle without loading BPF.
+    Test(PolicyTestArgs),
+}
+
+#[derive(Debug, Args)]
+struct PolicyTestArgs {
+    /// Bundle directory.
+    bundle: PathBuf,
+    /// Rule directory. Defaults to rules/default.
+    #[arg(long, default_value = "rules/default")]
+    rules: PathBuf,
+    /// Optional expectation YAML: rule, min_matches, max_matches.
+    #[arg(long)]
+    expect: Option<PathBuf>,
+    /// Print machine-readable JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct Expectation {
+    rule: String,
+    #[serde(default)]
+    min_matches: Option<usize>,
+    #[serde(default)]
+    max_matches: Option<usize>,
+}
+
 #[derive(Debug, Serialize)]
 struct Check {
     name: &'static str,
@@ -146,6 +201,10 @@ async fn main() -> ExitCode {
         Command::Pack(args) => pack(args),
         Command::Unpack(args) => unpack(args),
         Command::Diff(args) => diff(args).await,
+        Command::Top(args) => top::run(args.bundle, args.refresh_ms, args.duration).await,
+        Command::Policy(args) => match args.command {
+            PolicyCommand::Test(test) => policy_test(test).await,
+        },
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -387,6 +446,111 @@ async fn kind_counts(bundle: &Bundle) -> Result<std::collections::BTreeMap<Strin
         }
     }
     Ok(counts)
+}
+
+async fn policy_test(args: PolicyTestArgs) -> Result<(), String> {
+    let bundle = Bundle::open(&args.bundle).map_err(|error| error.to_string())?;
+    let mut engine =
+        Engine::load(&args.rules).map_err(|error| format!("{}: {error}", args.rules.display()))?;
+    for error in engine.errors() {
+        eprintln!("warning: {error}");
+    }
+    let batches = bundle
+        .query("select raw_json from events order by time_unix_ns, seq")
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut events = Vec::new();
+    for batch in &batches {
+        for row in 0..batch.num_rows() {
+            let raw = arrow::util::display::array_value_to_string(batch.column(0).as_ref(), row)
+                .map_err(|error| error.to_string())?;
+            let event: Event = serde_json::from_str(&raw)
+                .map_err(|error| format!("bundle event is not valid JSON: {error}"))?;
+            events.push(event);
+        }
+    }
+    events.sort_by(|left, right| {
+        left.time
+            .cmp(&right.time)
+            .then_with(|| left.seq.cmp(&right.seq))
+    });
+
+    let mut matches = std::collections::BTreeMap::<String, usize>::new();
+    let mut alert_count = 0usize;
+    for event in &events {
+        for alert in engine.evaluate(event) {
+            alert_count += 1;
+            *matches.entry(alert.rule).or_default() += 1;
+        }
+    }
+
+    let mut expectation_result = None;
+    if let Some(path) = &args.expect {
+        let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+        let expectation: Expectation =
+            serde_yaml::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))?;
+        let actual = matches.get(&expectation.rule).copied().unwrap_or(0);
+        let min_ok = expectation
+            .min_matches
+            .map(|min| actual >= min)
+            .unwrap_or(true);
+        let max_ok = expectation
+            .max_matches
+            .map(|max| actual <= max)
+            .unwrap_or(true);
+        expectation_result = Some((expectation, actual, min_ok && max_ok));
+    }
+
+    if args.json {
+        let output = serde_json::json!({
+            "events": events.len(),
+            "alerts": alert_count,
+            "rules": engine.rule_count(),
+            "skipped_sequence_rules": engine.skipped_sequences(),
+            "matches": matches,
+            "expectation": expectation_result.as_ref().map(|(expectation, actual, passed)| {
+                serde_json::json!({
+                    "rule": expectation.rule,
+                    "actual": actual,
+                    "min_matches": expectation.min_matches,
+                    "max_matches": expectation.max_matches,
+                    "passed": passed,
+                })
+            }),
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).map_err(|error| error.to_string())?
+        );
+    } else {
+        println!(
+            "{} events, {} alerts, {} rules ({} sequence rules skipped)",
+            events.len(),
+            alert_count,
+            engine.rule_count(),
+            engine.skipped_sequences()
+        );
+        for (rule, count) in &matches {
+            println!("{:<40} {:>8}", rule, count);
+        }
+        if matches.is_empty() {
+            println!("no rule matched");
+        }
+        if let Some((expectation, actual, passed)) = expectation_result {
+            println!(
+                "expectation {}: actual={} min={:?} max={:?} {}",
+                expectation.rule,
+                actual,
+                expectation.min_matches,
+                expectation.max_matches,
+                if passed { "PASS" } else { "FAIL" }
+            );
+            if !passed {
+                return Err("policy expectation failed".to_string());
+            }
+        }
+    }
+    Ok(())
 }
 
 fn doctor(args: DoctorArgs) -> Result<(), String> {
