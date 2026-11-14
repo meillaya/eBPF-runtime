@@ -8,14 +8,14 @@ This page records real compatibility evidence for the local-first recorder:
 a static `ebpf-fleet` binary is booted and executed on pinned guest kernels
 in the local KVM lab, and every measurement below comes from a real VM run.
 The compact JSON evidence is checked into
-`docs/verification/kernel-matrix/2026-11-14i/`; the raw VM artifacts remain
-on the lab host under `target/vm/matrix/2026-11-14i/`, which is gitignored.
+`docs/verification/kernel-matrix/2026-11-14j/`; the raw VM artifacts remain
+on the lab host under `target/vm/matrix/2026-11-14j/`, which is gitignored.
 
 - Host: `massive`, x86_64, host kernel `7.3.3-1-cachyos`, 16 vCPUs,
   `/dev/kvm` usable without sudo.
 - Tool under test: static-pie x86_64 `target/release/ebpf-fleet`,
-  version `ebpf-fleet 0.3.0`, 138188360 bytes, sha256
-  `60db4e2f374d07a5ba473e255bef022d8b1eaa446d561104146d558d1c74040d`
+  version `ebpf-fleet 0.3.0`, 138083848 bytes, sha256
+  `97a29a234e5279735b47eface8ef58b484cf0d5d4e68a012da56af1969a37385`
   (the guest copy is sha256-verified against this file for every row).
 - Runner: [`scripts/vm/run-matrix.sh`](../../scripts/vm/run-matrix.sh)
   (boot, binary copy, `doctor`, `record`, `query`, `replay`, process-only
@@ -87,13 +87,13 @@ nix develop --impure --command scripts/vm/lab.sh bootstrap --image fedora-42
 # the unified matrix run
 nix develop --impure --command scripts/vm/run-matrix.sh \
   --image ubuntu-24.04 --image ubuntu-22.04 \
-  --image debian-12 --image debian-13 --image fedora-42 --stamp 2026-11-14i
+  --image debian-12 --image debian-13 --image fedora-42 --stamp 2026-11-14j
 ```
 
 The run finished with `MATRIX PASS: 5/5 rows` and wrote:
 
 ```text
-target/vm/matrix/2026-11-14i/
+target/vm/matrix/2026-11-14j/
   matrix-summary.json          # rows, host facts, pass/fail counts
   ubuntu-24.04.json            # row evidence (checks + measurements)
   ubuntu-22.04.json
@@ -112,11 +112,11 @@ target/vm/matrix/2026-11-14i/
 
 | Image | Booted kernel (`uname -r`) | OS | BTF size (bytes) | Events | Decode errors | `FileOpen` | `FileUnlink` | `ProcessFork` | `ProcessExec` | `ProcessExit` | Replay lines | Bundle complete | Row |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ubuntu-24.04` | `6.8.0-147-generic` | Ubuntu 24.04.5 LTS | 6103569 | 5111 | 0 | 4296 | 28 | 262 | 262 | 263 | 5111 | true | **PASS** |
-| `ubuntu-22.04` | `5.15.0-203-generic` | Ubuntu 22.04.5 LTS | 5290474 | 4543 | 0 | 3767 | 23 | 249 | 252 | 252 | 4543 | true | **PASS** |
-| `debian-12` | `6.1.0-54-amd64` | Debian GNU/Linux 12 | 4355537 | 2246 | 0 | 1585 | 23 | 213 | 212 | 213 | 2246 | true | **PASS** |
-| `debian-13` | `6.12.116+deb13-amd64` | Debian GNU/Linux 13 | 4956583 | 2173 | 0 | 1568 | 21 | 194 | 196 | 194 | 2173 | true | **PASS** |
-| `fedora-42` | `6.14.0-63.fc42.x86_64` | Fedora Linux 42 Cloud | 6510388 | 4870 | 0 | 4162 | 23 | 230 | 225 | 230 | 4870 | true | **PASS** |
+| `ubuntu-24.04` | `6.8.0-147-generic` | Ubuntu 24.04.5 LTS | 6103569 | 5119 | 0 | 4304 | 28 | 262 | 262 | 263 | 5119 | true | **PASS** |
+| `ubuntu-22.04` | `5.15.0-203-generic` | Ubuntu 22.04.5 LTS | 5290474 | 4738 | 0 | 3909 | 25 | 267 | 270 | 267 | 4738 | true | **PASS** |
+| `debian-12` | `6.1.0-54-amd64` | Debian GNU/Linux 12 | 4355537 | 2287 | 0 | 1604 | 24 | 219 | 221 | 219 | 2287 | true | **PASS** |
+| `debian-13` | `6.12.116+deb13-amd64` | Debian GNU/Linux 13 | 4956583 | 2536 | 0 | 1815 | 25 | 232 | 232 | 232 | 2536 | true | **PASS** |
+| `fedora-42` | `6.14.0-63.fc42.x86_64` | Fedora Linux 42 Cloud | 6510388 | 4671 | 0 | 3991 | 22 | 221 | 216 | 221 | 4671 | true | **PASS** |
 
 BTF SHA-256 values:
 
@@ -130,11 +130,11 @@ Process-only probe counts:
 
 | Image | Probe events | `ProcessFork` | `ProcessExec` | `ProcessExit` |
 | --- | --- | --- | --- | --- |
-| `ubuntu-24.04` | 321 | 106 | 109 | 106 |
-| `ubuntu-22.04` | 318 | 105 | 108 | 105 |
-| `debian-12` | 311 | 103 | 104 | 104 |
-| `debian-13` | 314 | 104 | 106 | 104 |
-| `fedora-42` | 287 | 98 | 90 | 99 |
+| `ubuntu-24.04` | 375 | 124 | 127 | 124 |
+| `ubuntu-22.04` | 372 | 123 | 126 | 123 |
+| `debian-12` | 200 | 66 | 68 | 66 |
+| `debian-13` | 291 | 97 | 97 | 97 |
+| `fedora-42` | 368 | 125 | 117 | 126 |
 
 ### Per-check results
 
@@ -181,13 +181,13 @@ that raw argument.
 - The bundle's recorded host facts match the guest: `host.btf_sha256`
   equals the sha256 of `/sys/kernel/btf/vmlinux`, and `host.lsm` matches
   `/sys/kernel/security/lsm`.
-- `replay` printed exactly one JSON line per event (5111, 4543, 2246, 2173, 4870),
+- `replay` printed exactly one JSON line per event (5119, 4738, 2287, 2536, 4671),
   and the first line is valid.
 - The host binary re-queried exported guest bundles and got the same kind
   counts.
 - Compact row JSON is checked in under
-  `docs/verification/kernel-matrix/2026-11-14i/`; raw artifacts remain under
-  `target/vm/matrix/2026-11-14i/`.
+  `docs/verification/kernel-matrix/2026-11-14j/`; raw artifacts remain under
+  `target/vm/matrix/2026-11-14j/`.
 
 ## Remaining gaps
 

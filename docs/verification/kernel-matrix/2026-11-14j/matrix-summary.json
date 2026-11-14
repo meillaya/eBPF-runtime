@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "runner": "scripts/vm/run-matrix.sh",
-  "generated_at": "2026-11-14T07:54:04Z",
-  "stamp": "2026-11-14i",
-  "summary_path": "target/vm/matrix/2026-11-14i/matrix-summary.json",
+  "generated_at": "2026-11-14T09:48:15Z",
+  "stamp": "2026-11-14j",
+  "summary_path": "target/vm/matrix/2026-11-14j/matrix-summary.json",
   "host": {
     "name": "massive",
     "arch": "x86_64",
@@ -11,8 +11,8 @@
   },
   "binary": {
     "path": "/home/mei/Documents/eBPF-runtime/target/release/ebpf-fleet",
-    "sha256": "60db4e2f374d07a5ba473e255bef022d8b1eaa446d561104146d558d1c74040d",
-    "size_bytes": 138188360
+    "sha256": "97a29a234e5279735b47eface8ef58b484cf0d5d4e68a012da56af1969a37385",
+    "size_bytes": 138083848
   },
   "capture": {
     "record_seconds": 8,
@@ -23,12 +23,12 @@
     {
       "image": "ubuntu-24.04",
       "status": "pass",
-      "json": "target/vm/matrix/2026-11-14i/ubuntu-24.04.json",
-      "artifacts": "target/vm/matrix/2026-11-14i/ubuntu-24.04",
+      "json": "target/vm/matrix/2026-11-14j/ubuntu-24.04.json",
+      "artifacts": "target/vm/matrix/2026-11-14j/ubuntu-24.04",
       "kernel_release": "6.8.0-147-generic",
       "btf_sha256": "8c10e7e174e89c92f1d2708f12bb5268dc381e57e867397534c4e145348622e0",
-      "events": 5111,
-      "file_open_count": 4296,
+      "events": 5119,
+      "file_open_count": 4304,
       "exit_tracepoint_attached": true,
       "failures": [],
       "notes": [
@@ -38,12 +38,12 @@
     {
       "image": "ubuntu-22.04",
       "status": "pass",
-      "json": "target/vm/matrix/2026-11-14i/ubuntu-22.04.json",
-      "artifacts": "target/vm/matrix/2026-11-14i/ubuntu-22.04",
+      "json": "target/vm/matrix/2026-11-14j/ubuntu-22.04.json",
+      "artifacts": "target/vm/matrix/2026-11-14j/ubuntu-22.04",
       "kernel_release": "5.15.0-203-generic",
       "btf_sha256": "36e118be1ee6c3ed13d4813d2e170252fb19d4120cf3940ada382bfe2e38d70c",
-      "events": 4543,
-      "file_open_count": 3767,
+      "events": 4738,
+      "file_open_count": 3909,
       "exit_tracepoint_attached": true,
       "failures": [],
       "notes": [
@@ -53,12 +53,12 @@
     {
       "image": "debian-12",
       "status": "pass",
-      "json": "target/vm/matrix/2026-11-14i/debian-12.json",
-      "artifacts": "target/vm/matrix/2026-11-14i/debian-12",
+      "json": "target/vm/matrix/2026-11-14j/debian-12.json",
+      "artifacts": "target/vm/matrix/2026-11-14j/debian-12",
       "kernel_release": "6.1.0-54-amd64",
       "btf_sha256": "8f4d6b553aecc543afe0b987880b05e16c68169fbd9fcf38cc6dc378667d1f16",
-      "events": 2246,
-      "file_open_count": 1585,
+      "events": 2287,
+      "file_open_count": 1604,
       "exit_tracepoint_attached": true,
       "failures": [],
       "notes": [
@@ -68,12 +68,12 @@
     {
       "image": "debian-13",
       "status": "pass",
-      "json": "target/vm/matrix/2026-11-14i/debian-13.json",
-      "artifacts": "target/vm/matrix/2026-11-14i/debian-13",
+      "json": "target/vm/matrix/2026-11-14j/debian-13.json",
+      "artifacts": "target/vm/matrix/2026-11-14j/debian-13",
       "kernel_release": "6.12.116+deb13-amd64",
       "btf_sha256": "db58ed1601b73bb4e642cab8bc87126048f0446bab1aca206a4a24b04e478a7a",
-      "events": 2173,
-      "file_open_count": 1568,
+      "events": 2536,
+      "file_open_count": 1815,
       "exit_tracepoint_attached": true,
       "failures": [],
       "notes": [
@@ -83,12 +83,12 @@
     {
       "image": "fedora-42",
       "status": "pass",
-      "json": "target/vm/matrix/2026-11-14i/fedora-42.json",
-      "artifacts": "target/vm/matrix/2026-11-14i/fedora-42",
+      "json": "target/vm/matrix/2026-11-14j/fedora-42.json",
+      "artifacts": "target/vm/matrix/2026-11-14j/fedora-42",
       "kernel_release": "6.14.0-63.fc42.x86_64",
       "btf_sha256": "b1d7ac90237d320527eb838450e28147ce3bc66a5d838487f69a530c562d0343",
-      "events": 4870,
-      "file_open_count": 4162,
+      "events": 4671,
+      "file_open_count": 3991,
       "exit_tracepoint_attached": true,
       "failures": [],
       "notes": [

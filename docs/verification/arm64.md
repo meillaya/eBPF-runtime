@@ -7,9 +7,9 @@ the real aarch64 static binary, but the CPU is emulated: the row is a
 substitute for a native aarch64 KVM row.
 
 The 0.3 release artifacts are `ebpf-fleet-x86_64` (sha256
-`60db4e2f374d07a5ba473e255bef022d8b1eaa446d561104146d558d1c74040d`)
+`97a29a234e5279735b47eface8ef58b484cf0d5d4e68a012da56af1969a37385`)
 and `ebpf-fleet-aarch64` (sha256
-`d9af296d82d2504f029021267965c1397b91f31bdf7d9fc3edff679d88458381`). This page records the aarch64 build path, the
+`f5ee2f0378c0ab5313d23d809dec4045b6e8db44a136c5686527c697b4819eb1`). This page records the aarch64 build path, the
 artifact identity, and the functional evidence. The x86_64 artifact keeps
 its static-pie release path and the existing kernel matrix.
 
@@ -77,7 +77,7 @@ build-static: embedded BPF sensors: name: "process", arch: "arm64" name: "file",
 build-static: arm64 BPF sensor object: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), with debug_info, not stripped
 build-static: verified target/aarch64-unknown-linux-gnu/release/ebpf-fleet: aarch64 static, ELF 64-bit LSB executable, ARM aarch64, version 1 (GNU/Linux), statically linked, for GNU/Linux 3.10.0, stripped, 115M
 build-static: asset target/release/ebpf-fleet-aarch64 (115M)
-d9af296d82d2504f029021267965c1397b91f31bdf7d9fc3edff679d88458381  ebpf-fleet-aarch64
+f5ee2f0378c0ab5313d23d809dec4045b6e8db44a136c5686527c697b4819eb1  ebpf-fleet-aarch64
 ```
 
 The script proves the embedded sensors are arm64 by reading the generated
@@ -102,8 +102,8 @@ readelf -l target/release/ebpf-fleet-aarch64 | grep -c INTERP   # 0
 | Field | Value |
 | --- | --- |
 | Asset | `target/release/ebpf-fleet-aarch64` |
-| Size | 120855168 bytes (116 MiB) |
-| SHA-256 | `d9af296d82d2504f029021267965c1397b91f31bdf7d9fc3edff679d88458381` |
+| Size | 121182848 bytes (116 MiB) |
+| SHA-256 | `f5ee2f0378c0ab5313d23d809dec4045b6e8db44a136c5686527c697b4819eb1` |
 | ELF | 64-bit AArch64, `ET_EXEC`, statically linked, no `PT_INTERP`, no `NEEDED` |
 | Version string | `ebpf-fleet 0.3.0` (workspace version at build time) |
 | qemu-user smoke | `qemu-aarch64 target/release/ebpf-fleet-aarch64 --version` → `ebpf-fleet 0.3.0` |
@@ -156,8 +156,8 @@ from the immutable Ubuntu build `release-20261017`.
 
 ```bash
 nix develop --impure --command scripts/vm/run-arm64.sh
-# -> target/vm/arm64/2026-11-14-0.3.0/row.json
-# -> target/vm/arm64/2026-11-14-0.3.0/row.txt
+# -> target/vm/arm64/2026-11-14-0.3.0-release/row.json
+# -> target/vm/arm64/2026-11-14-0.3.0-release/row.txt
 ```
 
 Result: **ARM64 FUNCTIONAL ROW PASS** — all 14 required checks passed
@@ -170,13 +170,13 @@ Result: **ARM64 FUNCTIONAL ROW PASS** — all 14 required checks passed
 | cloud-init (lean seed) | PASS, 32 s |
 | guest `uname -m` | `aarch64` |
 | guest `/sys/kernel/btf/vmlinux` | present, 6975252 bytes, sha256 `ff35ff5a…` |
-| binary upload sha256 | guest == host (`d9af296d…`), PASS |
+| binary upload sha256 | guest == host (`f5ee2f…`), PASS |
 | `--version` | `ebpf-fleet 0.3.0` |
 | `doctor --json` | exit 0; kernel ok, btf ok, all 8 checks ok |
-| `record --for 8` | exit 0, **3059 events**, **0 decode errors** |
-| `query` kind counts | `{"FileOpen":2468,"FileUnlink":18,"ProcessExec":193,"ProcessExit":190,"ProcessFork":190}` |
-| `FileOpen` paths | 2468; deterministic probe path `/tmp/arm64-probe/created-by-arm64` decoded (verified in the replay JSONL stream) |
-| `replay` | exit 0, **3059 lines** == recorded events, first kind `ProcessFork`, valid JSONL |
+| `record --for 8` | exit 0, **3169 events**, **0 decode errors** |
+| `query` kind counts | `{"FileOpen":2577,"FileUnlink":19,"ProcessExec":193,"ProcessExit":190,"ProcessFork":190}` |
+| `FileOpen` paths | 2577; deterministic probe path `/tmp/arm64-probe/created-by-arm64` decoded (verified in the replay JSONL stream) |
+| `replay` | exit 0, **3169 lines** == recorded events, first kind `ProcessFork`, valid JSONL |
 
 Guest facts:
 
@@ -194,7 +194,7 @@ Guest facts:
   `lockdown=[none] integrity confidentiality`, `btf_sha256=ff35ff5a…`.
 
 The complete raw run stays under
-`target/vm/arm64/2026-11-14-0.3.0/` (gitignored): `row.json`, `row.txt`,
+`target/vm/arm64/2026-11-14-0.3.0-release/` (gitignored): `row.json`, `row.txt`,
 `instance.json`, `console.log`, the guest fact files, `doctor.json`,
 `record.err`, `query-kinds.txt`, `query-file-paths.txt`, `replay.jsonl`,
 `up.log`, `bootstrap.log` and `copy.log`.
