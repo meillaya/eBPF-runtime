@@ -48,8 +48,7 @@ for the full data path. Rootless Podman is scoped to the repository with
 [`scripts/podman-scoped.sh`](scripts/podman-scoped.sh). The current kernel
 matrix is recorded in
 [docs/verification/kernel-matrix.md](docs/verification/kernel-matrix.md)
-(Ubuntu 24.04 and 22.04 PASS; known `sched_process_exit` limitation called
-out).
+(Ubuntu 24.04 and 22.04 PASS, including process exit events).
 
 ![Fleet mode: hooks to analytics](docs/figures/fleet-architecture.png)
 
@@ -220,6 +219,7 @@ Set `agent.transport.enabled=false` only for a local-only rollout.
 | `ebpf-fleet diff` | Compare event-kind counts between two bundles. |
 | `ebpf-fleet policy test` | Evaluate a rule pack against a bundle and enforce an expectation file. |
 | `ebpf-fleet top` | Live or bundle TUI for top processes, file paths, event kinds, and recent events. |
+| `ebpf-fleet probe build/verify/explain` | Build a C CO-RE probe, load it through the verifier, or explain a captured verifier log. |
 | `ebpf-runtime check` | Load sensors and print the attach matrix. |
 | `ebpf-runtime run` | Stream single-node events and alerts. |
 | `ebpf-runtime rules check DIR` | Parse a rule directory. |
@@ -262,6 +262,9 @@ authenticated `/api/v1` routes. Its HTTP port also serves the dashboard.
   present them as available yet.
 - `policy test` evaluates plain conditions only; sequence rules are counted
   and skipped, matching the runtime engine behavior.
+- `probe verify` needs root/CAP_BPF; unprivileged runs report
+  `permission_denied` and do not claim kernel acceptance. SDK events are not
+  decoded by the runtime yet; see [docs/probe-sdk.md](docs/probe-sdk.md).
 - Query is local and read-only. It does not load BPF programs or enforce
   policy.
 - One control plane serves one cluster in this version.

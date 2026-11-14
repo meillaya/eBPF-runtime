@@ -141,3 +141,47 @@ fn top_summarizes_a_bundle_without_a_terminal() {
     assert!(stdout.contains("top processes"));
     assert!(stdout.contains("FileOpen"));
 }
+
+#[test]
+fn probe_build_and_explain_work_without_privileges() {
+    let dir = tempfile::tempdir().unwrap();
+    let binary = env!("CARGO_BIN_EXE_ebpf-fleet");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("sdk/examples/hello_probe.bpf.c");
+    let object = dir.path().join("hello_probe.bpf.o");
+    let build = Command::new(binary)
+        .args([
+            "probe",
+            "build",
+            source.to_str().unwrap(),
+            "--out",
+            object.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        build.status.success(),
+        "probe build failed: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+    assert!(object.is_file());
+
+    let log = dir.path().join("verifier.log");
+    std::fs::write(
+        &log,
+        "invalid mem access\n; file.bpf.c:12: (79) r1 = *(u64 *)(r10 - 8)\nprocessed 19 insns\n",
+    )
+    .unwrap();
+    let explain = Command::new(binary)
+        .args(["probe", "explain", log.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        explain.status.success(),
+        "probe explain failed: {}",
+        String::from_utf8_lossy(&explain.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&explain.stdout);
+    assert!(stdout.contains("invalid memory access"));
+    assert!(stdout.contains("full verifier log"));
+}

@@ -35,7 +35,7 @@
       "checksum_manifest_format": "sha256sum -c compatible",
       "status": "pinned",
       "boot_validated": true,
-      "notes": "Default lab image. Booted on host massive 2026-11-13 via scripts/vm/run-smoke.sh: Ubuntu 24.04.5 LTS cloud image, kernel 6.8.0-147-generic, /sys/kernel/btf/vmlinux 6103569 bytes, cloud-init DataSourceNoCloud, smoke 4/4 PASS. Build: 20261017 (release.20260926.20261017). Kernel-matrix row 2026-11-14 via scripts/vm/run-matrix.sh: PASS, kernel 6.8.0-147-generic, BTF sha256 8c10e7e1..., 3492 events recorded (2927 FileOpen, 269 ProcessFork, 271 ProcessExec), no ProcessExit events (sched_process_exit raw-tracepoint attach limitation reproduced). Evidence: target/vm/matrix/2026-11-14/ubuntu-24.04.json."
+      "notes": "Default lab image. Booted on host massive 2026-11-13 via scripts/vm/run-smoke.sh: Ubuntu 24.04.5 LTS cloud image, kernel 6.8.0-147-generic, /sys/kernel/btf/vmlinux 6103569 bytes, cloud-init DataSourceNoCloud, smoke 4/4 PASS. Build: 20261017 (release.20260926.20261017). Kernel-matrix row 2026-11-14 via scripts/vm/run-matrix.sh: PASS, kernel 6.8.0-147-generic, BTF sha256 8c10e7e1..., 3690 events recorded (2858 FileOpen, 268 ProcessFork, 271 ProcessExec, 268 ProcessExit). The process exit tracepoint fix is verified; Evidence: docs/verification/kernel-matrix/2026-11-14b/ubuntu-24.04.json and target/vm/matrix/2026-11-14b/."
     },
     "ubuntu-22.04": {
       "distro": "ubuntu",
@@ -50,7 +50,7 @@
       "checksum_manifest_format": "sha256sum -c compatible",
       "status": "pinned",
       "boot_validated": true,
-      "notes": "Kernel-matrix LTS row. Booted and validated on 2026-11-14 via scripts/vm/run-matrix.sh: Ubuntu 22.04.5 LTS, kernel 5.15.0-203-generic, /sys/kernel/btf/vmlinux 5290474 bytes (sha256 36e118be...), 3225 events recorded (2663 FileOpen, 267 ProcessFork, 270 ProcessExec), no ProcessExit events (sched_process_exit raw-tracepoint attach limitation reproduced). FileOpen paths decoded through the kprobe/pt_regs path on a kernel whose lsm list has no bpf, e.g. /tmp/matrix-probe/created-by-matrix. Evidence: target/vm/matrix/2026-11-14/ubuntu-22.04.json."
+      "notes": "Kernel-matrix LTS row. Booted and validated on 2026-11-14 via scripts/vm/run-matrix.sh: Ubuntu 22.04.5 LTS, kernel 5.15.0-203-generic, /sys/kernel/btf/vmlinux 5290474 bytes (sha256 36e118be...), 3388 events recorded (2585 FileOpen, 258 ProcessFork, 261 ProcessExec, 260 ProcessExit). FileOpen paths decoded through the kprobe/pt_regs path on a kernel whose lsm list has no bpf, e.g. /tmp/matrix-probe/created-by-matrix. The process exit tracepoint fix is verified. Evidence: docs/verification/kernel-matrix/2026-11-14b/ubuntu-22.04.json and target/vm/matrix/2026-11-14b/."
     },
     "debian-12": {
       "distro": "debian",

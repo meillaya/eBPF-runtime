@@ -56,6 +56,8 @@ enum Command {
     Diff(DiffArgs),
     /// Show live or bundle top processes, files, and event kinds.
     Top(TopArgs),
+    /// Build, verify, or explain custom C probes.
+    Probe(ProbeArgs),
     /// Evaluate a rule pack against a recorded bundle.
     Policy(PolicyArgs),
 }
@@ -136,6 +138,52 @@ struct DiffArgs {
 }
 
 #[derive(Debug, Args)]
+struct ProbeArgs {
+    #[command(subcommand)]
+    command: ProbeCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum ProbeCommand {
+    /// Compile a C probe into a CO-RE object.
+    Build(ProbeBuildArgs),
+    /// Load a probe object through the kernel verifier.
+    Verify(ProbeVerifyArgs),
+    /// Explain a captured verifier log.
+    Explain(ProbeExplainArgs),
+}
+
+#[derive(Debug, Args)]
+struct ProbeBuildArgs {
+    /// C probe source.
+    source: PathBuf,
+    /// Output object. Defaults to target/probe-sdk/<source>.bpf.o.
+    #[arg(long)]
+    out: Option<PathBuf>,
+    /// Extra include directories, repeatable.
+    #[arg(long = "include")]
+    include: Vec<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct ProbeVerifyArgs {
+    /// Compiled probe object.
+    object: PathBuf,
+    /// Print machine-readable JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ProbeExplainArgs {
+    /// Verifier log file. Reads stdin when omitted or `-`.
+    log: Option<PathBuf>,
+    /// Print machine-readable JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
 struct TopArgs {
     /// Bundle directory. Omit for the live view.
     bundle: Option<PathBuf>,
@@ -202,6 +250,11 @@ async fn main() -> ExitCode {
         Command::Unpack(args) => unpack(args),
         Command::Diff(args) => diff(args).await,
         Command::Top(args) => top::run(args.bundle, args.refresh_ms, args.duration).await,
+        Command::Probe(args) => match args.command {
+            ProbeCommand::Build(build) => probe_build(build),
+            ProbeCommand::Verify(verify) => probe_verify(verify),
+            ProbeCommand::Explain(explain) => probe_explain(explain),
+        },
         Command::Policy(args) => match args.command {
             PolicyCommand::Test(test) => policy_test(test).await,
         },
@@ -549,6 +602,91 @@ async fn policy_test(args: PolicyTestArgs) -> Result<(), String> {
                 return Err("policy expectation failed".to_string());
             }
         }
+    }
+    Ok(())
+}
+
+fn probe_build(args: ProbeBuildArgs) -> Result<(), String> {
+    let out = args.out.unwrap_or_else(|| {
+        let name = args
+            .source
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("probe");
+        probe::default_out_dir().join(format!("{name}.bpf.o"))
+    });
+    let artifact =
+        probe::build(&args.source, &out, &args.include).map_err(|error| error.to_string())?;
+    println!(
+        "built {} -> {} ({} bytes, clang {})",
+        artifact.source.display(),
+        artifact.object.display(),
+        artifact.size_bytes,
+        artifact.clang.display()
+    );
+    Ok(())
+}
+
+fn probe_verify(args: ProbeVerifyArgs) -> Result<(), String> {
+    let report = probe::verify(&args.object).map_err(|error| error.to_string())?;
+    if args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?
+        );
+    } else {
+        println!(
+            "{}: {:?} ({} programs, {} maps)",
+            report.object.display(),
+            report.status,
+            report.programs.len(),
+            report.maps.len()
+        );
+        for program in &report.programs {
+            println!("  program {} {}", program.section, program.name);
+        }
+        for map in &report.maps {
+            println!(
+                "  map {} {} max_entries={}",
+                map.map_type, map.name, map.max_entries
+            );
+        }
+        if let Some(error) = &report.error {
+            eprintln!("{error}");
+        }
+        for hint in &report.hints {
+            eprintln!("hint: {hint}");
+        }
+        if let Some(explanation) = report.explanation() {
+            println!("{}", explanation.render());
+        }
+    }
+    if report.loaded() {
+        Ok(())
+    } else {
+        Err(format!("probe did not load: {:?}", report.status))
+    }
+}
+
+fn probe_explain(args: ProbeExplainArgs) -> Result<(), String> {
+    let text = match args.log {
+        Some(path) if path != Path::new("-") => std::fs::read_to_string(&path)
+            .map_err(|error| format!("{}: {error}", path.display()))?,
+        _ => {
+            let mut text = String::new();
+            std::io::Read::read_to_string(&mut std::io::stdin(), &mut text)
+                .map_err(|error| error.to_string())?;
+            text
+        }
+    };
+    let explanation = probe::explain(&text);
+    if args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&explanation).map_err(|error| error.to_string())?
+        );
+    } else {
+        println!("{}", explanation.render());
     }
     Ok(())
 }

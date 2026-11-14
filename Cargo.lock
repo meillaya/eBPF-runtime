@@ -2267,6 +2267,7 @@ dependencies = [
  "clap",
  "crossterm",
  "event-model",
+ "probe",
  "ratatui",
  "runtime",
  "serde",
@@ -4079,6 +4080,16 @@ version = "0.1.0"
 dependencies = [
  "event-model",
  "regex",
+ "serde",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "probe"
+version = "0.1.0"
+dependencies = [
+ "bpf-build",
+ "libbpf-rs",
  "serde",
  "thiserror 2.0.19",
 ]

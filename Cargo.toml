@@ -16,6 +16,7 @@ members = [
     "crates/event-model",
     "crates/fleet",
     "crates/privacy",
+    "crates/probe",
     "crates/protocol",
     "crates/relay",
     "crates/rules",

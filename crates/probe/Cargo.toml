@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+[package]
+name = "probe"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95.0"
+description = "Build, verify, and explain custom C probes for the eBPF fleet SDK."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lib]
+name = "probe"
+path = "src/lib.rs"
+
+[dependencies]
+bpf-build = { path = "../bpf-build" }
+libbpf-rs = { version = "0.26", features = ["vendored"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"

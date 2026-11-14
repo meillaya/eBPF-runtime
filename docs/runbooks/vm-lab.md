@@ -227,7 +227,7 @@ pinned guest kernels and writes machine-readable evidence. The runner is
 binary in over `lab.sh copy`, verifies the guest sha256, runs
 `doctor --json`, `record --for 8` with deterministic process/file activity,
 `query` for kind counts and `FileOpen` paths, `replay`, a process-only probe
-record (to check the `sched_process_exit` raw tracepoint), exports the
+record (to check the fork/exec/exit tracepoint path), exports the
 bundle, writes a per-row JSON file and tears the VM down even on failure.
 
 ```bash
