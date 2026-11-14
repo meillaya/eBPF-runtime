@@ -2,10 +2,11 @@
 
 # C probe SDK and verifier diagnostics (0.2)
 
-Status: first 0.2 slice, library API only. The `probe` crate builds, verifies,
-and explains a hand-written C probe. It is **not** a DSL, a compiler, or a
-loader, and `crates/fleet` is deliberately untouched until the Lead wires the
-`fleet probe` subcommands.
+Status: first 0.2 slice, library plus the `ebpf-fleet probe` CLI. The
+`probe` crate and CLI build, verify, and explain a hand-written C probe. It is
+**not** a DSL, a compiler, or a loader. Privileged verifier acceptance is
+proven by the checked-in VM evidence;
+see [probe-sdk-verify.md](verification/probe-sdk-verify.md).
 
 This page is the contract for:
 
@@ -137,9 +138,9 @@ The resulting object is a `elf64-bpf` CO-RE object: `.BTF`, `.BTF.ext`, a
 `tracepoint/sched/sched_process_exec` section, a `license` section, and a
 `.maps` section for `hello_events`.
 
-## Library API
+## Library and CLI API
 
-The crate is a library only; there is no CLI wiring in this slice.
+The crate is the library; `ebpf-fleet probe` is the command-line surface.
 
 ```rust
 pub fn build(source: &Path, output: &Path, include_dirs: &[PathBuf])
@@ -241,14 +242,20 @@ The build test writes
 slice: 1,003,128 bytes, SHA-256
 `8e6948361b2cddcef223efe37ec1ced1d0d0b336c1f9df6d06be6bd789033dee`).
 
-Then the eventual CLI wiring maps directly onto the library:
+The CLI is a thin wrapper over the library:
+
+```bash
+ebpf-fleet probe build sdk/examples/hello_probe.bpf.c --out /tmp/hello.bpf.o
+ebpf-fleet probe verify /tmp/hello.bpf.o --json
+ebpf-fleet probe explain /tmp/verifier.log
+```
+
+The equivalent Rust call:
 
 ```rust
 use probe::VerifyStatus;
 
 let artifact = probe::build(&source, &object, &[])?;
-println!("built {} {}", artifact.object.display(), artifact.size_bytes);
-
 let report = probe::verify(&artifact.object)?;
 match report.status {
     VerifyStatus::Loaded => println!("verifier accepted the probe"),
@@ -275,8 +282,8 @@ That is the only test that loads a program into the kernel; it requires root or
 
 ## Limitations
 
-- No `fleet probe` CLI yet. `crates/probe` is a library and `crates/fleet` is
-  untouched; the Lead wires `fleet probe build/verify/explain` after review.
+- The CLI is wired for `build`, `verify`, and `explain`; it is not a probe
+  runtime or attacher.
 - No runtime loader, attacher, or decoder for SDK events. The example object is
   a fixture and the runtime still consumes only sensor v1 ABI events. A decoder
   needs a magic/version dispatch and a decision about which probe events the
@@ -312,18 +319,24 @@ nix develop --no-pure-eval --accept-flake-config --command cargo fmt --all -- --
 nix develop --no-pure-eval --accept-flake-config --command \
   cargo test -p probe -- --ignored
   expected failure on this host: left PermissionDenied, right Loaded
-  (uid 1000, unprivileged_bpf_disabled=2; the privileged path is unproven here)
+  (uid 1000, unprivileged_bpf_disabled=2)
+
+Privileged path in the local KVM guest:
+  ebpf-fleet probe verify /tmp/hello_probe.bpf.o --json
+  status: loaded; tracepoint/sched/sched_process_exec;
+  hello_events map; 57 instructions; CO-RE task_struct.start_time applied
+  Evidence: docs/verification/probe-sdk-verify.json
 ```
 
-## Next step for the Lead
+## CLI usage
 
-Wire the CLI without touching the library contract:
+```bash
+ebpf-fleet probe build <SOURCE> [--out OBJECT] [--include DIR]...
+ebpf-fleet probe verify <OBJECT> [--json]
+ebpf-fleet probe explain [LOG|-] [--json]
+```
 
-- `fleet probe build --source <FILE> --out <FILE> [--include DIR]...` →
-  `probe::build`, print the artifact fields as JSON with `--json`.
-- `fleet probe verify <OBJECT> [--json]` → `probe::verify`; exit non-zero for
-  `rejected`/`unavailable`/`permission_denied`, print `report.explanation()`
-  for `rejected`, and the hints otherwise.
-- `fleet probe explain --log <FILE>` (or stdin, or `--object` to verify and
-  explain) → `probe::explain(&text).render()`, with `--json` serializing
-  `Explanation` (it derives `serde::Serialize`).
+`verify` exits non-zero for `rejected`, `unavailable`, and
+`permission_denied`; it prints the verifier explanation on rejection and
+hints otherwise. `explain` reads a file or stdin. Both reports derive
+`serde::Serialize` for `--json`.
