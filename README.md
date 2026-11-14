@@ -51,6 +51,37 @@ of silently returning partial data. SQL runs over the local `events` table:
   "select path, count(*) as n from events where kind = 'FileOpen' group by path order by n desc limit 10"
 ```
 
+### Query formats, inspect, diff, and TUI
+
+The daily surfaces are documented end to end in
+[docs/query.md](docs/query.md):
+
+```bash
+# machine output: table (default), newline-delimited JSON, CSV, or Parquet
+./target/release/ebpf-fleet query /tmp/incident.fleet \
+  "select kind, path from events limit 20" --format json
+./target/release/ebpf-fleet query /tmp/incident.fleet \
+  "select * from events" --format parquet --out events.parquet
+# --limit stops the stream early; --schema/--explain skip execution
+./target/release/ebpf-fleet query /tmp/incident.fleet --schema --table stacks
+./target/release/ebpf-fleet query /tmp/incident.fleet "select count(*) from events" --explain
+
+# validate a bundle and summarize manifest/host/capture/stack coverage
+./target/release/ebpf-fleet inspect /tmp/incident.fleet --json
+
+# compare two bundles by kind (0.2-compatible default), process, path, or stack
+./target/release/ebpf-fleet diff before.fleet after.fleet --by stack --limit 10 --json
+
+# shell completions and man pages
+./target/release/ebpf-fleet completions bash > /usr/share/bash-completion/completions/ebpf-fleet
+./target/release/ebpf-fleet man --out /usr/local/share/man/man1
+```
+
+`record --json` prints one machine-readable summary object on stdout and
+`--quiet` suppresses stderr progress/summary; on a TTY `record` shows a live
+progress line. `top BUNDLE` opens the interactive bundle TUI (pause/sort,
+process/path/kind filters, `w` saves a JSON snapshot); it also has live mode.
+
 The local path is intentionally separate from fleet mode. See
 [docs/recipes.md](docs/recipes.md) for incident-debugging queries. Use the
 [local KVM VM lab](docs/runbooks/vm-lab.md) for privileged tests without

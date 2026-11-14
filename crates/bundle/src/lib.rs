@@ -33,6 +33,7 @@ use datafusion::datasource::listing::{
 use datafusion::datasource::memory::MemTable;
 use datafusion::execution::context::SessionContext;
 use event_model::{Event, Stack, StackFrame};
+use futures::stream::{BoxStream, StreamExt};
 use parquet::arrow::ArrowWriter;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -50,6 +51,24 @@ pub const FORMAT_V1: &str = "ebpf-fleet.bundle/v1";
 pub const ARROW_SCHEMA_VERSION: u32 = 2;
 /// Frozen 0.2 Arrow schema version (events table without `stack_id`).
 pub const ARROW_SCHEMA_VERSION_V1: u32 = 1;
+
+/// Streaming record batches from [`Bundle::query_stream`].
+///
+/// Yields `Result` so a mid-stream execution error is surfaced to the
+/// caller; stopping the stream early (for example at `--limit`) cancels
+/// the underlying plan.
+pub type BatchStream = BoxStream<'static, Result<RecordBatch, BundleError>>;
+
+/// One streaming query: the result Arrow schema plus the batch stream.
+///
+/// The schema is available even when the query produces no rows, which is
+/// what lets `query --format parquet` write a valid empty file.
+pub struct QueryStream {
+    /// Arrow schema of the result rows.
+    pub schema: SchemaRef,
+    /// Record batches, streamed.
+    pub batches: BatchStream,
+}
 
 /// A complete, validated incident bundle.
 #[derive(Debug, Clone)]
@@ -652,6 +671,39 @@ impl Bundle {
         self.execute(sql, true).await
     }
 
+    /// Execute SQL and return a streaming record-batch stream instead of
+    /// collecting every row in memory.
+    ///
+    /// This is the streaming counterpart of [`Bundle::query`]: the caller
+    /// can stop early (for example at `query --limit N`) and only the Arrow
+    /// writer buffers what it writes. The stream yields
+    /// `Result<RecordBatch, BundleError>` so callers do not need a direct
+    /// DataFusion dependency.
+    pub async fn query_stream(&self, sql: &str) -> Result<QueryStream, BundleError> {
+        self.query_stream_inner(sql, true).await
+    }
+
+    /// Arrow schema of one of the bundle tables (`events`, `stacks`,
+    /// `probe_events`), matching what queries see for this bundle format.
+    ///
+    /// Returns `None` for an unknown table name. A v1 bundle reports the
+    /// frozen v1 `events` schema (without `stack_id`).
+    pub fn table_schema(&self, table: &str) -> Option<SchemaRef> {
+        match table {
+            "events" => Some(if self.format_version >= 2 {
+                event_schema()
+            } else {
+                event_schema_v1()
+            }),
+            "stacks" => Some(stacks_schema()),
+            "probe_events" => Some(probe_events_schema()),
+            _ => None,
+        }
+    }
+
+    /// Table names `query` accepts for `--table`.
+    pub const TABLES: &'static [&'static str] = &["events", "stacks", "probe_events"];
+
     /// Read the whole `stacks` table back into typed [`Stack`] values.
     ///
     /// A v1 (0.2) bundle has no stack data and returns an empty vector.
@@ -765,11 +817,38 @@ impl Bundle {
         Ok(records)
     }
 
+    async fn query_stream_inner(
+        &self,
+        sql: &str,
+        require_data: bool,
+    ) -> Result<QueryStream, BundleError> {
+        let ctx = self.session(require_data)?;
+        let frame = ctx.sql(sql).await?;
+        let schema = frame.schema().inner().clone();
+        let stream = frame.execute_stream().await?;
+        Ok(QueryStream {
+            schema,
+            batches: Box::pin(stream.map(|batch| batch.map_err(BundleError::from))),
+        })
+    }
+
     async fn execute(
         &self,
         sql: &str,
         require_data: bool,
     ) -> Result<Vec<RecordBatch>, BundleError> {
+        let mut stream = self.query_stream_inner(sql, require_data).await?.batches;
+        let mut batches = Vec::new();
+        while let Some(batch) = stream.next().await {
+            batches.push(batch?);
+        }
+        Ok(batches)
+    }
+
+    /// Build a session with `events`, `stacks`, and `probe_events`
+    /// registered (real Parquet parts when present, empty tables
+    /// otherwise).
+    fn session(&self, require_data: bool) -> Result<SessionContext, BundleError> {
         let event_paths = self.parquet_paths("events/")?;
         let stack_paths = self.parquet_paths("stacks/")?;
         let probe_paths = self.parquet_paths("probe_events/")?;
@@ -801,8 +880,7 @@ impl Bundle {
         } else {
             register_parquet_table(&ctx, "probe_events", probe_paths, probe_events_schema())?;
         }
-        let frame = ctx.sql(sql).await?;
-        Ok(frame.collect().await?)
+        Ok(ctx)
     }
 
     /// Parquet part paths under one bundle subdirectory, in manifest order.

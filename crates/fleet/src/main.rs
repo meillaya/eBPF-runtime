@@ -7,7 +7,7 @@
 //! prints the recorded JSON stream; `doctor` explains the host preflight.
 
 use std::fs;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use arrow::array::Array;
 use bpf_loader::{LoadOptions, StackMode};
 use bundle::{Bundle, BundleWriter, CaptureInfo, HostInfo, Manifest, ProbeEventRecord};
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use event_model::{Event, Stack};
 use probe::{decode_payload, decode_record, hex, ProbeManifest};
 use runtime::decode::{decode, Clock};
@@ -28,7 +28,14 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use signal_hook::consts::{SIGINT, SIGTERM};
 
+mod diff;
+mod inspect;
+mod query;
 mod top;
+
+use diff::DiffArgs;
+use inspect::InspectArgs;
+use query::QueryArgs;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -55,14 +62,20 @@ enum Command {
     Pack(PackArgs),
     /// Extract a packed bundle and validate it.
     Unpack(UnpackArgs),
-    /// Compare event-kind counts between two bundles.
+    /// Compare event counts between two bundles.
     Diff(DiffArgs),
+    /// Summarize a bundle and validate its integrity.
+    Inspect(InspectArgs),
     /// Show live or bundle top processes, files, and event kinds.
     Top(TopArgs),
     /// Build, verify, or explain custom C probes.
     Probe(ProbeArgs),
     /// Evaluate a rule pack against a recorded bundle.
     Policy(PolicyArgs),
+    /// Generate shell completions for ebpf-fleet.
+    Completions(CompletionsArgs),
+    /// Generate man pages for ebpf-fleet.
+    Man(ManArgs),
 }
 
 #[derive(Debug, Args)]
@@ -89,6 +102,13 @@ struct RecordArgs {
     /// Print stack capture and symbolization statistics as JSON.
     #[arg(long)]
     stats: bool,
+    /// Print a machine-readable record summary as one JSON object on stdout.
+    #[arg(long)]
+    json: bool,
+    /// Suppress the progress line and final summary on stderr (errors still
+    /// print).
+    #[arg(long, short = 'q')]
+    quiet: bool,
     /// Flush after this many events.
     #[arg(long, default_value_t = 1000)]
     batch_events: usize,
@@ -117,23 +137,6 @@ impl StackCaptureStats {
         self.user_captures = self.user_captures.saturating_add(counters.user_captures);
         self.user_failures = self.user_failures.saturating_add(counters.user_failures);
     }
-}
-
-#[derive(Debug, Args)]
-struct QueryArgs {
-    /// Bundle directory.
-    bundle: PathBuf,
-    /// SQL against the `events`, `stacks`, and `probe_events` tables.
-    /// Defaults to a kind summary over `events` (or the stack / probe-event
-    /// table with `--table`).
-    ///
-    /// The tables join on `(sensor, stack_id)`:
-    /// `select e.kind, e.path, s.frames from events e join stacks s
-    ///  on e.sensor = s.sensor and e.stack_id = s.stack_id`.
-    sql: Option<String>,
-    /// Default table for the generated SQL when no SQL is given.
-    #[arg(long, value_parser = ["events", "stacks", "probe_events"])]
-    table: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -171,11 +174,18 @@ struct UnpackArgs {
 }
 
 #[derive(Debug, Args)]
-struct DiffArgs {
-    /// Earlier bundle.
-    before: PathBuf,
-    /// Later bundle.
-    after: PathBuf,
+struct CompletionsArgs {
+    /// Shell to generate completions for.
+    #[arg(value_enum)]
+    shell: clap_complete::Shell,
+}
+
+#[derive(Debug, Args)]
+struct ManArgs {
+    /// Directory to write man pages into (`ebpf-fleet.1` plus one page per
+    /// subcommand). Omit to print the main man page to stdout.
+    #[arg(long)]
+    out: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -344,12 +354,13 @@ async fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
         Command::Record(args) => record(args),
-        Command::Query(args) => query(args).await,
+        Command::Query(args) => query::run(args).await,
         Command::Replay(args) => replay(args).await,
         Command::Doctor(args) => doctor(args),
         Command::Pack(args) => pack(args),
         Command::Unpack(args) => unpack(args),
-        Command::Diff(args) => diff(args).await,
+        Command::Diff(args) => diff::run(args).await,
+        Command::Inspect(args) => inspect::run(args).await,
         Command::Top(args) => top::run(args.bundle, args.refresh_ms, args.duration).await,
         Command::Probe(args) => match args.command {
             ProbeCommand::Build(build) => probe_build(build),
@@ -360,6 +371,8 @@ async fn main() -> ExitCode {
         Command::Policy(args) => match args.command {
             PolicyCommand::Test(test) => policy_test(test).await,
         },
+        Command::Completions(args) => completions(args),
+        Command::Man(args) => man_pages(args),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -411,6 +424,9 @@ fn record(args: RecordArgs) -> Result<(), String> {
     signal_hook::flag::register(SIGINT, shutdown.clone()).map_err(|error| error.to_string())?;
     signal_hook::flag::register(SIGTERM, shutdown.clone()).map_err(|error| error.to_string())?;
 
+    let started = Instant::now();
+    let stderr_is_tty = std::io::stderr().is_terminal();
+    let mut progress = ProgressLine::new(!args.quiet && stderr_is_tty);
     let clock = Clock::new();
     let mut processes = ProcessTable::new();
     let deadline = (args.duration > 0).then(|| Instant::now() + Duration::from_secs(args.duration));
@@ -518,7 +534,10 @@ fn record(args: RecordArgs) -> Result<(), String> {
                 break;
             }
         }
+        progress.maybe_print(event_count, stacks.len(), decode_errors);
     }
+    progress.clear();
+    let elapsed_ms = started.elapsed().as_millis() as u64;
 
     if event_count == 0 {
         return Err(
@@ -537,40 +556,99 @@ fn record(args: RecordArgs) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
     }
     let bundle = writer.finish().map_err(|error| error.to_string())?;
-    eprintln!(
-        "recorded {} events and {} distinct stacks ({} decode errors) into {}",
-        bundle.manifest().counts.events,
-        bundle.manifest().counts.stacks,
-        decode_errors,
-        bundle.root().display()
-    );
-    if args.stats {
-        print_record_stats(
-            &sensors,
-            symbolizer
-                .as_ref()
-                .map(Symbolizer::stats)
-                .unwrap_or_default(),
-            &stack_mode,
-            &bundle,
+    if !args.quiet {
+        eprintln!(
+            "recorded {} events and {} distinct stacks ({} decode errors) into {}",
+            bundle.manifest().counts.events,
+            bundle.manifest().counts.stacks,
             decode_errors,
-            stack_read_errors,
-        )?;
+            bundle.root().display()
+        );
+    }
+    let stats = record_stats_value(
+        &sensors,
+        symbolizer
+            .as_ref()
+            .map(Symbolizer::stats)
+            .unwrap_or_default(),
+        &stack_mode,
+        &bundle,
+        decode_errors,
+        stack_read_errors,
+    )?;
+    if args.json {
+        let summary = serde_json::json!({
+            "bundle": bundle.root().display().to_string(),
+            "format": bundle.manifest().format,
+            "events": bundle.manifest().counts.events,
+            "stacks": bundle.manifest().counts.stacks,
+            "dropped": bundle.manifest().counts.dropped,
+            "decode_errors": decode_errors,
+            "stack_read_errors": stack_read_errors,
+            "duration_ms": elapsed_ms,
+            "stack_mode": stack_mode.as_str(),
+            "stats": stats,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&summary).map_err(|error| error.to_string())?
+        );
+    }
+    if args.stats && !args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&stats).map_err(|error| error.to_string())?
+        );
     }
     Ok(())
+}
+
+/// One-line live recording progress for a TTY stderr. Non-TTY stderr keeps
+/// the 0.2 behaviour (only the final summary line).
+struct ProgressLine {
+    enabled: bool,
+    last: Instant,
+}
+
+impl ProgressLine {
+    fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            last: Instant::now(),
+        }
+    }
+
+    fn maybe_print(&mut self, events: u64, stacks: usize, decode_errors: u64) {
+        if !self.enabled || self.last.elapsed() < Duration::from_millis(500) {
+            return;
+        }
+        eprint!(
+            "\rrecording: {events} events, {stacks} distinct stacks, {decode_errors} decode errors"
+        );
+        let _ = std::io::stderr().flush();
+        self.last = Instant::now();
+    }
+
+    fn clear(&mut self) {
+        if self.enabled {
+            eprint!("\r\x1b[K");
+            let _ = std::io::stderr().flush();
+            self.enabled = false;
+        }
+    }
 }
 
 /// Print `record --stats` as stable JSON: stack capture counters (including
 /// stack-map drops), stack-map geometry, and symbolization coverage. Stack
 /// capture failures are non-fatal; they show up here rather than as errors.
-fn print_record_stats(
+fn record_stats_value(
     sensors: &bpf_loader::LoadedSensors,
     symbolization: runtime::symbolize::SymbolizeStats,
     stack_mode: &StackMode,
     bundle: &Bundle,
     decode_errors: u64,
     stack_read_errors: u64,
-) -> Result<(), String> {
+) -> Result<serde_json::Value, String> {
     let mut capture = StackCaptureStats::default();
     for counters in sensors.stack_counters().values() {
         capture.add(counters);
@@ -595,36 +673,7 @@ fn print_record_stats(
         "symbolization": symbolization,
         "stack_read_errors": stack_read_errors,
     });
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&output).map_err(|error| error.to_string())?
-    );
-    Ok(())
-}
-
-async fn query(args: QueryArgs) -> Result<(), String> {
-    let bundle = Bundle::open(&args.bundle).map_err(|error| error.to_string())?;
-    let default_sql = match args.table.as_deref() {
-        Some("stacks") => {
-            "select stack_id, sensor, frames, truncated from stacks order by sensor, stack_id"
-        }
-        Some("probe_events") => {
-            "select probe, kind, kind_name, count(*) as n from probe_events \
-             group by probe, kind, kind_name order by n desc"
-        }
-        _ => "select kind, count(*) as n from events group by kind order by n desc",
-    };
-    let sql = args.sql.unwrap_or_else(|| default_sql.to_string());
-    let batches = bundle
-        .query(&sql)
-        .await
-        .map_err(|error| error.to_string())?;
-    if batches.iter().all(|batch| batch.num_rows() == 0) {
-        eprintln!("no rows");
-        return Ok(());
-    }
-    arrow::util::pretty::print_batches(&batches).map_err(|error| error.to_string())?;
-    Ok(())
+    Ok(output)
 }
 
 async fn replay(args: ReplayArgs) -> Result<(), String> {
@@ -683,52 +732,6 @@ fn unpack(args: UnpackArgs) -> Result<(), String> {
         bundle.manifest().counts.events
     );
     Ok(())
-}
-
-async fn diff(args: DiffArgs) -> Result<(), String> {
-    let before = Bundle::open(&args.before).map_err(|error| error.to_string())?;
-    let after = Bundle::open(&args.after).map_err(|error| error.to_string())?;
-    let before_counts = kind_counts(&before).await?;
-    let after_counts = kind_counts(&after).await?;
-    let mut kinds = std::collections::BTreeSet::new();
-    kinds.extend(before_counts.keys().cloned());
-    kinds.extend(after_counts.keys().cloned());
-    println!(
-        "{:<24} {:>10} {:>10} {:>10}",
-        "kind", "before", "after", "delta"
-    );
-    for kind in kinds {
-        let left = before_counts.get(&kind).copied().unwrap_or(0);
-        let right = after_counts.get(&kind).copied().unwrap_or(0);
-        println!(
-            "{:<24} {:>10} {:>10} {:>10}",
-            kind,
-            left,
-            right,
-            right as i64 - left as i64
-        );
-    }
-    Ok(())
-}
-
-async fn kind_counts(bundle: &Bundle) -> Result<std::collections::BTreeMap<String, u64>, String> {
-    let batches = bundle
-        .query("select kind, count(*) as n from events group by kind order by kind")
-        .await
-        .map_err(|error| error.to_string())?;
-    let mut counts = std::collections::BTreeMap::new();
-    for batch in &batches {
-        for row in 0..batch.num_rows() {
-            let kind = arrow::util::display::array_value_to_string(batch.column(0).as_ref(), row)
-                .map_err(|error| error.to_string())?;
-            let count = arrow::util::display::array_value_to_string(batch.column(1).as_ref(), row)
-                .map_err(|error| error.to_string())?
-                .parse::<u64>()
-                .map_err(|error| error.to_string())?;
-            counts.insert(kind, count);
-        }
-    }
-    Ok(counts)
 }
 
 async fn policy_test(args: PolicyTestArgs) -> Result<(), String> {
@@ -1187,6 +1190,64 @@ fn probe_explain(args: ProbeExplainArgs) -> Result<(), String> {
         );
     } else {
         println!("{}", explanation.render());
+    }
+    Ok(())
+}
+
+/// Generate shell completions on stdout (`completions bash|zsh|fish|...`).
+fn completions(args: CompletionsArgs) -> Result<(), String> {
+    let mut command = Cli::command();
+    clap_complete::generate(
+        args.shell,
+        &mut command,
+        "ebpf-fleet",
+        &mut std::io::stdout(),
+    );
+    Ok(())
+}
+
+/// Generate the main man page (stdout) or a directory of pages (`--out`).
+fn man_pages(args: ManArgs) -> Result<(), String> {
+    match args.out {
+        Some(directory) => {
+            fs::create_dir_all(&directory)
+                .map_err(|error| format!("cannot create {}: {error}", directory.display()))?;
+            let command = Cli::command();
+            let mut written = Vec::new();
+            render_man_pages(&command, "ebpf-fleet", &directory, &mut written)?;
+            for path in written {
+                println!("{}", path.display());
+            }
+            Ok(())
+        }
+        None => {
+            let command = Cli::command();
+            let man = clap_mangen::Man::new(command);
+            let mut buffer = Vec::new();
+            man.render(&mut buffer)
+                .map_err(|error| format!("cannot render man page: {error}"))?;
+            let mut stdout = std::io::stdout().lock();
+            stdout.write_all(&buffer).map_err(|error| error.to_string())
+        }
+    }
+}
+
+fn render_man_pages(
+    command: &clap::Command,
+    prefix: &str,
+    directory: &Path,
+    written: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let path = directory.join(format!("{prefix}.1"));
+    let mut file = fs::File::create(&path)
+        .map_err(|error| format!("cannot create {}: {error}", path.display()))?;
+    clap_mangen::Man::new(command.clone())
+        .render(&mut file)
+        .map_err(|error| format!("cannot render {}: {error}", path.display()))?;
+    written.push(path);
+    for subcommand in command.get_subcommands() {
+        let name = format!("{prefix}-{}", subcommand.get_name());
+        render_man_pages(subcommand, &name, directory, written)?;
     }
     Ok(())
 }

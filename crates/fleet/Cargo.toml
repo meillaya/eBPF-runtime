@@ -13,13 +13,17 @@ name = "ebpf-fleet"
 path = "src/main.rs"
 
 [dependencies]
-arrow = { version = "59.2.0", features = ["prettyprint"] }
+arrow = { version = "59.2.0", features = ["prettyprint", "json", "csv"] }
 bpf-loader = { path = "../bpf-loader" }
 bundle = { path = "../bundle" }
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4.6"
+clap_mangen = "0.3"
 crossterm = "0.29.0"
 ratatui = "0.30.2"
 event-model = { path = "../event-model" }
+futures = "0.3"
+parquet = "59.2.0"
 probe = { path = "../probe" }
 runtime = { path = "../runtime" }
 serde = { version = "1", features = ["derive"] }
@@ -30,4 +34,6 @@ signal-hook = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [dev-dependencies]
+csv = "1"
+nix = { version = "0.31", features = ["fs", "poll", "process", "term"] }
 tempfile = "3"
