@@ -971,8 +971,10 @@ run_row() {
   fi
   if [[ -s "$art/record.err" ]]; then
     if grep -Eq 'recorded [0-9]+ events' "$art/record.err"; then
-      record_events="$(sed -n 's/.*recorded \([0-9][0-9]*\) events (\([0-9][0-9]*\) decode errors).*/\1/p' "$art/record.err" | head -n 1)"
-      decode_errors="$(sed -n 's/.*recorded \([0-9][0-9]*\) events (\([0-9][0-9]*\) decode errors).*/\2/p' "$art/record.err" | head -n 1)"
+      # The summary grew in 0.3 to "recorded N events and M distinct
+      # stacks (D decode errors)"; keep accepting the 0.2 line as well.
+      record_events="$(sed -nE 's/.*recorded ([0-9]+) events.*/\1/p' "$art/record.err" | head -n 1)"
+      decode_errors="$(sed -nE 's/.*\(([0-9]+) decode errors\).*/\1/p' "$art/record.err" | head -n 1)"
     fi
   fi
   if ((record_events > 0)); then

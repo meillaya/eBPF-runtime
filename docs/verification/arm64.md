@@ -1,13 +1,15 @@
 # arm64 build and functional verification
 
 Status: **cross-build verified and functional row PASS under QEMU TCG system
-emulation** on 2026-11-14. This is a real aarch64 Ubuntu kernel executing
+emulation for 0.3.0** on 2026-11-14. This is a real aarch64 Ubuntu kernel executing
 the real aarch64 static binary, but the CPU is emulated: the row is a
 **functional smoke only, not a performance measurement**, and it is not a
 substitute for a native aarch64 KVM row.
 
-The 0.3 release artifacts are `ebpf-fleet-x86_64` and
-`ebpf-fleet-aarch64`. This page records the aarch64 build path, the
+The 0.3 release artifacts are `ebpf-fleet-x86_64` (sha256
+`60db4e2f374d07a5ba473e255bef022d8b1eaa446d561104146d558d1c74040d`)
+and `ebpf-fleet-aarch64` (sha256
+`d9af296d82d2504f029021267965c1397b91f31bdf7d9fc3edff679d88458381`). This page records the aarch64 build path, the
 artifact identity, and the functional evidence. The x86_64 artifact keeps
 its static-pie release path and the existing kernel matrix.
 
@@ -75,7 +77,7 @@ build-static: embedded BPF sensors: name: "process", arch: "arm64" name: "file",
 build-static: arm64 BPF sensor object: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), with debug_info, not stripped
 build-static: verified target/aarch64-unknown-linux-gnu/release/ebpf-fleet: aarch64 static, ELF 64-bit LSB executable, ARM aarch64, version 1 (GNU/Linux), statically linked, for GNU/Linux 3.10.0, stripped, 115M
 build-static: asset target/release/ebpf-fleet-aarch64 (115M)
-e7b24e672d6a3bc1b31d77b0f19e5755eb872cecdeafe91bd808b85c0fb74c2d  ebpf-fleet-aarch64
+d9af296d82d2504f029021267965c1397b91f31bdf7d9fc3edff679d88458381  ebpf-fleet-aarch64
 ```
 
 The script proves the embedded sensors are arm64 by reading the generated
@@ -100,11 +102,11 @@ readelf -l target/release/ebpf-fleet-aarch64 | grep -c INTERP   # 0
 | Field | Value |
 | --- | --- |
 | Asset | `target/release/ebpf-fleet-aarch64` |
-| Size | 120003136 bytes (115 MiB) |
-| SHA-256 | `e7b24e672d6a3bc1b31d77b0f19e5755eb872cecdeafe91bd808b85c0fb74c2d` |
+| Size | 120855168 bytes (116 MiB) |
+| SHA-256 | `d9af296d82d2504f029021267965c1397b91f31bdf7d9fc3edff679d88458381` |
 | ELF | 64-bit AArch64, `ET_EXEC`, statically linked, no `PT_INTERP`, no `NEEDED` |
-| Version string | `ebpf-fleet 0.2.2` (workspace version at build time) |
-| qemu-user smoke | `qemu-aarch64 target/release/ebpf-fleet-aarch64 --version` → `ebpf-fleet 0.2.2` |
+| Version string | `ebpf-fleet 0.3.0` (workspace version at build time) |
+| qemu-user smoke | `qemu-aarch64 target/release/ebpf-fleet-aarch64 --version` → `ebpf-fleet 0.3.0` |
 
 The aarch64 cross link is a plain static executable (`ET_EXEC`), not
 static-PIE; the x86_64 native path still produces `static-pie`. Both are
@@ -154,8 +156,8 @@ from the immutable Ubuntu build `release-20261017`.
 
 ```bash
 nix develop --impure --command scripts/vm/run-arm64.sh
-# -> target/vm/arm64/20261114T063404Z/row.json
-# -> target/vm/arm64/20261114T063404Z/row.txt
+# -> target/vm/arm64/2026-11-14-0.3.0/row.json
+# -> target/vm/arm64/2026-11-14-0.3.0/row.txt
 ```
 
 Result: **ARM64 FUNCTIONAL ROW PASS** — all 14 required checks passed
@@ -168,13 +170,13 @@ Result: **ARM64 FUNCTIONAL ROW PASS** — all 14 required checks passed
 | cloud-init (lean seed) | PASS, 32 s |
 | guest `uname -m` | `aarch64` |
 | guest `/sys/kernel/btf/vmlinux` | present, 6975252 bytes, sha256 `ff35ff5a…` |
-| binary upload sha256 | guest == host (`e7b24e67…`), PASS |
-| `--version` | `ebpf-fleet 0.2.2` |
+| binary upload sha256 | guest == host (`d9af296d…`), PASS |
+| `--version` | `ebpf-fleet 0.3.0` |
 | `doctor --json` | exit 0; kernel ok, btf ok, all 8 checks ok |
-| `record --for 8` | exit 0, **2726 events**, 751 distinct stacks, **0 decode errors** |
-| `query` kind counts | `{"FileOpen":2191,"FileUnlink":16,"ProcessExec":175,"ProcessExit":172,"ProcessFork":172}` |
-| `FileOpen` paths | 2191; deterministic probe path `/tmp/arm64-probe/created-by-arm64` decoded (verified in the replay JSONL stream) |
-| `replay` | exit 0, **2726 lines** == recorded events, first kind `ProcessFork`, valid JSONL |
+| `record --for 8` | exit 0, **3059 events**, **0 decode errors** |
+| `query` kind counts | `{"FileOpen":2468,"FileUnlink":18,"ProcessExec":193,"ProcessExit":190,"ProcessFork":190}` |
+| `FileOpen` paths | 2468; deterministic probe path `/tmp/arm64-probe/created-by-arm64` decoded (verified in the replay JSONL stream) |
+| `replay` | exit 0, **3059 lines** == recorded events, first kind `ProcessFork`, valid JSONL |
 
 Guest facts:
 
@@ -192,7 +194,7 @@ Guest facts:
   `lockdown=[none] integrity confidentiality`, `btf_sha256=ff35ff5a…`.
 
 The complete raw run stays under
-`target/vm/arm64/20261114T063404Z/` (gitignored): `row.json`, `row.txt`,
+`target/vm/arm64/2026-11-14-0.3.0/` (gitignored): `row.json`, `row.txt`,
 `instance.json`, `console.log`, the guest fact files, `doctor.json`,
 `record.err`, `query-kinds.txt`, `query-file-paths.txt`, `replay.jsonl`,
 `up.log`, `bootstrap.log` and `copy.log`.

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 [package]
 name = "bundle"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.95.0"
 description = "Self-contained eBPF fleet incident bundles and local SQL queries."

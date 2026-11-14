@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "runner": "scripts/vm/run-matrix.sh",
-  "generated_at": "2026-11-14T01:35:41Z",
+  "generated_at": "2026-11-14T07:51:28Z",
   "host": {
     "name": "massive",
     "arch": "x86_64",
@@ -21,22 +21,22 @@
     "checksum_manifest_format": "sha256sum -c compatible",
     "status": "pinned",
     "boot_validated": true,
-    "notes": "Kernel-matrix LTS row. Booted and validated 2026-11-14 via scripts/vm/run-matrix.sh; final 0.2.0 row 2026-11-14e: PASS, Ubuntu 22.04.5 LTS, kernel 5.15.0-203-generic, BTF 5290474 bytes (sha256 36e118be...), 3095 events (2375 FileOpen, 231 ProcessFork, 234 ProcessExec, 234 ProcessExit), 0 decode errors. FileOpen paths decoded through the kprobe/pt_regs fallback on a kernel whose lsm list has no bpf. Evidence: docs/verification/kernel-matrix/2026-11-14e/ubuntu-22.04.json and target/vm/matrix/2026-11-14e/."
+    "notes": "Kernel-matrix LTS row. Booted and validated 2026-11-14 via scripts/vm/run-matrix.sh; final 0.2.0 row 2026-11-14e: PASS, Ubuntu 22.04.5 LTS, kernel 5.15.0-203-generic, BTF 5290474 bytes (sha256 36e118be...), 3102 events (2382 FileOpen, 231 ProcessFork, 234 ProcessExec, 234 ProcessExit), 0 decode errors. FileOpen paths decoded through the kprobe/pt_regs fallback on a kernel whose lsm list has no bpf. Evidence: docs/verification/kernel-matrix/2026-11-14g/ubuntu-22.04.json and target/vm/matrix/2026-11-14g/."
   },
   "instance": "matrix-ubuntu-22-04",
   "ssh_port": 2222,
   "binary": {
     "host_path": "/home/mei/Documents/eBPF-runtime/target/release/ebpf-fleet",
-    "host_sha256": "bc48014367de000b0557177e03f4a6bdd057202ce2c00527009c631536f4b345",
-    "host_size_bytes": 134194760,
+    "host_sha256": "60db4e2f374d07a5ba473e255bef022d8b1eaa446d561104146d558d1c74040d",
+    "host_size_bytes": 138188360,
     "guest_path": "/tmp/ebpf-fleet",
-    "guest_sha256": "bc48014367de000b0557177e03f4a6bdd057202ce2c00527009c631536f4b345",
+    "guest_sha256": "60db4e2f374d07a5ba473e255bef022d8b1eaa446d561104146d558d1c74040d",
     "sha256_match": true,
-    "version": "ebpf-fleet 0.2.0"
+    "version": "ebpf-fleet 0.3.0"
   },
   "boot": {
     "ok": true,
-    "seconds": 14
+    "seconds": 18
   },
   "cloud_init": {
     "status": "status: done",
@@ -114,7 +114,7 @@
   "record": {
     "exit_code": 0,
     "seconds": 8,
-    "events": 3102,
+    "events": 4543,
     "decode_errors": 0,
     "bundle": "/tmp/matrix.fleet",
     "bundle_complete": "true"
@@ -124,76 +124,76 @@
     "file_sensor_path": "kprobe-no-bpf-lsm",
     "exit_tracepoint": {
       "attached": true,
-      "evidence": "process-only probe: ProcessFork=116 ProcessExec=117 ProcessExit=117"
+      "evidence": "process-only probe: ProcessFork=105 ProcessExec=108 ProcessExit=105"
     }
   },
   "probe": {
     "process_only": {
       "exit_code": 0,
       "query_exit_code": 0,
-      "events": 350,
+      "events": 318,
       "counts": {
-        "ProcessExec": 117,
-        "ProcessExit": 117,
-        "ProcessFork": 116
+        "ProcessExec": 108,
+        "ProcessExit": 105,
+        "ProcessFork": 105
       }
     }
   },
   "query": {
     "kinds_exit_code": 0,
     "kinds": {
-      "FileOpen": 2382,
-      "FileUnlink": 21,
-      "ProcessExec": 234,
-      "ProcessExit": 234,
-      "ProcessFork": 231
+      "FileOpen": 3767,
+      "FileUnlink": 23,
+      "ProcessExec": 252,
+      "ProcessExit": 252,
+      "ProcessFork": 249
     },
     "file_paths_exit_code": 0,
-    "file_open_count": 2382,
+    "file_open_count": 3767,
     "top_paths": [
       "/etc/ld.so.cache",
       "/lib/x86_64-linux-gnu/libc.so.6",
       "/usr/share/locale/locale.alias",
       "/usr/lib/locale/en_CA.UTF-8/LC_IDENTIFICATION",
-      "/usr/lib/locale/en_CA.utf8/LC_IDENTIFICATION",
-      "/usr/lib/locale/en/LC_IDENTIFICATION",
       "/usr/lib/locale/en.UTF-8/LC_IDENTIFICATION",
+      "/usr/lib/locale/en/LC_IDENTIFICATION",
+      "/usr/lib/locale/en_CA.utf8/LC_IDENTIFICATION",
       "/usr/lib/locale/en_CA/LC_IDENTIFICATION",
       "/usr/lib/locale/en.utf8/LC_IDENTIFICATION",
       "/dev/null",
       "/usr/lib/locale/locale-archive",
       "/tmp/matrix-probe/scratch.txt",
+      "/proc/2793/maps",
       "/",
-      "userdb",
+      "/proc/372/maps",
+      "/lib/x86_64-linux-gnu/libselinux.so.1",
       "/lib/x86_64-linux-gnu/libpcre2-8.so.0",
       "/proc/filesystems",
-      "/lib/x86_64-linux-gnu/libselinux.so.1",
+      "userdb",
+      "/proc/2840/maps",
       "lib",
       "/tmp/matrix-probe/created-by-matrix",
-      "/etc/hostname",
       "/tmp/matrix-probe",
-      "usr",
-      "/etc/passwd",
-      "run"
+      "/etc/hostname"
     ],
     "probe_path": "/tmp/matrix-probe/created-by-matrix",
     "probe_path_seen": true
   },
   "replay": {
     "exit_code": 0,
-    "lines": 3102,
-    "first_line": "{\"time\":\"2026-11-14T01:35:26.032623Z\",\"sensor\":\"file\",\"kind\":\"FileOpen\",\"schema_major\":1,\"schema_minor\":0,\"event_id\":\"0bb7868de4e79d05383730fa66b19c939cedef88701ed9d7fe47bb3ac6c31aee\",\"boot_id\":\"8a1a17d088da4e5f857b100ee78550a9\",\"seq\":0,\"redaction\":{\"path_redacted\":false,\"argv_redacted\":false,\"message_redacted\":false},\"pid\":2784,\"tgid\":2784,\"cgroup_id\":4503,\"task_start_ns\":29986195354,\"path\":\"/sys/bus/event_source/devices/kprobe/type\",\"process_exec\":\"/tmp/ebpf-fleet\",\"flags\":0,\"open_flags\":0,\"mode\":0}",
+    "lines": 4543,
+    "first_line": "{\"time\":\"2026-11-14T07:51:13.634643Z\",\"sensor\":\"file\",\"kind\":\"FileOpen\",\"schema_major\":2,\"schema_minor\":0,\"event_id\":\"d6bf2491e9dc0f1f03af56835330ba55147de66122ef084767f3f5f4820434fe\",\"boot_id\":\"0d22ffba7bf74602923c3e31585d8e4a\",\"seq\":0,\"redaction\":{\"path_redacted\":false,\"argv_redacted\":false,\"message_redacted\":false},\"pid\":2790,\"tgid\":2790,\"cgroup_id\":4503,\"stack_id\":1,\"user_stack_id\":12345,\"task_start_ns\":33602186948,\"path\":\"/sys/bus/event_source/devices/kprobe/type\",\"process_exec\":\"/tmp/ebpf-fleet\",\"flags\":0,\"open_flags\":0,\"mode\":0}",
     "first_kind": "FileOpen",
     "valid_json": true
   },
   "bundle_export": {
     "exit_code": 0,
-    "archive": "target/vm/matrix/2026-11-14g/ubuntu-22.04/matrix.fleet.tar.gz",
+    "archive": "target/vm/matrix/2026-11-14i/ubuntu-22.04/matrix.fleet.tar.gz",
     "host_query_ok": true
   },
   "artifacts": {
-    "dir": "target/vm/matrix/2026-11-14g/ubuntu-22.04",
-    "json": "target/vm/matrix/2026-11-14g/ubuntu-22.04.json",
+    "dir": "target/vm/matrix/2026-11-14i/ubuntu-22.04",
+    "json": "target/vm/matrix/2026-11-14i/ubuntu-22.04.json",
     "files": [
       "activity.err",
       "activity.out",
@@ -238,7 +238,7 @@
       "name": "boot",
       "ok": true,
       "required": true,
-      "detail": "SSH ready on 127.0.0.1:2222 after 14s"
+      "detail": "SSH ready on 127.0.0.1:2222 after 18s"
     },
     {
       "name": "cloud_init_ready",
@@ -250,13 +250,13 @@
       "name": "binary_upload",
       "ok": true,
       "required": true,
-      "detail": "guest sha256 matches host (bc48014367de000b0557177e03f4a6bdd057202ce2c00527009c631536f4b345)"
+      "detail": "guest sha256 matches host (60db4e2f374d07a5ba473e255bef022d8b1eaa446d561104146d558d1c74040d)"
     },
     {
       "name": "binary_runs",
       "ok": true,
       "required": true,
-      "detail": "ebpf-fleet 0.2.0"
+      "detail": "ebpf-fleet 0.3.0"
     },
     {
       "name": "doctor",
@@ -280,37 +280,37 @@
       "name": "record_events",
       "ok": true,
       "required": true,
-      "detail": "recorded 3102 events (0 decode errors)"
+      "detail": "recorded 4543 events (0 decode errors)"
     },
     {
       "name": "query_kinds",
       "ok": true,
       "required": true,
-      "detail": "kinds: {\"FileOpen\":2382,\"FileUnlink\":21,\"ProcessExec\":234,\"ProcessExit\":234,\"ProcessFork\":231}"
+      "detail": "kinds: {\"FileOpen\":3767,\"FileUnlink\":23,\"ProcessExec\":252,\"ProcessExit\":252,\"ProcessFork\":249}"
     },
     {
       "name": "file_open_paths",
       "ok": true,
       "required": true,
-      "detail": "FileOpen=2382; deterministic probe path '/tmp/matrix-probe/created-by-matrix' decoded"
+      "detail": "FileOpen=3767; deterministic probe path '/tmp/matrix-probe/created-by-matrix' decoded"
     },
     {
       "name": "replay",
       "ok": true,
       "required": true,
-      "detail": "replay exit 0, 3102 lines, first line kind=FileOpen"
+      "detail": "replay exit 0, 4543 lines, first line kind=FileOpen"
     },
     {
       "name": "process_probe",
       "ok": true,
       "required": true,
-      "detail": "process-only record: 350 events; counts {\"ProcessExec\":117,\"ProcessExit\":117,\"ProcessFork\":116}"
+      "detail": "process-only record: 318 events; counts {\"ProcessExec\":108,\"ProcessExit\":105,\"ProcessFork\":105}"
     },
     {
       "name": "exit_tracepoint",
       "ok": true,
       "required": false,
-      "detail": "sched_process_exit attached: ProcessFork=116 ProcessExec=117 ProcessExit=117"
+      "detail": "sched_process_exit attached: ProcessFork=105 ProcessExec=108 ProcessExit=105"
     },
     {
       "name": "btf",
@@ -334,13 +334,13 @@
       "name": "bundle_complete",
       "ok": true,
       "required": true,
-      "detail": "manifest complete=true, counts.events=3102 matches record stderr"
+      "detail": "manifest complete=true, counts.events=4543 matches record stderr"
     },
     {
       "name": "probe_bundle_complete",
       "ok": true,
       "required": true,
-      "detail": "probe manifest counts.events=350 matches record stderr"
+      "detail": "probe manifest counts.events=318 matches record stderr"
     },
     {
       "name": "manifest_host_facts",
@@ -358,7 +358,7 @@
       "name": "bundle_export",
       "ok": true,
       "required": true,
-      "detail": "guest bundle exported to target/vm/matrix/2026-11-14g/ubuntu-22.04/matrix.fleet.tar.gz and extracted"
+      "detail": "guest bundle exported to target/vm/matrix/2026-11-14i/ubuntu-22.04/matrix.fleet.tar.gz and extracted"
     },
     {
       "name": "bundle_portable",
@@ -372,5 +372,5 @@
   "notes": [
     "sched_process_exit raw tracepoint attached on 5.15.0-203-generic (ProcessExit events present)"
   ],
-  "duration_s": 51
+  "duration_s": 55
 }

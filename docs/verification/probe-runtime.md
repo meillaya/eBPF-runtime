@@ -1,6 +1,6 @@
 # Probe runtime privileged evidence
 
-Status: **PASS** on a real Ubuntu 24.04 KVM guest.
+Status: **PASS** on a real Ubuntu 24.04 KVM guest (pre-release 0.2.2 static build; 0.3.0 contains the same probe runtime code and was used for the release matrix/arm64/benchmark runs).
 
 The 0.3 custom-probe runtime was exercised end to end inside the local VM lab:
 a pinned probe manifest was validated, the object was loaded and attached at

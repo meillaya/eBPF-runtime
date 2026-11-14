@@ -1,7 +1,10 @@
 # Stack capture and symbolization (0.3)
 
 Status: **implemented and VM-verified** on the 0.3 working tree
-(2026-11-14). This page documents the ABI, the BPF maps, the CLI surface,
+(2026-11-14). Release 0.3.0 was built from the same code; the VM evidence
+below was captured on a pre-release static build, and the 0.3.0 release
+binary was independently exercised by the kernel matrix, arm64 row,
+probe runtime, and benchmark runs. This page documents the ABI, the BPF maps, the CLI surface,
 the bundle schema, the fallback semantics, the overhead tradeoffs, and the
 live Ubuntu 24.04 / kernel 6.8 evidence.
 

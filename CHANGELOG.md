@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.0 — 2026-11-14
+
+The daily-driver release: stack traces, custom probes, arm64, and query UX.
+
+- Event ABI v2 and bundle v2: kernel/user stack capture for process/file
+  events, blazesym symbolization, a `stacks` table, raw-address fallback,
+  stack-map counters, and `record --stacks off|events|all --stats`.
+- Custom probe runtime: validated YAML manifests, dynamic load/attach,
+  FPRB event decoding, `probe run` to JSON lines or `probe_events`, and
+  root-only/pinned/clean-unload lifecycle. Verifier rejection is classified
+  by EACCES instead of as a permission error.
+- aarch64: cross-built static artifact, installer selection, native arm64
+  GitHub release matrix, QEMU TCG functional lab row, and documented
+  TCG/native limits.
+- Daily UX: query JSON/CSV/Parquet streaming, schema/explain, `inspect`,
+  `diff --by process|path|stack`, record JSON/quiet/progress, TUI filters/
+  pause/sort/snapshot, PTY test, shell completions, and man pages.
+- Benchmark harness plus KVM baselines and measured stack-mode overhead.
+- v1 bundles remain readable; v2 adds a stacks table and optional
+  probe_events.
+
 ## 0.2.2 — 2026-11-14
 
 Trust and clean-build release; no local CLI changes.
