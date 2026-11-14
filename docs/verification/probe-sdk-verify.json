@@ -1,0 +1,24 @@
+{
+  "object": "/tmp/hello_probe.bpf.o",
+  "status": "loaded",
+  "programs": [
+    {
+      "name": "hello_probe_exec",
+      "section": "tracepoint/sched/sched_process_exec",
+      "prog_type": "Tracepoint"
+    }
+  ],
+  "maps": [
+    {
+      "name": "hello_events",
+      "map_type": "RingBuf",
+      "max_entries": 262144
+    }
+  ],
+  "verifier_log": "libbpf: loading object from /tmp/hello_probe.bpf.o\nlibbpf: elf: section(3) tracepoint/sched/sched_process_exec, size 456, link 0, flags 6, type=1\nlibbpf: sec 'tracepoint/sched/sched_process_exec': found program 'hello_probe_exec' at insn offset 0 (0 bytes), code size 57 insns (456 bytes)\nlibbpf: elf: section(4) .reltracepoint/sched/sched_process_exec, size 16, link 26, flags 40, type=9\nlibbpf: elf: section(5) license, size 4, link 0, flags 3, type=1\nlibbpf: license of /tmp/hello_probe.bpf.o is GPL\nlibbpf: elf: section(6) .maps, size 16, link 0, flags 3, type=1\nlibbpf: elf: section(16) .BTF, size 31957, link 0, flags 0, type=1\nlibbpf: elf: section(18) .BTF.ext, size 508, link 0, flags 0, type=1\nlibbpf: elf: section(26) .symtab, size 336, link 1, flags 0, type=2\nlibbpf: looking for externs among 14 symbols...\nlibbpf: collected 0 externs total\nlibbpf: map 'hello_events': at sec_idx 6, offset 0.\nlibbpf: map 'hello_events': found type = 27.\nlibbpf: map 'hello_events': found max_entries = 262144.\nlibbpf: sec '.reltracepoint/sched/sched_process_exec': collecting relocation for section(3) 'tracepoint/sched/sched_process_exec'\nlibbpf: sec '.reltracepoint/sched/sched_process_exec': relo #0: insn #19 against 'hello_events'\nlibbpf: prog 'hello_probe_exec': found map 0 (hello_events, sec 6, off 0) for insn #19\nlibbpf: object 'hello_probe': failed (-22) to create BPF token from '/sys/fs/bpf', skipping optional step...\nlibbpf: loaded kernel BTF from '/sys/kernel/btf/vmlinux'\nlibbpf: sec 'tracepoint/sched/sched_process_exec': found 1 CO-RE relocations\nlibbpf: CO-RE relocating [12] struct task_struct: found target candidate [82] struct task_struct in [vmlinux]\nlibbpf: prog 'hello_probe_exec': relo #0: <byte_off> [12] struct task_struct.start_time (0:120 @ offset 3280)\nlibbpf: prog 'hello_probe_exec': relo #0: matching candidate #0 <byte_off> [82] struct task_struct.start_time (0:118 @ offset 2832)\nlibbpf: prog 'hello_probe_exec': relo #0: patched insn #10 (ALU/ALU64) imm 3280 -> 2832\nlibbpf: map 'hello_events': created successfully, fd=7\n",
+  "error": null,
+  "hints": [
+    "the kernel verifier accepted every program in the object",
+    "verify does not attach programs; attaching needs the section-specific context and belongs to the runtime"
+  ]
+}

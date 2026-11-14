@@ -1,0 +1,380 @@
+{
+  "schema_version": 1,
+  "runner": "scripts/vm/run-matrix.sh",
+  "generated_at": "2026-11-14T01:38:41Z",
+  "host": {
+    "name": "massive",
+    "arch": "x86_64",
+    "kernel": "7.3.3-1-cachyos"
+  },
+  "image": "fedora-42",
+  "image_metadata": {
+    "distro": "fedora",
+    "release": "42",
+    "codename": null,
+    "arch": "x86_64",
+    "kernel_series": "6.14",
+    "url": "https://archive.fedoraproject.org/pub/archive/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2",
+    "sha256": "e401a4db2e5e04d1967b6729774faa96da629bcf3ba90b67d8d9cce9906bec0f",
+    "size_bytes": 532217856,
+    "checksum_manifest": "https://archive.fedoraproject.org/pub/archive/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-42-1.1-x86_64-CHECKSUM",
+    "checksum_manifest_format": "PGP-signed SHA256 CHECKSUM file: verify with gpgv against the Fedora 42 primary key fingerprint B0F4950458F69E1150C6C5EDC8AC4916105EF944 (listed under Obsolete OpenPGP Certificates on https://fedoraproject.org/security), then check the sha256",
+    "status": "pinned",
+    "boot_validated": false,
+    "archive_url": "https://archive.fedoraproject.org/pub/archive/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2",
+    "pin_hint": "Pinned on 2026-11-14 from the immutable archive.fedoraproject.org release tree (Fedora 42 is past its support window; the download.fedoraproject.org release URL redirects to a mirror and may disappear). The CHECKSUM file is PGP-signed by the Fedora 42 primary key B0F4950458F69E1150C6C5EDC8AC4916105EF944; fetch that key by fingerprint from a keyserver, confirm the fingerprint against https://fedoraproject.org/security, gpg --verify the CHECKSUM, then record the sha256 of the verified qcow2. Never pin an unverified checksum.",
+    "notes": "Kernel matrix entry: Fedora 42 (6.14 kernel), Cloud Base Generic amd64 image Fedora-Cloud-Base-Generic-42-1.1 from the archived Fedora 42 release; the sha256 was verified against the PGP-signed CHECKSUM (signature verified with the Fedora 42 primary key fingerprint). Hash pinned on 2026-11-14, but no matrix row has run yet: boot_validated is false and the row is still a gap."
+  },
+  "instance": "matrix-fedora-42",
+  "ssh_port": 2222,
+  "binary": {
+    "host_path": "/home/mei/Documents/eBPF-runtime/target/release/ebpf-fleet",
+    "host_sha256": "bc48014367de000b0557177e03f4a6bdd057202ce2c00527009c631536f4b345",
+    "host_size_bytes": 134194760,
+    "guest_path": "/tmp/ebpf-fleet",
+    "guest_sha256": "bc48014367de000b0557177e03f4a6bdd057202ce2c00527009c631536f4b345",
+    "sha256_match": true,
+    "version": "ebpf-fleet 0.2.0"
+  },
+  "boot": {
+    "ok": true,
+    "seconds": 16
+  },
+  "cloud_init": {
+    "status": "status: done",
+    "ready": true,
+    "ready_seconds": 11
+  },
+  "kernel": {
+    "release": "6.14.0-63.fc42.x86_64",
+    "uname_a": "Linux matrix-fedora-42 6.14.0-63.fc42.x86_64 #1 SMP PREEMPT_DYNAMIC Mon Mar 24 19:53:37 UTC 2025 x86_64 GNU/Linux",
+    "expected_series": "6.14",
+    "series_match": true
+  },
+  "os_release": {
+    "id": "fedora",
+    "version_id": "42",
+    "pretty_name": "Fedora Linux 42 (Cloud Edition)"
+  },
+  "btf": {
+    "path": "/sys/kernel/btf/vmlinux",
+    "present": true,
+    "size_bytes": 6510388,
+    "sha256": "b1d7ac90237d320527eb838450e28147ce3bc66a5d838487f69a530c562d0343"
+  },
+  "security": {
+    "lsm": "lockdown,capability,yama,selinux,bpf,landlock,ipe,ima,evm",
+    "lockdown": "[none] integrity confidentiality",
+    "unprivileged_bpf_disabled": "2"
+  },
+  "binary_ran": true,
+  "doctor": {
+    "exit_code": 0,
+    "checks": [
+      {
+        "name": "kernel",
+        "ok": true,
+        "detail": "6.14.0-63.fc42.x86_64"
+      },
+      {
+        "name": "btf",
+        "ok": true,
+        "detail": "BTF is required to load CO-RE sensors"
+      },
+      {
+        "name": "debugfs",
+        "ok": true,
+        "detail": "debugfs is used by some attach paths"
+      },
+      {
+        "name": "bpffs",
+        "ok": true,
+        "detail": "bpffs is used for pinned maps/programs"
+      },
+      {
+        "name": "lockdown",
+        "ok": true,
+        "detail": "[none] integrity confidentiality"
+      },
+      {
+        "name": "lsm",
+        "ok": true,
+        "detail": "lockdown,capability,yama,selinux,bpf,landlock,ipe,ima,evm"
+      },
+      {
+        "name": "unprivileged_bpf_disabled",
+        "ok": true,
+        "detail": "2"
+      },
+      {
+        "name": "btf_sha256",
+        "ok": true,
+        "detail": "b1d7ac90237d320527eb838450e28147ce3bc66a5d838487f69a530c562d0343"
+      }
+    ]
+  },
+  "record": {
+    "exit_code": 0,
+    "seconds": 8,
+    "events": 4591,
+    "decode_errors": 0,
+    "bundle": "/tmp/matrix.fleet",
+    "bundle_complete": "true"
+  },
+  "sensors": {
+    "warnings": [],
+    "file_sensor_path": "lsm",
+    "exit_tracepoint": {
+      "attached": true,
+      "evidence": "process-only probe: ProcessFork=113 ProcessExec=108 ProcessExit=113"
+    }
+  },
+  "probe": {
+    "process_only": {
+      "exit_code": 0,
+      "query_exit_code": 0,
+      "events": 334,
+      "counts": {
+        "ProcessExec": 108,
+        "ProcessExit": 113,
+        "ProcessFork": 113
+      }
+    }
+  },
+  "query": {
+    "kinds_exit_code": 0,
+    "kinds": {
+      "FileOpen": 3936,
+      "FileUnlink": 21,
+      "ProcessExec": 208,
+      "ProcessExit": 213,
+      "ProcessFork": 213
+    },
+    "file_paths_exit_code": 0,
+    "file_open_count": 3936,
+    "top_paths": [
+      "anon_inode:[pidfd]",
+      "anon_inode:[pidfd]",
+      "anon_inode:[pidfd]",
+      "anon_inode:[pidfd]",
+      "anon_inode:[pidfd]",
+      "anon_inode:[pidfd]",
+      "anon_inode:[pidfd]",
+      "anon_inode:[pidfd]",
+      "anon_inode:[pidfd]",
+      "anon_inode:[pidfd]",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null",
+      "/dev/null"
+    ],
+    "probe_path": "/tmp/matrix-probe/created-by-matrix",
+    "probe_path_seen": true
+  },
+  "replay": {
+    "exit_code": 0,
+    "lines": 4591,
+    "first_line": "{\"time\":\"2026-11-14T01:38:27.029962Z\",\"sensor\":\"file\",\"kind\":\"FileOpen\",\"schema_major\":1,\"schema_minor\":0,\"event_id\":\"306b9d3c21524b6c35bafbe9ab84e3a7a89c989d0c8f51d653c1540c5431da43\",\"boot_id\":\"5c0f33cb8d5241868e34810c68011bb3\",\"seq\":0,\"redaction\":{\"path_redacted\":false,\"argv_redacted\":false,\"message_redacted\":false},\"pid\":1619,\"tgid\":1619,\"cgroup_id\":6110,\"task_start_ns\":27177460584,\"path\":\"/sys/devices/kprobe/type\",\"process_exec\":\"/tmp/ebpf-fleet\",\"flags\":0,\"open_flags\":32768,\"mode\":1}",
+    "first_kind": "FileOpen",
+    "valid_json": true
+  },
+  "bundle_export": {
+    "exit_code": 0,
+    "archive": "target/vm/matrix/2026-11-14g/fedora-42/matrix.fleet.tar.gz",
+    "host_query_ok": true
+  },
+  "artifacts": {
+    "dir": "target/vm/matrix/2026-11-14g/fedora-42",
+    "json": "target/vm/matrix/2026-11-14g/fedora-42.json",
+    "files": [
+      "activity.err",
+      "activity.out",
+      "binary-version.err",
+      "bootstrap.log",
+      "cloud-init-status.txt",
+      "copy-helpers.log",
+      "copy.log",
+      "doctor.err",
+      "doctor.json",
+      "export.log",
+      "guest-info.err",
+      "guest-info.txt",
+      "host-query-kinds.err",
+      "host-query-kinds.txt",
+      "matrix.fleet.tar.gz",
+      "probe-activity.err",
+      "probe-activity.out",
+      "probe-query-kinds.err",
+      "probe-query-kinds.txt",
+      "probe-record.err",
+      "probe-record.out",
+      "query-file-paths.err",
+      "query-file-paths.txt",
+      "query-kinds.err",
+      "query-kinds.txt",
+      "record.err",
+      "record.out",
+      "replay.err",
+      "replay.jsonl",
+      "up.log"
+    ]
+  },
+  "checks": [
+    {
+      "name": "bootstrap",
+      "ok": true,
+      "required": true,
+      "detail": "pinned image verified by scripts/vm/lab.sh"
+    },
+    {
+      "name": "boot",
+      "ok": true,
+      "required": true,
+      "detail": "SSH ready on 127.0.0.1:2222 after 16s"
+    },
+    {
+      "name": "cloud_init_ready",
+      "ok": true,
+      "required": true,
+      "detail": "cloud-init done; sudo+jq+tar available after 11s"
+    },
+    {
+      "name": "binary_upload",
+      "ok": true,
+      "required": true,
+      "detail": "guest sha256 matches host (bc48014367de000b0557177e03f4a6bdd057202ce2c00527009c631536f4b345)"
+    },
+    {
+      "name": "binary_runs",
+      "ok": true,
+      "required": true,
+      "detail": "ebpf-fleet 0.2.0"
+    },
+    {
+      "name": "doctor",
+      "ok": true,
+      "required": true,
+      "detail": "doctor --json exit 0 in 1s; kernel+btf ok; btf sha256 b1d7ac90237d..."
+    },
+    {
+      "name": "record",
+      "ok": true,
+      "required": true,
+      "detail": "record --for 8 exited 0 while activity was generated"
+    },
+    {
+      "name": "activity",
+      "ok": true,
+      "required": true,
+      "detail": "deterministic activity for 5s completed"
+    },
+    {
+      "name": "record_events",
+      "ok": true,
+      "required": true,
+      "detail": "recorded 4591 events (0 decode errors)"
+    },
+    {
+      "name": "query_kinds",
+      "ok": true,
+      "required": true,
+      "detail": "kinds: {\"FileOpen\":3936,\"FileUnlink\":21,\"ProcessExec\":208,\"ProcessExit\":213,\"ProcessFork\":213}"
+    },
+    {
+      "name": "file_open_paths",
+      "ok": true,
+      "required": true,
+      "detail": "FileOpen=3936; path column populated (probe-path literal not in the top-25 table)"
+    },
+    {
+      "name": "replay",
+      "ok": true,
+      "required": true,
+      "detail": "replay exit 0, 4591 lines, first line kind=FileOpen"
+    },
+    {
+      "name": "process_probe",
+      "ok": true,
+      "required": true,
+      "detail": "process-only record: 334 events; counts {\"ProcessExec\":108,\"ProcessExit\":113,\"ProcessFork\":113}"
+    },
+    {
+      "name": "exit_tracepoint",
+      "ok": true,
+      "required": false,
+      "detail": "sched_process_exit attached: ProcessFork=113 ProcessExec=108 ProcessExit=113"
+    },
+    {
+      "name": "btf",
+      "ok": true,
+      "required": true,
+      "detail": "present, 6510388 bytes, sha256 b1d7ac90237d320527eb838450e28147ce3bc66a5d838487f69a530c562d0343"
+    },
+    {
+      "name": "kernel_series",
+      "ok": true,
+      "required": true,
+      "detail": "uname -r 6.14.0-63.fc42.x86_64 matches pinned series 6.14"
+    },
+    {
+      "name": "guest_packages",
+      "ok": true,
+      "required": true,
+      "detail": "jq, tar and passwordless sudo present in the guest"
+    },
+    {
+      "name": "bundle_complete",
+      "ok": true,
+      "required": true,
+      "detail": "manifest complete=true, counts.events=4591 matches record stderr"
+    },
+    {
+      "name": "probe_bundle_complete",
+      "ok": true,
+      "required": true,
+      "detail": "probe manifest counts.events=334 matches record stderr"
+    },
+    {
+      "name": "manifest_host_facts",
+      "ok": true,
+      "required": true,
+      "detail": "bundle host.btf_sha256 matches guest BTF sha256"
+    },
+    {
+      "name": "file_sensor_path",
+      "ok": true,
+      "required": false,
+      "detail": "lsm='lockdown,capability,yama,selinux,bpf,landlock,ipe,ima,evm' -> file sensor path: lsm"
+    },
+    {
+      "name": "bundle_export",
+      "ok": true,
+      "required": true,
+      "detail": "guest bundle exported to target/vm/matrix/2026-11-14g/fedora-42/matrix.fleet.tar.gz and extracted"
+    },
+    {
+      "name": "bundle_portable",
+      "ok": true,
+      "required": false,
+      "detail": "host binary queried the guest-recorded bundle"
+    }
+  ],
+  "failures": [],
+  "status": "pass",
+  "notes": [
+    "FileOpen '/tmp/matrix-probe/created-by-matrix' verified from the replay JSONL stream (not only the SQL table)",
+    "sched_process_exit raw tracepoint attached on 6.14.0-63.fc42.x86_64 (ProcessExit events present)"
+  ],
+  "duration_s": 46
+}

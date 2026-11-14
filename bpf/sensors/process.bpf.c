@@ -3,10 +3,16 @@
  * bpf/sensors/process.bpf.c
  * Process lifecycle sensor.
  *
- * Attaches to three raw tracepoints:
+ * Attaches to three scheduler tracepoints:
  *   1. sched_process_fork: parent and child pid in a 16-byte payload.
  *   2. sched_process_exec: bprm->filename in a 268-byte payload.
- *   3. sched_process_exit: group_dead from args[1], exit code, 8 bytes.
+ *   3. sched_process_exit: exit code and thread flags, 8 bytes.
+ *
+ * The first two are raw tracepoints. The exit probe uses the regular
+ * `tracepoint/sched/sched_process_exit` attach path because the raw
+ * tracepoint name is not attachable on some distro kernels (reproduced on
+ * Ubuntu 22.04/24.04). The tracepoint context does not expose group_dead;
+ * the event carries the thread flag and the exit code instead.
  *
  * Threads are flagged when pid != tgid. pid_tgid, cgroup_id, and
  * processor_id are always valid. task_start_time_ns is read from
@@ -327,13 +333,14 @@ int tp_sched_process_exec(struct bpf_raw_tracepoint_args *ctx)
  *  `BPF_CORE_READ(args, group_dead)` would reloc-fail on a kernel
  *  without the field.
  * ------------------------------------------------------------------------- */
-SEC("raw_tracepoint/sched_process_exit")
-int tp_sched_process_exit(struct bpf_raw_tracepoint_args *ctx)
+SEC("tracepoint/sched/sched_process_exit")
+int tp_sched_process_exit(struct trace_event_raw_sched_process_exit *ctx)
 {
-    /* sched_process_exit takes (task, group_dead). The second raw
-     * argument is the group_dead int, not a pointer. */
-    __u32 group_dead_value = (__u32)ctx->args[1];
-
+    /* The regular sched_process_exit tracepoint context carries comm,
+     * pid, tgid, and prio; current is the exiting task. group_dead is
+     * not available here, so derive the thread/process distinction
+     * from pid != tgid. */
+    (void)ctx;
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     __u32 pid = (__u32)pid_tgid;
     __u32 tgid = (__u32)(pid_tgid >> 32);
@@ -347,10 +354,6 @@ int tp_sched_process_exit(struct bpf_raw_tracepoint_args *ctx)
     if (is_thread) {
         flags |= (__u8)PROCESS_FLAG_IS_THREAD;
     }
-    if (group_dead_value != 0) {
-        flags |= (__u8)PROCESS_FLAG_EXIT_GROUP_DEAD;
-    }
-
     __u32 record_len = KERNEL_V1_ABI_HEADER_LEN + PROCESS_EXIT_PAYLOAD_LEN;
     struct kernel_v1_event *ev =
         (struct kernel_v1_event *)bpf_ringbuf_reserve(&process_events,

@@ -1,0 +1,63 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  static:
+    name: static ebpf-fleet artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: "experimental-features = nix-command flakes"
+
+      - name: build static binary
+        run: scripts/build-static.sh
+
+      - name: install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: target/release/ebpf-fleet
+          format: spdx-json
+          output-file: target/release/ebpf-fleet.spdx.json
+
+      - name: sign static artifact
+        run: |
+          asset=target/release/ebpf-fleet
+          cp "$asset" target/release/ebpf-fleet-x86_64
+          cosign sign-blob --yes \
+            --bundle target/release/ebpf-fleet-x86_64.cosign.bundle \
+            target/release/ebpf-fleet-x86_64
+          (cd target/release && sha256sum ebpf-fleet-x86_64 > ebpf-fleet-x86_64.sha256)
+          (cd target/release && sha256sum ebpf-fleet.spdx.json > ebpf-fleet.spdx.json.sha256)
+
+      - name: attest provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: target/release/ebpf-fleet-x86_64
+
+      - name: publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/release/ebpf-fleet-x86_64
+            target/release/ebpf-fleet-x86_64.sha256
+            target/release/ebpf-fleet-x86_64.cosign.bundle
+            target/release/ebpf-fleet.spdx.json
+            target/release/ebpf-fleet.spdx.json.sha256
+          generate_release_notes: true

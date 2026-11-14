@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "runner": "scripts/vm/run-matrix.sh",
+  "generated_at": "2026-11-14T01:38:41Z",
+  "stamp": "2026-11-14g",
+  "summary_path": "target/vm/matrix/2026-11-14g/matrix-summary.json",
+  "host": {
+    "name": "massive",
+    "arch": "x86_64",
+    "kernel": "7.3.3-1-cachyos"
+  },
+  "binary": {
+    "path": "/home/mei/Documents/eBPF-runtime/target/release/ebpf-fleet",
+    "sha256": "bc48014367de000b0557177e03f4a6bdd057202ce2c00527009c631536f4b345",
+    "size_bytes": 134194760
+  },
+  "capture": {
+    "record_seconds": 8,
+    "probe_seconds": 4,
+    "boot_timeout": 300
+  },
+  "rows": [
+    {
+      "image": "ubuntu-24.04",
+      "status": "pass",
+      "json": "target/vm/matrix/2026-11-14g/ubuntu-24.04.json",
+      "artifacts": "target/vm/matrix/2026-11-14g/ubuntu-24.04",
+      "kernel_release": "6.8.0-147-generic",
+      "btf_sha256": "8c10e7e174e89c92f1d2708f12bb5268dc381e57e867397534c4e145348622e0",
+      "events": 3454,
+      "file_open_count": 2701,
+      "exit_tracepoint_attached": true,
+      "failures": [],
+      "notes": [
+        "sched_process_exit raw tracepoint attached on 6.8.0-147-generic (ProcessExit events present)"
+      ]
+    },
+    {
+      "image": "ubuntu-22.04",
+      "status": "pass",
+      "json": "target/vm/matrix/2026-11-14g/ubuntu-22.04.json",
+      "artifacts": "target/vm/matrix/2026-11-14g/ubuntu-22.04",
+      "kernel_release": "5.15.0-203-generic",
+      "btf_sha256": "36e118be1ee6c3ed13d4813d2e170252fb19d4120cf3940ada382bfe2e38d70c",
+      "events": 3102,
+      "file_open_count": 2382,
+      "exit_tracepoint_attached": true,
+      "failures": [],
+      "notes": [
+        "sched_process_exit raw tracepoint attached on 5.15.0-203-generic (ProcessExit events present)"
+      ]
+    },
+    {
+      "image": "debian-12",
+      "status": "pass",
+      "json": "target/vm/matrix/2026-11-14g/debian-12.json",
+      "artifacts": "target/vm/matrix/2026-11-14g/debian-12",
+      "kernel_release": "6.1.0-54-amd64",
+      "btf_sha256": "8f4d6b553aecc543afe0b987880b05e16c68169fbd9fcf38cc6dc378667d1f16",
+      "events": 2040,
+      "file_open_count": 1441,
+      "exit_tracepoint_attached": true,
+      "failures": [],
+      "notes": [
+        "sched_process_exit raw tracepoint attached on 6.1.0-54-amd64 (ProcessExit events present)"
+      ]
+    },
+    {
+      "image": "debian-13",
+      "status": "pass",
+      "json": "target/vm/matrix/2026-11-14g/debian-13.json",
+      "artifacts": "target/vm/matrix/2026-11-14g/debian-13",
+      "kernel_release": "6.12.116+deb13-amd64",
+      "btf_sha256": "db58ed1601b73bb4e642cab8bc87126048f0446bab1aca206a4a24b04e478a7a",
+      "events": 2172,
+      "file_open_count": 1567,
+      "exit_tracepoint_attached": true,
+      "failures": [],
+      "notes": [
+        "sched_process_exit raw tracepoint attached on 6.12.116+deb13-amd64 (ProcessExit events present)"
+      ]
+    },
+    {
+      "image": "fedora-42",
+      "status": "pass",
+      "json": "target/vm/matrix/2026-11-14g/fedora-42.json",
+      "artifacts": "target/vm/matrix/2026-11-14g/fedora-42",
+      "kernel_release": "6.14.0-63.fc42.x86_64",
+      "btf_sha256": "b1d7ac90237d320527eb838450e28147ce3bc66a5d838487f69a530c562d0343",
+      "events": 4591,
+      "file_open_count": 3936,
+      "exit_tracepoint_attached": true,
+      "failures": [],
+      "notes": [
+        "FileOpen '/tmp/matrix-probe/created-by-matrix' verified from the replay JSONL stream (not only the SQL table)",
+        "sched_process_exit raw tracepoint attached on 6.14.0-63.fc42.x86_64 (ProcessExit events present)"
+      ]
+    }
+  ],
+  "pass": 5,
+  "fail": 0
+}

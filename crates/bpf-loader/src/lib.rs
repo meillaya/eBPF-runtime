@@ -185,11 +185,12 @@ pub fn load(names: &[&str]) -> Result<LoadedSensors, LoaderError> {
         selected
     };
 
+    let lsm_bpf_active = bpf_lsm_active();
     let mut loaded = Vec::new();
     let mut coverage_entries = Vec::new();
 
     for sensor in selected {
-        let coverage = load_one(sensor, &mut loaded);
+        let coverage = load_one(sensor, &mut loaded, lsm_bpf_active);
         coverage_entries.push(coverage);
     }
 
@@ -208,7 +209,31 @@ pub fn load(names: &[&str]) -> Result<LoadedSensors, LoaderError> {
     })
 }
 
-fn load_one(sensor: &EmbeddedSensor, loaded: &mut Vec<LoadedSensor>) -> SensorCoverage {
+/// True when the running kernel has the BPF LSM active.
+///
+/// On such kernels the file sensor's `lsm/file_open` program observes opens
+/// directly. Attaching the syscall-entry `openat` fallback as well would
+/// record every successful open twice, so the loader skips the open
+/// fallback when the LSM path is available. Kernels without the BPF LSM
+/// (for example the pinned Ubuntu cloud kernels) keep the kprobe fallback.
+fn bpf_lsm_active() -> bool {
+    std::fs::read_to_string("/sys/kernel/security/lsm")
+        .map(|value| value.split(',').any(|name| name.trim() == "bpf"))
+        .unwrap_or(false)
+}
+
+fn skips_open_fallback(sensor: &str, section: &str, lsm_bpf_active: bool) -> bool {
+    lsm_bpf_active
+        && sensor == "file"
+        && (section.starts_with("kprobe/__x64_sys_openat")
+            || section.starts_with("kprobe/__arm64_sys_openat"))
+}
+
+fn load_one(
+    sensor: &EmbeddedSensor,
+    loaded: &mut Vec<LoadedSensor>,
+    lsm_bpf_active: bool,
+) -> SensorCoverage {
     let mut coverage = SensorCoverage {
         name: sensor.name.to_string(),
         sha256: sensor.sha256.to_string(),
@@ -238,7 +263,7 @@ fn load_one(sensor: &EmbeddedSensor, loaded: &mut Vec<LoadedSensor>) -> SensorCo
         let name = program.name().to_string_lossy().into_owned();
         let label = format!("{section}:{name}");
 
-        if needs_context(&section) {
+        if needs_context(&section) || skips_open_fallback(sensor.name, &section, lsm_bpf_active) {
             coverage.skipped.push(label);
             continue;
         }
@@ -354,6 +379,29 @@ impl RawSample {
 
 #[cfg(test)]
 mod tests {
+    use super::skips_open_fallback;
+
+    #[test]
+    fn skips_open_fallback_only_when_bpf_lsm_is_active() {
+        assert!(skips_open_fallback("file", "kprobe/__x64_sys_openat", true));
+        assert!(skips_open_fallback(
+            "file",
+            "kprobe/__x64_sys_openat2",
+            true
+        ));
+        assert!(!skips_open_fallback(
+            "file",
+            "kprobe/__x64_sys_openat",
+            false
+        ));
+        assert!(!skips_open_fallback("file", "kprobe/__x64_sys_creat", true));
+        assert!(!skips_open_fallback(
+            "process",
+            "kprobe/__x64_sys_openat",
+            true
+        ));
+    }
+
     use super::*;
 
     #[test]
