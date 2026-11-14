@@ -46,6 +46,10 @@
     CXXFLAGS = "-O2";
     CLANG = "${pkgs.llvmPackages_19.clang-unwrapped}/bin/clang";
     BPFTOOL = "${pkgs.bpftools}/bin/bpftool";
+    # The static glibc must match the devshell stdenv used to build Rust's
+    # aarch64 std; resolving `nixpkgs#glibc.static` from the registry can pick
+    # a different glibc revision on the aarch64 release runner.
+    GLIBC_STATIC = "${pkgs.glibc.static}";
   };
 
   enterShell = ''

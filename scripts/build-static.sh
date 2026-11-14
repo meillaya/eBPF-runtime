@@ -202,7 +202,7 @@ native_build() {
     export CC="${CC:-gcc}"
     export CXX="${CXX:-g++}"
   fi
-  glibc_static="$(nix build --no-link --print-out-paths nixpkgs#glibc.static)"
+  glibc_static="$(nix develop --no-pure-eval --accept-flake-config -c printenv GLIBC_STATIC)"
   [[ -d "$glibc_static/lib" ]] || {
     die "glibc.static has no lib directory: $glibc_static"
   }
