@@ -193,6 +193,15 @@ write_asset() {
 native_build() {
   local glibc_static bin
   info "native build for $target"
+  # libbpf-sys vendors elfutils for its static build. On a native aarch64
+  # Nix runner libbpf-sys picked clang as `cc`, but elfutils' configure passes
+  # GCC-only warnings such as -Werror=stringop-overflow, which clang rejects.
+  # Use gcc for the vendored C build; BPF compilation still uses the pinned
+  # clang explicitly and the Rust link still uses the static glibc.
+  if [[ "$target" == "aarch64" ]]; then
+    export CC="${CC:-gcc}"
+    export CXX="${CXX:-g++}"
+  fi
   glibc_static="$(nix build --no-link --print-out-paths nixpkgs#glibc.static)"
   [[ -d "$glibc_static/lib" ]] || {
     die "glibc.static has no lib directory: $glibc_static"

@@ -17,6 +17,7 @@
     bpftools
     bun
     nodejs
+    gcc
     gettext
     git
     jq
