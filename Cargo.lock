@@ -10,7 +10,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "agent"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "axum",
  "bpf-loader",
@@ -87,7 +87,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "analytics-clickhouse"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "event-model",
  "reqwest 0.12.28",
@@ -497,7 +497,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "auth"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "base64 0.22.1",
  "jsonwebtoken",
@@ -595,7 +595,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "bench"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "chrono",
  "clap",
@@ -707,7 +707,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-build"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "sha2 0.10.9",
  "thiserror 2.0.19",
@@ -715,7 +715,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-loader"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bpf-build",
  "libbpf-rs",
@@ -753,7 +753,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "bundle"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -920,7 +920,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "clap",
  "reqwest 0.12.28",
@@ -1022,7 +1022,7 @@ checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
 name = "control-db"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "chrono",
  "event-model",
@@ -1037,7 +1037,7 @@ dependencies = [
 
 [[package]]
 name = "control-plane"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "analytics-clickhouse",
  "auth",
@@ -2127,14 +2127,14 @@ dependencies = [
 
 [[package]]
 name = "event-abi"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "event-bus-kafka"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "rdkafka",
  "thiserror 2.0.19",
@@ -2154,7 +2154,7 @@ dependencies = [
 
 [[package]]
 name = "event-model"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "chrono",
  "event-abi",
@@ -2259,7 +2259,7 @@ dependencies = [
 
 [[package]]
 name = "fleet"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "arrow",
  "bpf-loader",
@@ -3664,7 +3664,7 @@ dependencies = [
 
 [[package]]
 name = "observability"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "prometheus",
  "thiserror 2.0.19",
@@ -3702,7 +3702,7 @@ dependencies = [
 
 [[package]]
 name = "otlp"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "observability",
  "reqwest 0.12.28",
@@ -4076,7 +4076,7 @@ dependencies = [
 
 [[package]]
 name = "privacy"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "event-model",
  "regex",
@@ -4086,7 +4086,7 @@ dependencies = [
 
 [[package]]
 name = "probe"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bpf-build",
  "libbpf-rs",
@@ -4271,7 +4271,7 @@ checksum = "263a3f48f01e7309e857138bd47f785585b4a005e8e56c6d2824ce91195999c3"
 
 [[package]]
 name = "protocol"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "prost",
  "protoc-bin-vendored",
@@ -4686,7 +4686,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "relay"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "analytics-clickhouse",
  "clap",
@@ -4814,7 +4814,7 @@ dependencies = [
 
 [[package]]
 name = "rules"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "event-abi",
  "jsonschema",
@@ -4833,7 +4833,7 @@ dependencies = [
 
 [[package]]
 name = "runtime"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bpf-loader",
  "chrono",
@@ -5514,7 +5514,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "storage-local"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "event-model",
  "parking_lot",
@@ -6206,7 +6206,7 @@ dependencies = [
 
 [[package]]
 name = "transport"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "event-model",
  "protocol",
