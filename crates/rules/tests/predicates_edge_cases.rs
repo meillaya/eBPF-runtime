@@ -230,10 +230,16 @@ fn evaluate_boundary_values_succeeds() {
         .evaluate_predicate(&Operator::Eq, &i(i64::MIN), &i(i64::MIN))
         .unwrap());
     // A regex pattern at exactly the char bound is accepted (not too large).
-    let bound = default_budget().max_regex_chars;
+    // Use a generous time budget here: this test is about the size bound, and
+    // a slow CI runner can exceed the production 10 ms match bound while
+    // searching a 256-character haystack.
+    let mut budget = default_budget();
+    budget.max_regex_time_ms = 1_000;
+    let evaluator = PredicateEvaluator::new(budget);
+    let bound = budget.max_regex_chars;
     let pattern = "a".repeat(bound);
     let haystack = "a".repeat(bound);
-    assert!(ev().evaluate_regex(&pattern, &haystack).unwrap());
+    assert!(evaluator.evaluate_regex(&pattern, &haystack).unwrap());
 }
 
 #[test]
