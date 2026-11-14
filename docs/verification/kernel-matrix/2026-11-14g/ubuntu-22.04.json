@@ -1,29 +1,29 @@
 {
   "schema_version": 1,
   "runner": "scripts/vm/run-matrix.sh",
-  "generated_at": "2026-11-14T01:21:54Z",
+  "generated_at": "2026-11-14T01:35:41Z",
   "host": {
     "name": "massive",
     "arch": "x86_64",
     "kernel": "7.3.3-1-cachyos"
   },
-  "image": "ubuntu-24.04",
+  "image": "ubuntu-22.04",
   "image_metadata": {
     "distro": "ubuntu",
-    "release": "24.04",
-    "codename": "noble",
+    "release": "22.04",
+    "codename": "jammy",
     "arch": "x86_64",
-    "kernel_series": "6.8",
-    "url": "https://cloud-images.ubuntu.com/releases/24.04/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img",
-    "sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
-    "size_bytes": 621284352,
-    "checksum_manifest": "https://cloud-images.ubuntu.com/releases/24.04/release-20261017/SHA256SUMS",
+    "kernel_series": "5.15",
+    "url": "https://cloud-images.ubuntu.com/releases/22.04/release-20261106/ubuntu-22.04-server-cloudimg-amd64.img",
+    "sha256": "f77bc6d59cb8deaa9657095736b5f5003f7705b47055f01823459715c967de6a",
+    "size_bytes": 730617344,
+    "checksum_manifest": "https://cloud-images.ubuntu.com/releases/22.04/release-20261106/SHA256SUMS",
     "checksum_manifest_format": "sha256sum -c compatible",
     "status": "pinned",
     "boot_validated": true,
-    "notes": "Default lab image. Booted on host massive 2026-11-13 via scripts/vm/run-smoke.sh: Ubuntu 24.04.5 LTS cloud image, kernel 6.8.0-147-generic, /sys/kernel/btf/vmlinux 6103569 bytes, cloud-init DataSourceNoCloud, smoke 4/4 PASS. Build: 20261017 (release.20260926.20261017). Kernel-matrix row 2026-11-14 via scripts/vm/run-matrix.sh: PASS, kernel 6.8.0-147-generic, BTF sha256 8c10e7e1..., 3690 events recorded (2858 FileOpen, 268 ProcessFork, 271 ProcessExec, 268 ProcessExit). The process exit tracepoint fix is verified; Evidence: docs/verification/kernel-matrix/2026-11-14b/ubuntu-24.04.json and target/vm/matrix/2026-11-14b/."
+    "notes": "Kernel-matrix LTS row. Booted and validated 2026-11-14 via scripts/vm/run-matrix.sh; final 0.2.0 row 2026-11-14e: PASS, Ubuntu 22.04.5 LTS, kernel 5.15.0-203-generic, BTF 5290474 bytes (sha256 36e118be...), 3095 events (2375 FileOpen, 231 ProcessFork, 234 ProcessExec, 234 ProcessExit), 0 decode errors. FileOpen paths decoded through the kprobe/pt_regs fallback on a kernel whose lsm list has no bpf. Evidence: docs/verification/kernel-matrix/2026-11-14e/ubuntu-22.04.json and target/vm/matrix/2026-11-14e/."
   },
-  "instance": "matrix-ubuntu-24-04",
+  "instance": "matrix-ubuntu-22-04",
   "ssh_port": 2222,
   "binary": {
     "host_path": "/home/mei/Documents/eBPF-runtime/target/release/ebpf-fleet",
@@ -41,24 +41,24 @@
   "cloud_init": {
     "status": "status: done",
     "ready": true,
-    "ready_seconds": 16
+    "ready_seconds": 17
   },
   "kernel": {
-    "release": "6.8.0-147-generic",
-    "uname_a": "Linux matrix-ubuntu-24-04 6.8.0-147-generic #147-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep 24 11:33:16 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
-    "expected_series": "6.8",
+    "release": "5.15.0-203-generic",
+    "uname_a": "Linux matrix-ubuntu-22-04 5.15.0-203-generic #213-Ubuntu SMP Fri Oct 23 13:21:06 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+    "expected_series": "5.15",
     "series_match": true
   },
   "os_release": {
     "id": "ubuntu",
-    "version_id": "24.04",
-    "pretty_name": "Ubuntu 24.04.5 LTS"
+    "version_id": "22.04",
+    "pretty_name": "Ubuntu 22.04.5 LTS"
   },
   "btf": {
     "path": "/sys/kernel/btf/vmlinux",
     "present": true,
-    "size_bytes": 6103569,
-    "sha256": "8c10e7e174e89c92f1d2708f12bb5268dc381e57e867397534c4e145348622e0"
+    "size_bytes": 5290474,
+    "sha256": "36e118be1ee6c3ed13d4813d2e170252fb19d4120cf3940ada382bfe2e38d70c"
   },
   "security": {
     "lsm": "lockdown,capability,landlock,yama,apparmor",
@@ -72,7 +72,7 @@
       {
         "name": "kernel",
         "ok": true,
-        "detail": "6.8.0-147-generic"
+        "detail": "5.15.0-203-generic"
       },
       {
         "name": "btf",
@@ -107,14 +107,14 @@
       {
         "name": "btf_sha256",
         "ok": true,
-        "detail": "8c10e7e174e89c92f1d2708f12bb5268dc381e57e867397534c4e145348622e0"
+        "detail": "36e118be1ee6c3ed13d4813d2e170252fb19d4120cf3940ada382bfe2e38d70c"
       }
     ]
   },
   "record": {
     "exit_code": 0,
     "seconds": 8,
-    "events": 3445,
+    "events": 3102,
     "decode_errors": 0,
     "bundle": "/tmp/matrix.fleet",
     "bundle_complete": "true"
@@ -124,76 +124,76 @@
     "file_sensor_path": "kprobe-no-bpf-lsm",
     "exit_tracepoint": {
       "attached": true,
-      "evidence": "process-only probe: ProcessFork=100 ProcessExec=100 ProcessExit=101"
+      "evidence": "process-only probe: ProcessFork=116 ProcessExec=117 ProcessExit=117"
     }
   },
   "probe": {
     "process_only": {
       "exit_code": 0,
       "query_exit_code": 0,
-      "events": 301,
+      "events": 350,
       "counts": {
-        "ProcessExec": 100,
-        "ProcessExit": 101,
-        "ProcessFork": 100
+        "ProcessExec": 117,
+        "ProcessExit": 117,
+        "ProcessFork": 116
       }
     }
   },
   "query": {
     "kinds_exit_code": 0,
     "kinds": {
-      "FileOpen": 2693,
-      "FileUnlink": 22,
-      "ProcessExec": 244,
-      "ProcessExit": 244,
-      "ProcessFork": 242
+      "FileOpen": 2382,
+      "FileUnlink": 21,
+      "ProcessExec": 234,
+      "ProcessExit": 234,
+      "ProcessFork": 231
     },
     "file_paths_exit_code": 0,
-    "file_open_count": 2693,
+    "file_open_count": 2382,
     "top_paths": [
       "/etc/ld.so.cache",
       "/lib/x86_64-linux-gnu/libc.so.6",
-      "/",
       "/usr/share/locale/locale.alias",
-      "/usr/lib/locale/en/LC_IDENTIFICATION",
-      "/usr/lib/locale/en_CA.utf8/LC_IDENTIFICATION",
       "/usr/lib/locale/en_CA.UTF-8/LC_IDENTIFICATION",
+      "/usr/lib/locale/en_CA.utf8/LC_IDENTIFICATION",
+      "/usr/lib/locale/en/LC_IDENTIFICATION",
       "/usr/lib/locale/en.UTF-8/LC_IDENTIFICATION",
       "/usr/lib/locale/en_CA/LC_IDENTIFICATION",
       "/usr/lib/locale/en.utf8/LC_IDENTIFICATION",
       "/dev/null",
-      "userdb",
+      "/usr/lib/locale/locale-archive",
       "/tmp/matrix-probe/scratch.txt",
+      "/",
+      "userdb",
       "/lib/x86_64-linux-gnu/libpcre2-8.so.0",
       "/proc/filesystems",
       "/lib/x86_64-linux-gnu/libselinux.so.1",
-      "usr",
-      "run",
       "lib",
       "/tmp/matrix-probe/created-by-matrix",
       "/etc/hostname",
       "/tmp/matrix-probe",
+      "usr",
       "/etc/passwd",
-      "/proc/self/fdinfo/26"
+      "run"
     ],
     "probe_path": "/tmp/matrix-probe/created-by-matrix",
     "probe_path_seen": true
   },
   "replay": {
     "exit_code": 0,
-    "lines": 3445,
-    "first_line": "{\"time\":\"2026-11-14T01:21:38.783154Z\",\"sensor\":\"file\",\"kind\":\"FileOpen\",\"schema_major\":1,\"schema_minor\":0,\"event_id\":\"0c026741144be92a95e3110e50fcd4cf00ed4b27de1d51ccb33400d12b4e2e0e\",\"boot_id\":\"3919f67e793242eb8d9175a0661901da\",\"seq\":0,\"redaction\":{\"path_redacted\":false,\"argv_redacted\":false,\"message_redacted\":false},\"pid\":7278,\"tgid\":7278,\"cgroup_id\":5275,\"task_start_ns\":29762109039,\"path\":\"/sys/bus/event_source/devices/kprobe/type\",\"process_exec\":\"/tmp/ebpf-fleet\",\"flags\":0,\"open_flags\":0,\"mode\":0}",
+    "lines": 3102,
+    "first_line": "{\"time\":\"2026-11-14T01:35:26.032623Z\",\"sensor\":\"file\",\"kind\":\"FileOpen\",\"schema_major\":1,\"schema_minor\":0,\"event_id\":\"0bb7868de4e79d05383730fa66b19c939cedef88701ed9d7fe47bb3ac6c31aee\",\"boot_id\":\"8a1a17d088da4e5f857b100ee78550a9\",\"seq\":0,\"redaction\":{\"path_redacted\":false,\"argv_redacted\":false,\"message_redacted\":false},\"pid\":2784,\"tgid\":2784,\"cgroup_id\":4503,\"task_start_ns\":29986195354,\"path\":\"/sys/bus/event_source/devices/kprobe/type\",\"process_exec\":\"/tmp/ebpf-fleet\",\"flags\":0,\"open_flags\":0,\"mode\":0}",
     "first_kind": "FileOpen",
     "valid_json": true
   },
   "bundle_export": {
     "exit_code": 0,
-    "archive": "target/vm/matrix/2026-11-14e/ubuntu-24.04/matrix.fleet.tar.gz",
+    "archive": "target/vm/matrix/2026-11-14g/ubuntu-22.04/matrix.fleet.tar.gz",
     "host_query_ok": true
   },
   "artifacts": {
-    "dir": "target/vm/matrix/2026-11-14e/ubuntu-24.04",
-    "json": "target/vm/matrix/2026-11-14e/ubuntu-24.04.json",
+    "dir": "target/vm/matrix/2026-11-14g/ubuntu-22.04",
+    "json": "target/vm/matrix/2026-11-14g/ubuntu-22.04.json",
     "files": [
       "activity.err",
       "activity.out",
@@ -244,7 +244,7 @@
       "name": "cloud_init_ready",
       "ok": true,
       "required": true,
-      "detail": "cloud-init done; sudo+jq+tar available after 16s"
+      "detail": "cloud-init done; sudo+jq+tar available after 17s"
     },
     {
       "name": "binary_upload",
@@ -262,7 +262,7 @@
       "name": "doctor",
       "ok": true,
       "required": true,
-      "detail": "doctor --json exit 0 in 0s; kernel+btf ok; btf sha256 8c10e7e174e8..."
+      "detail": "doctor --json exit 0 in 0s; kernel+btf ok; btf sha256 36e118be1ee6..."
     },
     {
       "name": "record",
@@ -280,49 +280,49 @@
       "name": "record_events",
       "ok": true,
       "required": true,
-      "detail": "recorded 3445 events (0 decode errors)"
+      "detail": "recorded 3102 events (0 decode errors)"
     },
     {
       "name": "query_kinds",
       "ok": true,
       "required": true,
-      "detail": "kinds: {\"FileOpen\":2693,\"FileUnlink\":22,\"ProcessExec\":244,\"ProcessExit\":244,\"ProcessFork\":242}"
+      "detail": "kinds: {\"FileOpen\":2382,\"FileUnlink\":21,\"ProcessExec\":234,\"ProcessExit\":234,\"ProcessFork\":231}"
     },
     {
       "name": "file_open_paths",
       "ok": true,
       "required": true,
-      "detail": "FileOpen=2693; deterministic probe path '/tmp/matrix-probe/created-by-matrix' decoded"
+      "detail": "FileOpen=2382; deterministic probe path '/tmp/matrix-probe/created-by-matrix' decoded"
     },
     {
       "name": "replay",
       "ok": true,
       "required": true,
-      "detail": "replay exit 0, 3445 lines, first line kind=FileOpen"
+      "detail": "replay exit 0, 3102 lines, first line kind=FileOpen"
     },
     {
       "name": "process_probe",
       "ok": true,
       "required": true,
-      "detail": "process-only record: 301 events; counts {\"ProcessExec\":100,\"ProcessExit\":101,\"ProcessFork\":100}"
+      "detail": "process-only record: 350 events; counts {\"ProcessExec\":117,\"ProcessExit\":117,\"ProcessFork\":116}"
     },
     {
       "name": "exit_tracepoint",
       "ok": true,
       "required": false,
-      "detail": "sched_process_exit attached: ProcessFork=100 ProcessExec=100 ProcessExit=101"
+      "detail": "sched_process_exit attached: ProcessFork=116 ProcessExec=117 ProcessExit=117"
     },
     {
       "name": "btf",
       "ok": true,
       "required": true,
-      "detail": "present, 6103569 bytes, sha256 8c10e7e174e89c92f1d2708f12bb5268dc381e57e867397534c4e145348622e0"
+      "detail": "present, 5290474 bytes, sha256 36e118be1ee6c3ed13d4813d2e170252fb19d4120cf3940ada382bfe2e38d70c"
     },
     {
       "name": "kernel_series",
       "ok": true,
       "required": true,
-      "detail": "uname -r 6.8.0-147-generic matches pinned series 6.8"
+      "detail": "uname -r 5.15.0-203-generic matches pinned series 5.15"
     },
     {
       "name": "guest_packages",
@@ -334,13 +334,13 @@
       "name": "bundle_complete",
       "ok": true,
       "required": true,
-      "detail": "manifest complete=true, counts.events=3445 matches record stderr"
+      "detail": "manifest complete=true, counts.events=3102 matches record stderr"
     },
     {
       "name": "probe_bundle_complete",
       "ok": true,
       "required": true,
-      "detail": "probe manifest counts.events=301 matches record stderr"
+      "detail": "probe manifest counts.events=350 matches record stderr"
     },
     {
       "name": "manifest_host_facts",
@@ -358,7 +358,7 @@
       "name": "bundle_export",
       "ok": true,
       "required": true,
-      "detail": "guest bundle exported to target/vm/matrix/2026-11-14e/ubuntu-24.04/matrix.fleet.tar.gz and extracted"
+      "detail": "guest bundle exported to target/vm/matrix/2026-11-14g/ubuntu-22.04/matrix.fleet.tar.gz and extracted"
     },
     {
       "name": "bundle_portable",
@@ -370,7 +370,7 @@
   "failures": [],
   "status": "pass",
   "notes": [
-    "sched_process_exit raw tracepoint attached on 6.8.0-147-generic (ProcessExit events present)"
+    "sched_process_exit raw tracepoint attached on 5.15.0-203-generic (ProcessExit events present)"
   ],
-  "duration_s": 50
+  "duration_s": 51
 }

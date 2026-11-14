@@ -20,4 +20,4 @@ statically linked. The tarball checksum is recorded in
 [release-0.2.0/probe-verify.json](release-0.2.0/probe-verify.json).
 
 The full matrix was run separately with the same binary:
-[kernel-matrix.md](kernel-matrix.md) PASS 4/4.
+[kernel-matrix.md](kernel-matrix.md) PASS 5/5.

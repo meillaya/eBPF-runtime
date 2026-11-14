@@ -2,7 +2,7 @@
   "schema_version": 1,
   "updated": "2026-11-14",
   "default_image": "ubuntu-24.04",
-  "description": "Base cloud images for the local KVM VM lab (scripts/vm/lab.sh). Four x86_64 images are pinned and boot-validated: Ubuntu 24.04 (6.8), Ubuntu 22.04 (5.15), Debian 12 (6.1), and Debian 13 (6.12). Fedora 42 is pinned but not booted; arm64 is pinned but needs an aarch64 KVM host.",
+  "description": "Base cloud images for the local KVM VM lab (scripts/vm/lab.sh). Five x86_64 images are pinned and boot-validated: Ubuntu 24.04 (6.8), Ubuntu 22.04 (5.15), Debian 12 (6.1), Debian 13 (6.12), and Fedora 42 (6.14). The arm64 image is pinned but needs an aarch64 KVM host.",
   "verification": {
     "algorithm": "sha256",
     "policy": "fail-closed",
@@ -38,7 +38,7 @@
       "checksum_manifest_format": "sha256sum -c compatible",
       "status": "pinned",
       "boot_validated": true,
-      "notes": "Default lab image. Booted on host massive 2026-11-13 via scripts/vm/run-smoke.sh and repeatedly via scripts/vm/run-matrix.sh. Final 0.2.0 matrix row 2026-11-14e: PASS, kernel 6.8.0-147-generic, BTF sha256 8c10e7e1..., 3445 events (2693 FileOpen, 242 ProcessFork, 244 ProcessExec, 244 ProcessExit), 0 decode errors. File paths come from the kprobe/pt_regs fallback because this kernel has no bpf LSM. Evidence: docs/verification/kernel-matrix/2026-11-14e/ubuntu-24.04.json and target/vm/matrix/2026-11-14e/."
+      "notes": "Default lab image. Booted on host massive 2026-11-13 via scripts/vm/run-smoke.sh and repeatedly via scripts/vm/run-matrix.sh. Final 0.2.0 matrix row 2026-11-14g: PASS, kernel 6.8.0-147-generic, BTF sha256 8c10e7e1..., 3454 events (2701 FileOpen, 243 ProcessFork, 244 ProcessExec, 244 ProcessExit), 0 decode errors. File paths come from the kprobe/pt_regs fallback because this kernel has no bpf LSM. Evidence: docs/verification/kernel-matrix/2026-11-14g/ubuntu-24.04.json and target/vm/matrix/2026-11-14g/."
     },
     "ubuntu-22.04": {
       "distro": "ubuntu",
@@ -53,7 +53,7 @@
       "checksum_manifest_format": "sha256sum -c compatible",
       "status": "pinned",
       "boot_validated": true,
-      "notes": "Kernel-matrix LTS row. Booted and validated 2026-11-14 via scripts/vm/run-matrix.sh; final 0.2.0 row 2026-11-14e: PASS, Ubuntu 22.04.5 LTS, kernel 5.15.0-203-generic, BTF 5290474 bytes (sha256 36e118be...), 3095 events (2375 FileOpen, 231 ProcessFork, 234 ProcessExec, 234 ProcessExit), 0 decode errors. FileOpen paths decoded through the kprobe/pt_regs fallback on a kernel whose lsm list has no bpf. Evidence: docs/verification/kernel-matrix/2026-11-14e/ubuntu-22.04.json and target/vm/matrix/2026-11-14e/."
+      "notes": "Kernel-matrix LTS row. Booted and validated 2026-11-14 via scripts/vm/run-matrix.sh; final 0.2.0 row 2026-11-14e: PASS, Ubuntu 22.04.5 LTS, kernel 5.15.0-203-generic, BTF 5290474 bytes (sha256 36e118be...), 3102 events (2382 FileOpen, 231 ProcessFork, 234 ProcessExec, 234 ProcessExit), 0 decode errors. FileOpen paths decoded through the kprobe/pt_regs fallback on a kernel whose lsm list has no bpf. Evidence: docs/verification/kernel-matrix/2026-11-14g/ubuntu-22.04.json and target/vm/matrix/2026-11-14g/."
     },
     "debian-12": {
       "distro": "debian",
@@ -69,7 +69,7 @@
       "status": "pinned",
       "boot_validated": true,
       "pin_hint": "Pinned from immutable build 20261112-2660 on 2026-11-14. Debian publishes only SHA-512 manifests: to re-pin, pick a dated directory under https://cloud.debian.org/images/cloud/bookworm/ (<YYYYMMDD>-<build>), run sha512sum -c on the qcow2 entry in that build's SHA512SUMS, then record sha256 of the verified file. Never pin latest/.",
-      "notes": "Kernel-matrix Debian LTS row. Pinned from immutable build bookworm/20261112-2660 (vendor SHA512 verified; sha256 pinned) and booted 2026-11-14. Final 0.2.0 row 2026-11-14e: PASS, kernel 6.1.0-54-amd64, BTF 4355537 bytes (sha256 8f4d6b55...), 2108 events (1481 FileOpen, 201 ProcessFork, 203 ProcessExec, 201 ProcessExit), 0 decode errors, 23/23 checks. This kernel has bpf in the LSM list; the loader skips the duplicate open kprobe fallback when the LSM path is active, so the deterministic marker is decoded once per activity loop. Evidence: docs/verification/kernel-matrix/2026-11-14e/debian-12.json and target/vm/matrix/2026-11-14e/.",
+      "notes": "Kernel-matrix Debian LTS row. Pinned from immutable build bookworm/20261112-2660 (vendor SHA512 verified; sha256 pinned) and booted 2026-11-14. Final 0.2.0 row 2026-11-14g: PASS, kernel 6.1.0-54-amd64, BTF 4355537 bytes (sha256 8f4d6b55...), 2040 events (1441 FileOpen, 192 ProcessFork, 194 ProcessExec, 192 ProcessExit), 0 decode errors, 23/23 checks. This kernel has bpf in the LSM list; the loader skips the duplicate open kprobe fallback when the LSM path is active, so the deterministic marker is decoded once per activity loop. Evidence: docs/verification/kernel-matrix/2026-11-14g/debian-12.json and target/vm/matrix/2026-11-14g/.",
       "sha512": "ef4e6f3302cf7951f869e8e01263ee9ab69661b67dc28d45d76eb317b81cf7f87a75f85f26a3b30cbb772025f2edc27dee4f640f91d4cb3f4afe7662b6362e2a"
     },
     "debian-13": {
@@ -86,7 +86,7 @@
       "status": "pinned",
       "boot_validated": true,
       "pin_hint": "Pinned from immutable build 20261111-2659 on 2026-11-14. To re-pin, pick a dated directory under https://cloud.debian.org/images/cloud/trixie/, run sha512sum -c on the qcow2 entry in that build's SHA512SUMS, then record sha256 of the verified file. Never pin latest/.",
-      "notes": "Kernel-matrix Debian current row. Pinned from immutable build trixie/20261111-2659 (vendor SHA512 verified; sha256 pinned) and booted 2026-11-14. Final 0.2.0 row 2026-11-14e: PASS, kernel 6.12.116+deb13-amd64, BTF 4956583 bytes (sha256 db58ed16...), 2368 events (1725 FileOpen, 207 ProcessFork, 207 ProcessExec, 207 ProcessExit), 0 decode errors, 23/23 checks. This kernel has bpf in the LSM list; the loader skips the duplicate open kprobe fallback when the LSM path is active, so the deterministic marker is decoded once per activity loop. Evidence: docs/verification/kernel-matrix/2026-11-14e/debian-13.json and target/vm/matrix/2026-11-14e/.",
+      "notes": "Kernel-matrix Debian current row. Pinned from immutable build trixie/20261111-2659 (vendor SHA512 verified; sha256 pinned) and booted 2026-11-14. Final 0.2.0 row 2026-11-14g: PASS, kernel 6.12.116+deb13-amd64, BTF 4956583 bytes (sha256 db58ed16...), 2172 events (1567 FileOpen, 194 ProcessFork, 196 ProcessExec, 194 ProcessExit), 0 decode errors, 23/23 checks. This kernel has bpf in the LSM list; the loader skips the duplicate open kprobe fallback when the LSM path is active, so the deterministic marker is decoded once per activity loop. Evidence: docs/verification/kernel-matrix/2026-11-14g/debian-13.json and target/vm/matrix/2026-11-14g/.",
       "sha512": "ec8c175e39d59e711798c3a2f22ba11b9aee9bca1887c7e505a800aeffd5d7616099bd0e9fad869efba96100fe09d2c8b49d6d7001d501f0056c556bdc25b605"
     },
     "fedora-42": {
@@ -101,10 +101,10 @@
       "checksum_manifest": "https://archive.fedoraproject.org/pub/archive/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-42-1.1-x86_64-CHECKSUM",
       "checksum_manifest_format": "PGP-signed SHA256 CHECKSUM file: verify with gpgv against the Fedora 42 primary key fingerprint B0F4950458F69E1150C6C5EDC8AC4916105EF944 (listed under Obsolete OpenPGP Certificates on https://fedoraproject.org/security), then check the sha256",
       "status": "pinned",
-      "boot_validated": false,
+      "boot_validated": true,
       "archive_url": "https://archive.fedoraproject.org/pub/archive/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2",
       "pin_hint": "Pinned on 2026-11-14 from the immutable archive.fedoraproject.org release tree (Fedora 42 is past its support window; the download.fedoraproject.org release URL redirects to a mirror and may disappear). The CHECKSUM file is PGP-signed by the Fedora 42 primary key B0F4950458F69E1150C6C5EDC8AC4916105EF944; fetch that key by fingerprint from a keyserver, confirm the fingerprint against https://fedoraproject.org/security, gpg --verify the CHECKSUM, then record the sha256 of the verified qcow2. Never pin an unverified checksum.",
-      "notes": "Kernel matrix entry: Fedora 42 (6.14 kernel), Cloud Base Generic amd64 image Fedora-Cloud-Base-Generic-42-1.1 from the archived Fedora 42 release; the sha256 was verified against the PGP-signed CHECKSUM (signature verified with the Fedora 42 primary key fingerprint). Hash pinned on 2026-11-14, but no matrix row has run yet: boot_validated is false and the row is still a gap."
+      "notes": "Kernel-matrix current Fedora row. PGP-verified archive image pinned from Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2. Booted 2026-11-14. Final 0.2.0 row 2026-11-14g: PASS, kernel 6.14.0-63.fc42.x86_64, BTF 6510388 bytes (sha256 b1d7ac90...), 4591 events (3936 FileOpen, 213 ProcessFork, 208 ProcessExec, 213 ProcessExit), 0 decode errors, 23/23 checks. Fedora has bpf in the LSM list; the loader skips the duplicate open kprobe fallback when the LSM path is active. Evidence: docs/verification/kernel-matrix/2026-11-14g/fedora-42.json and target/vm/matrix/2026-11-14g/."
     },
     "ubuntu-24.04-arm64": {
       "distro": "ubuntu",

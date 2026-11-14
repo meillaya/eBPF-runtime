@@ -48,7 +48,7 @@ for the full data path. Rootless Podman is scoped to the repository with
 [`scripts/podman-scoped.sh`](scripts/podman-scoped.sh). The current kernel
 matrix is recorded in
 [docs/verification/kernel-matrix.md](docs/verification/kernel-matrix.md)
-(Ubuntu 24.04/22.04 and Debian 12/13 PASS, including process exit events).
+(Ubuntu 24.04/22.04, Debian 12/13, and Fedora 42 PASS, including process exit events).
 
 ![Fleet mode: hooks to analytics](docs/figures/fleet-architecture.png)
 

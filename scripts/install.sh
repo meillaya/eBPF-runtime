@@ -43,12 +43,17 @@ curl -fsSL --retry 3 -o "$tmp/$asset.sha256" "$checksum_url"
 
 if command -v cosign >/dev/null 2>&1 &&
    curl -fsSL --retry 3 -o "$tmp/$asset.cosign.bundle" "$base/$asset.cosign.bundle"; then
-  if [[ -n "${EBPF_FLEET_COSIGN_PUB:-}" ]]; then
-    key="${EBPF_FLEET_COSIGN_PUB}"
-    if [[ ! -f "$key" ]]; then
-      curl -fsSL --retry 3 -o "$tmp/cosign.pub" "$base/cosign.pub"
-      key="$tmp/cosign.pub"
-    fi
+  # Prefer a checked-in/public release key when the release publishes one.
+  # Keyless releases do not ship cosign.pub and fall back to the OIDC identity.
+  key="${EBPF_FLEET_COSIGN_PUB:-}"
+  if [[ -n "$key" && ! -f "$key" ]]; then
+    curl -fsSL --retry 3 -o "$tmp/cosign.pub" "$key"
+    key="$tmp/cosign.pub"
+  fi
+  if [[ -z "$key" ]] && curl -fsSL --retry 3 -o "$tmp/cosign.pub" "$base/cosign.pub"; then
+    key="$tmp/cosign.pub"
+  fi
+  if [[ -n "$key" ]]; then
     echo "install: verifying cosign signature with release key"
     cosign verify-blob --key "$key" --bundle "$tmp/$asset.cosign.bundle" "$tmp/$asset"
   else

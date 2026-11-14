@@ -15,8 +15,9 @@ recorder; fleet mode remains available as the scale-out path.
 - `ebpf-fleet policy test` with YAML expectations over recorded bundles.
 - C probe SDK (`sdk/`, `crates/probe`) and `ebpf-fleet probe
   build/verify/explain`, with privileged VM verification evidence.
-- Local KVM VM lab and kernel matrix runner; Ubuntu 24.04 (6.8) and Ubuntu
-  22.04 (5.15) PASS, including process exit events.
+- Local KVM VM lab and kernel matrix runner; Ubuntu 24.04 (6.8), Ubuntu
+  22.04 (5.15), Debian 12 (6.1), Debian 13 (6.12), and Fedora 42 (6.14)
+  PASS, including process exit events.
 - Scoped rootless Podman wrapper; storage, runtime, and images stay under
   `target/podman`.
 - Static-pie x86_64 release build, installer, checksums, SBOM, and release
@@ -38,7 +39,7 @@ recorder; fleet mode remains available as the scale-out path.
 - Stack capture/symbolization is not in 0.2.
 - The C probe SDK does not yet decode probe events in the runtime or attach
   custom probes automatically.
-- Debian 12/13 and Fedora 42 matrix rows are pending image pinning; arm64
-  needs a native aarch64 KVM host.
+- arm64 remains unverified because this lab host is x86_64 and the lab does
+  not emulate. The five x86_64 matrix rows are green.
 - The keyless GitHub release workflow is blocked by GitHub Actions billing;
   local signing evidence uses an explicitly test release key.

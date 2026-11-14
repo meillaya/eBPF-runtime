@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "runner": "scripts/vm/run-matrix.sh",
-  "generated_at": "2026-11-14T01:23:52Z",
+  "generated_at": "2026-11-14T01:36:48Z",
   "host": {
     "name": "massive",
     "arch": "x86_64",
@@ -22,7 +22,7 @@
     "status": "pinned",
     "boot_validated": true,
     "pin_hint": "Pinned from immutable build 20261112-2660 on 2026-11-14. Debian publishes only SHA-512 manifests: to re-pin, pick a dated directory under https://cloud.debian.org/images/cloud/bookworm/ (<YYYYMMDD>-<build>), run sha512sum -c on the qcow2 entry in that build's SHA512SUMS, then record sha256 of the verified file. Never pin latest/.",
-    "notes": "Kernel matrix entry: Debian 12 bookworm (6.1 kernel), generic cloud amd64 image from immutable build 20261112-2660; vendor sha512 verified against the build's SHA512SUMS, sha256 pinned. cloud-init NoCloud is supported by Debian generic cloud images; the lab seed creates user fleet with the ephemeral key. Booted 2026-11-14 (16s to SSH, cloud-init done in 32s) and PASSED the full matrix row 2026-11-14c: kernel 6.1.0-54-amd64 (Debian 6.1.190-1), /sys/kernel/btf/vmlinux 4355537 bytes (sha256 8f4d6b55...), 4117 events recorded (3518 FileOpen, 192 ProcessFork, 194 ProcessExec, 192 ProcessExit), 0 decode errors; lsm list includes bpf (file sensor LSM path) and the deterministic FileOpen path /tmp/matrix-probe/created-by-matrix was decoded (42 opens); sched_process_exit tracepoint attached. Evidence: docs/verification/kernel-matrix/2026-11-14c/debian-12.json and target/vm/matrix/2026-11-14c/.",
+    "notes": "Kernel-matrix Debian LTS row. Pinned from immutable build bookworm/20261112-2660 (vendor SHA512 verified; sha256 pinned) and booted 2026-11-14. Final 0.2.0 row 2026-11-14e: PASS, kernel 6.1.0-54-amd64, BTF 4355537 bytes (sha256 8f4d6b55...), 2108 events (1481 FileOpen, 201 ProcessFork, 203 ProcessExec, 201 ProcessExit), 0 decode errors, 23/23 checks. This kernel has bpf in the LSM list; the loader skips the duplicate open kprobe fallback when the LSM path is active, so the deterministic marker is decoded once per activity loop. Evidence: docs/verification/kernel-matrix/2026-11-14e/debian-12.json and target/vm/matrix/2026-11-14e/.",
     "sha512": "ef4e6f3302cf7951f869e8e01263ee9ab69661b67dc28d45d76eb317b81cf7f87a75f85f26a3b30cbb772025f2edc27dee4f640f91d4cb3f4afe7662b6362e2a"
   },
   "instance": "matrix-debian-12",
@@ -116,7 +116,7 @@
   "record": {
     "exit_code": 0,
     "seconds": 8,
-    "events": 2108,
+    "events": 2040,
     "decode_errors": 0,
     "bundle": "/tmp/matrix.fleet",
     "bundle_complete": "true"
@@ -126,32 +126,32 @@
     "file_sensor_path": "lsm",
     "exit_tracepoint": {
       "attached": true,
-      "evidence": "process-only probe: ProcessFork=84 ProcessExec=86 ProcessExit=84"
+      "evidence": "process-only probe: ProcessFork=93 ProcessExec=95 ProcessExit=93"
     }
   },
   "probe": {
     "process_only": {
       "exit_code": 0,
       "query_exit_code": 0,
-      "events": 254,
+      "events": 281,
       "counts": {
-        "ProcessExec": 86,
-        "ProcessExit": 84,
-        "ProcessFork": 84
+        "ProcessExec": 95,
+        "ProcessExit": 93,
+        "ProcessFork": 93
       }
     }
   },
   "query": {
     "kinds_exit_code": 0,
     "kinds": {
-      "FileOpen": 1481,
-      "FileUnlink": 22,
-      "ProcessExec": 203,
-      "ProcessExit": 201,
-      "ProcessFork": 201
+      "FileOpen": 1441,
+      "FileUnlink": 21,
+      "ProcessExec": 194,
+      "ProcessExit": 192,
+      "ProcessFork": 192
     },
     "file_paths_exit_code": 0,
-    "file_open_count": 1481,
+    "file_open_count": 1441,
     "top_paths": [
       "/etc/ld.so.cache",
       "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
@@ -166,13 +166,13 @@
       "/usr/lib/x86_64-linux-gnu/libselinux.so.1",
       "/usr/bin/rm",
       "/tmp/matrix-probe/created-by-matrix",
-      "/tmp/matrix-probe",
-      "/usr/bin/false",
-      "/usr/bin/sleep",
-      "/usr/bin/head",
       "/etc/hostname",
+      "/usr/bin/false",
       "/usr/bin/true",
+      "/usr/bin/head",
       "/usr/bin/ls",
+      "/usr/bin/sleep",
+      "/tmp/matrix-probe",
       "/etc/passwd",
       "/sys/devices/kprobe/type",
       "/etc/login.defs",
@@ -184,19 +184,19 @@
   },
   "replay": {
     "exit_code": 0,
-    "lines": 2108,
-    "first_line": "{\"time\":\"2026-11-14T01:23:37.963007Z\",\"sensor\":\"file\",\"kind\":\"FileOpen\",\"schema_major\":1,\"schema_minor\":0,\"event_id\":\"1f58c4f6f23e68c4edec6932bc39083a807fd23d4b8c76bd4c575504fba232c2\",\"boot_id\":\"59154ebae32d4889ac97c05774d4b09f\",\"seq\":0,\"redaction\":{\"path_redacted\":false,\"argv_redacted\":false,\"message_redacted\":false},\"pid\":1018,\"tgid\":1018,\"cgroup_id\":3486,\"task_start_ns\":48012552782,\"path\":\"/sys/devices/kprobe/type\",\"process_exec\":\"/tmp/ebpf-fleet\",\"flags\":0,\"open_flags\":32768,\"mode\":1}",
+    "lines": 2040,
+    "first_line": "{\"time\":\"2026-11-14T01:36:33.937330Z\",\"sensor\":\"file\",\"kind\":\"FileOpen\",\"schema_major\":1,\"schema_minor\":0,\"event_id\":\"880ae103b0d3a7d3b424d2d3ba0057124a254ab89a01445fa622b3b24231af37\",\"boot_id\":\"c4172cddaf4c4a4a9e8ecc4e35d49a8f\",\"seq\":0,\"redaction\":{\"path_redacted\":false,\"argv_redacted\":false,\"message_redacted\":false},\"pid\":1010,\"tgid\":1010,\"cgroup_id\":3486,\"task_start_ns\":48080818519,\"path\":\"/sys/devices/kprobe/type\",\"process_exec\":\"/tmp/ebpf-fleet\",\"flags\":0,\"open_flags\":32768,\"mode\":1}",
     "first_kind": "FileOpen",
     "valid_json": true
   },
   "bundle_export": {
     "exit_code": 0,
-    "archive": "target/vm/matrix/2026-11-14e/debian-12/matrix.fleet.tar.gz",
+    "archive": "target/vm/matrix/2026-11-14g/debian-12/matrix.fleet.tar.gz",
     "host_query_ok": true
   },
   "artifacts": {
-    "dir": "target/vm/matrix/2026-11-14e/debian-12",
-    "json": "target/vm/matrix/2026-11-14e/debian-12.json",
+    "dir": "target/vm/matrix/2026-11-14g/debian-12",
+    "json": "target/vm/matrix/2026-11-14g/debian-12.json",
     "files": [
       "activity.err",
       "activity.out",
@@ -283,37 +283,37 @@
       "name": "record_events",
       "ok": true,
       "required": true,
-      "detail": "recorded 2108 events (0 decode errors)"
+      "detail": "recorded 2040 events (0 decode errors)"
     },
     {
       "name": "query_kinds",
       "ok": true,
       "required": true,
-      "detail": "kinds: {\"FileOpen\":1481,\"FileUnlink\":22,\"ProcessExec\":203,\"ProcessExit\":201,\"ProcessFork\":201}"
+      "detail": "kinds: {\"FileOpen\":1441,\"FileUnlink\":21,\"ProcessExec\":194,\"ProcessExit\":192,\"ProcessFork\":192}"
     },
     {
       "name": "file_open_paths",
       "ok": true,
       "required": true,
-      "detail": "FileOpen=1481; deterministic probe path '/tmp/matrix-probe/created-by-matrix' decoded"
+      "detail": "FileOpen=1441; deterministic probe path '/tmp/matrix-probe/created-by-matrix' decoded"
     },
     {
       "name": "replay",
       "ok": true,
       "required": true,
-      "detail": "replay exit 0, 2108 lines, first line kind=FileOpen"
+      "detail": "replay exit 0, 2040 lines, first line kind=FileOpen"
     },
     {
       "name": "process_probe",
       "ok": true,
       "required": true,
-      "detail": "process-only record: 254 events; counts {\"ProcessExec\":86,\"ProcessExit\":84,\"ProcessFork\":84}"
+      "detail": "process-only record: 281 events; counts {\"ProcessExec\":95,\"ProcessExit\":93,\"ProcessFork\":93}"
     },
     {
       "name": "exit_tracepoint",
       "ok": true,
       "required": false,
-      "detail": "sched_process_exit attached: ProcessFork=84 ProcessExec=86 ProcessExit=84"
+      "detail": "sched_process_exit attached: ProcessFork=93 ProcessExec=95 ProcessExit=93"
     },
     {
       "name": "btf",
@@ -337,13 +337,13 @@
       "name": "bundle_complete",
       "ok": true,
       "required": true,
-      "detail": "manifest complete=true, counts.events=2108 matches record stderr"
+      "detail": "manifest complete=true, counts.events=2040 matches record stderr"
     },
     {
       "name": "probe_bundle_complete",
       "ok": true,
       "required": true,
-      "detail": "probe manifest counts.events=254 matches record stderr"
+      "detail": "probe manifest counts.events=281 matches record stderr"
     },
     {
       "name": "manifest_host_facts",
@@ -361,7 +361,7 @@
       "name": "bundle_export",
       "ok": true,
       "required": true,
-      "detail": "guest bundle exported to target/vm/matrix/2026-11-14e/debian-12/matrix.fleet.tar.gz and extracted"
+      "detail": "guest bundle exported to target/vm/matrix/2026-11-14g/debian-12/matrix.fleet.tar.gz and extracted"
     },
     {
       "name": "bundle_portable",

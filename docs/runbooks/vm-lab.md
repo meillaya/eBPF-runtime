@@ -260,10 +260,10 @@ target/vm/matrix/<stamp>/
 The live results (exact kernel releases, image sha256 values, pass/fail) are
 recorded in
 [docs/verification/kernel-matrix.md](../verification/kernel-matrix.md).
-Current matrix result: 4/4 pinned x86_64 rows PASS (Ubuntu 24.04/22.04,
-Debian 12/13), including `ProcessExit` events via
-`tracepoint/sched/sched_process_exit`. Fedora 42 is pinned but not yet
-boot-validated; arm64 needs a native aarch64 KVM host.
+Current matrix result: 5/5 pinned x86_64 rows PASS (Ubuntu 24.04/22.04,
+Debian 12/13, Fedora 42), including `ProcessExit` events via
+`tracepoint/sched/sched_process_exit`. arm64 needs a native aarch64 KVM
+host.
 
 The rest of the old expansion path still applies to new images:
 

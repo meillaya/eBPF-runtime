@@ -49,8 +49,9 @@ the same artifact. This local key is a fallback, not the production identity.
 - Cosign signed and immediately verified the binary.
 - The tarball was assembled from the binary, checksums, SBOM, public key,
   and licenses.
-- The kernel matrix PASS 4/4 was run with this exact binary
-  (`bc48014367de000b0557177e03f4a6bdd057202ce2c00527009c631536f4b345`): Ubuntu 24.04/22.04 and Debian 12/13, including
+- The kernel matrix PASS 5/5 was run with this exact binary
+  (`bc48014367de000b0557177e03f4a6bdd057202ce2c00527009c631536f4b345`):
+  Ubuntu 24.04/22.04, Debian 12/13, and Fedora 42, including
   `ProcessExit` and decoded `FileOpen` paths. See
   [kernel-matrix.md](kernel-matrix.md).
 - A clean Ubuntu 24.04 KVM guest extracted the tarball and ran
@@ -68,4 +69,3 @@ the same artifact. This local key is a fallback, not the production identity.
   still blocking it.
 - The binary is x86_64 only. arm64 needs a native aarch64 build/host.
 - Stack capture/symbolization is not in 0.2.
-- Fedora 42 is pinned but not boot-validated.

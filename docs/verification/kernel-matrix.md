@@ -1,14 +1,15 @@
 # Kernel compatibility matrix
 
-Status: **PASS 4/4 pinned x86_64 rows** on 2026-11-14 (Ubuntu 24.04/22.04,
-Debian 12/13), including process exit events, using the 0.2.0 release binary.
+Status: **PASS 5/5 pinned x86_64 rows** on 2026-11-14 (Ubuntu 24.04/22.04,
+Debian 12/13, Fedora 42), including process exit events, using the 0.2.0
+release binary.
 
 This page records real compatibility evidence for the local-first recorder:
 a static `ebpf-fleet` binary is booted and executed on pinned guest kernels
 in the local KVM lab, and every measurement below comes from a real VM run.
 The compact JSON evidence is checked into
-`docs/verification/kernel-matrix/2026-11-14e/`; the raw VM artifacts remain
-on the lab host under `target/vm/matrix/2026-11-14e/`, which is gitignored.
+`docs/verification/kernel-matrix/2026-11-14g/`; the raw VM artifacts remain
+on the lab host under `target/vm/matrix/2026-11-14g/`, which is gitignored.
 
 - Host: `massive`, x86_64, host kernel `7.3.3-1-cachyos`, 16 vCPUs,
   `/dev/kvm` usable without sudo.
@@ -23,7 +24,7 @@ on the lab host under `target/vm/matrix/2026-11-14e/`, which is gitignored.
 
 ## Pinned images
 
-All four rows use immutable dated cloud builds whose SHA-256 values are
+All five rows use immutable dated cloud builds whose SHA-256 values are
 pinned in [`scripts/vm/images.json`](../../scripts/vm/images.json). The lab
 re-verifies the cached file against the pin before every boot and fails
 closed on a mismatch.
@@ -34,13 +35,15 @@ closed on a mismatch.
 | `ubuntu-22.04` | Ubuntu 22.04.5 LTS | 5.15 | `releases/22.04/release-20261106/` | `f77bc6d59cb8deaa9657095736b5f5003f7705b47055f01823459715c967de6a` | 730617344 |
 | `debian-12` | Debian 12 bookworm | 6.1 | `bookworm/20261112-2660/` | `4427c82a9345c93fbc96b3bffefacc6db5e024fcdeb684e01d65112687245063` | 451543040 |
 | `debian-13` | Debian 13 trixie | 6.12 | `trixie/20261111-2659/` | `2f07a725b9370b94a9d7d7e8d68e7d424bc6096f7ccb2dbdaad5f203e6244d9b` | 436928512 |
+| `fedora-42` | Fedora Linux 42 Cloud | 6.14 | `releases/42/Cloud/x86_64/images` | `e401a4db2e5e04d1967b6729774faa96da629bcf3ba90b67d8d9cce9906bec0f` | 532217856 |
 
 Ubuntu images were checked against the vendor `SHA256SUMS`. Debian images
 were checked against the immutable build's `SHA512SUMS` (`sha512sum -c`) and
 their verified files were then hashed with SHA-256 for the pin.
 
-Fedora 42 and Ubuntu 24.04 arm64 are pinned in `images.json` but not yet
-boot-validated; see [Remaining gaps](#remaining-gaps).
+Ubuntu 24.04 arm64 is pinned in `images.json` but not yet boot-validated on
+this x86_64 host; see [Remaining gaps](#remaining-gaps). Fedora 42 uses the
+PGP-verified archive image and is boot-validated.
 
 ## What one row does
 
@@ -79,26 +82,29 @@ nix develop --impure --command scripts/vm/lab.sh bootstrap --image ubuntu-24.04
 nix develop --impure --command scripts/vm/lab.sh bootstrap --image ubuntu-22.04
 nix develop --impure --command scripts/vm/lab.sh bootstrap --image debian-12
 nix develop --impure --command scripts/vm/lab.sh bootstrap --image debian-13
+nix develop --impure --command scripts/vm/lab.sh bootstrap --image fedora-42
 
 # the unified matrix run
 nix develop --impure --command scripts/vm/run-matrix.sh \
   --image ubuntu-24.04 --image ubuntu-22.04 \
-  --image debian-12 --image debian-13 --stamp 2026-11-14e
+  --image debian-12 --image debian-13 --image fedora-42 --stamp 2026-11-14g
 ```
 
-The run finished with `MATRIX PASS: 4/4 rows` and wrote:
+The run finished with `MATRIX PASS: 5/5 rows` and wrote:
 
 ```text
-target/vm/matrix/2026-11-14e/
+target/vm/matrix/2026-11-14g/
   matrix-summary.json          # rows, host facts, pass/fail counts
   ubuntu-24.04.json            # row evidence (checks + measurements)
   ubuntu-22.04.json
   debian-12.json
   debian-13.json
+  fedora-42.json
   ubuntu-24.04/                # raw artifacts for the row
   ubuntu-22.04/
   debian-12/
   debian-13/
+  fedora-42/
   activity.sh, guest-probe.sh  # generated guest helpers used by the rows
 ```
 
@@ -109,7 +115,8 @@ target/vm/matrix/2026-11-14e/
 | `ubuntu-24.04` | `6.8.0-147-generic` | Ubuntu 24.04.5 LTS | 6103569 | 3445 | 0 | 2693 | 22 | 242 | 244 | 244 | 3445 | true | **PASS** |
 | `ubuntu-22.04` | `5.15.0-203-generic` | Ubuntu 22.04.5 LTS | 5290474 | 3095 | 0 | 2375 | 21 | 231 | 234 | 234 | 3095 | true | **PASS** |
 | `debian-12` | `6.1.0-54-amd64` | Debian GNU/Linux 12 | 4355537 | 2108 | 0 | 1481 | 22 | 201 | 203 | 201 | 2108 | true | **PASS** |
-| `debian-13` | `6.12.116+deb13-amd64` | Debian GNU/Linux 13 | 4956583 | 2368 | 0 | 1725 | 22 | 207 | 207 | 207 | 2368 | true | **PASS** |
+| `debian-13` | `6.12.116+deb13-amd64` | Debian GNU/Linux 13 | 4956583 | 2172 | 0 | 1567 | 21 | 194 | 196 | 194 | 2172 | true | **PASS** |
+| `fedora-42` | `6.14.0-63.fc42.x86_64` | Fedora Linux 42 Cloud | 6510388 | 4591 | 0 | 3936 | 21 | 213 | 208 | 213 | 4591 | true | **PASS** |
 
 BTF SHA-256 values:
 
@@ -117,15 +124,17 @@ BTF SHA-256 values:
 - Ubuntu 22.04: `36e118be1ee6c3ed13d4813d2e170252fb19d4120cf3940ada382bfe2e38d70c`
 - Debian 12: `8f4d6b553aecc543afe0b987880b05e16c68169fbd9fcf38cc6dc378667d1f16`
 - Debian 13: `db58ed1601b73bb4e642cab8bc87126048f0446bab1aca206a4a24b04e478a7a`
+- Fedora 42: `b1d7ac90237d320527eb838450e28147ce3bc66a5d838487f69a530c562d0343`
 
 Process-only probe counts:
 
 | Image | Probe events | `ProcessFork` | `ProcessExec` | `ProcessExit` |
 | --- | --- | --- | --- | --- |
-| `ubuntu-24.04` | 301 | 100 | 100 | 101 |
-| `ubuntu-22.04` | 377 | 125 | 126 | 126 |
-| `debian-12` | 254 | 84 | 86 | 84 |
-| `debian-13` | 319 | 106 | 106 | 107 |
+| `ubuntu-24.04` | 436 | 145 | 145 | 146 |
+| `ubuntu-22.04` | 350 | 116 | 117 | 117 |
+| `debian-12` | 281 | 93 | 95 | 93 |
+| `debian-13` | 316 | 104 | 106 | 104 |
+| `fedora-42` | 334 | 113 | 108 | 113 |
 
 ### Per-check results
 
@@ -133,13 +142,13 @@ Each row writes required and informational checks. The required checks
 include bootstrap, boot, cloud-init readiness, binary upload/runs, doctor,
 record, activity, event counts, kind query, FileOpen paths, replay, process
 probe, BTF, kernel series, bundle completeness, manifest host facts, and
-bundle export. All required checks are green on all four rows. The
-`exit_tracepoint` informational check is **true** on all four:
+bundle export. All required checks are green on all five rows. The
+`exit_tracepoint` informational check is **true** on all five:
 
 | Check | Ubuntu 24.04 | Ubuntu 22.04 | Debian 12 | Debian 13 |
 | --- | --- | --- | --- | --- |
-| `exit_tracepoint` | true | true | true | true |
-| `file_sensor_path` | `kprobe-no-bpf-lsm` | `kprobe-no-bpf-lsm` | `lsm` | `lsm` |
+| `exit_tracepoint` | true | true | true | true | true |
+| `file_sensor_path` | `kprobe-no-bpf-lsm` | `kprobe-no-bpf-lsm` | `lsm` | `lsm` | `lsm` |
 
 ## Process exit events
 
@@ -172,21 +181,20 @@ that raw argument.
 - The bundle's recorded host facts match the guest: `host.btf_sha256`
   equals the sha256 of `/sys/kernel/btf/vmlinux`, and `host.lsm` matches
   `/sys/kernel/security/lsm`.
-- `replay` printed exactly one JSON line per event (3445, 3095, 2108, 2368),
+- `replay` printed exactly one JSON line per event (3454, 3102, 2040, 2172, 4591),
   and the first line is valid.
 - The host binary re-queried exported guest bundles and got the same kind
   counts.
 - Compact row JSON is checked in under
-  `docs/verification/kernel-matrix/2026-11-14e/`; raw artifacts remain under
-  `target/vm/matrix/2026-11-14e/`.
+  `docs/verification/kernel-matrix/2026-11-14g/`; raw artifacts remain under
+  `target/vm/matrix/2026-11-14g/`.
 
 ## Remaining gaps
 
 | Target | Kernel | Status | Exact blocker / next step |
 | --- | --- | --- | --- |
-| Fedora 42 (`fedora-42`) | 6.14 | pinned, not run | The image is pinned in `images.json` but not boot-validated. Run `scripts/vm/lab.sh bootstrap --image fedora-42`, verify the guest, then run one matrix row. |
 | arm64 (`ubuntu-24.04-arm64`) | 6.8 | pinned, not run | Hash is pinned, but this host is x86_64; the lab does not emulate. A native aarch64 KVM host is required. |
 | kernel < 5.15 | — | unsupported | Project baseline is Linux 5.15+ with BTF. |
 
-The 4/4 x86_64 matrix is the release gate for the local recorder. Fedora and
-arm64 are documented follow-ups, not claims that the current evidence proves.
+The 5/5 x86_64 matrix is the release gate for the local recorder. The arm64
+row is a documented follow-up, not a claim that the current evidence proves.

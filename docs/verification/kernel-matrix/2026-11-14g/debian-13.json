@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "runner": "scripts/vm/run-matrix.sh",
-  "generated_at": "2026-11-14T01:24:27Z",
+  "generated_at": "2026-11-14T01:37:55Z",
   "host": {
     "name": "massive",
     "arch": "x86_64",
@@ -22,7 +22,7 @@
     "status": "pinned",
     "boot_validated": true,
     "pin_hint": "Pinned from immutable build 20261111-2659 on 2026-11-14. To re-pin, pick a dated directory under https://cloud.debian.org/images/cloud/trixie/, run sha512sum -c on the qcow2 entry in that build's SHA512SUMS, then record sha256 of the verified file. Never pin latest/.",
-    "notes": "Kernel matrix entry: Debian 13 trixie (6.12 kernel), generic cloud amd64 image from immutable build 20261111-2659; vendor sha512 verified against the build's SHA512SUMS, sha256 pinned. Booted 2026-11-14 (16s to SSH, cloud-init done in 1s) and PASSED the full matrix row 2026-11-14c: kernel 6.12.116+deb13-amd64 (Debian 6.12.116-1), /sys/kernel/btf/vmlinux 4956583 bytes (sha256 db58ed16...), 5917 events recorded (5190 FileOpen, 234 ProcessFork, 234 ProcessExec, 234 ProcessExit), 0 decode errors; lsm list includes bpf (file sensor LSM path) and the deterministic FileOpen path /tmp/matrix-probe/created-by-matrix was decoded (50 opens); sched_process_exit tracepoint attached. Evidence: docs/verification/kernel-matrix/2026-11-14c/debian-13.json and target/vm/matrix/2026-11-14c/.",
+    "notes": "Kernel-matrix Debian current row. Pinned from immutable build trixie/20261111-2659 (vendor SHA512 verified; sha256 pinned) and booted 2026-11-14. Final 0.2.0 row 2026-11-14e: PASS, kernel 6.12.116+deb13-amd64, BTF 4956583 bytes (sha256 db58ed16...), 2368 events (1725 FileOpen, 207 ProcessFork, 207 ProcessExec, 207 ProcessExit), 0 decode errors, 23/23 checks. This kernel has bpf in the LSM list; the loader skips the duplicate open kprobe fallback when the LSM path is active, so the deterministic marker is decoded once per activity loop. Evidence: docs/verification/kernel-matrix/2026-11-14e/debian-13.json and target/vm/matrix/2026-11-14e/.",
     "sha512": "ec8c175e39d59e711798c3a2f22ba11b9aee9bca1887c7e505a800aeffd5d7616099bd0e9fad869efba96100fe09d2c8b49d6d7001d501f0056c556bdc25b605"
   },
   "instance": "matrix-debian-13",
@@ -43,7 +43,7 @@
   "cloud_init": {
     "status": "status: done",
     "ready": true,
-    "ready_seconds": 0
+    "ready_seconds": 32
   },
   "kernel": {
     "release": "6.12.116+deb13-amd64",
@@ -116,7 +116,7 @@
   "record": {
     "exit_code": 0,
     "seconds": 8,
-    "events": 2368,
+    "events": 2172,
     "decode_errors": 0,
     "bundle": "/tmp/matrix.fleet",
     "bundle_complete": "true"
@@ -126,32 +126,32 @@
     "file_sensor_path": "lsm",
     "exit_tracepoint": {
       "attached": true,
-      "evidence": "process-only probe: ProcessFork=106 ProcessExec=106 ProcessExit=107"
+      "evidence": "process-only probe: ProcessFork=104 ProcessExec=106 ProcessExit=104"
     }
   },
   "probe": {
     "process_only": {
       "exit_code": 0,
       "query_exit_code": 0,
-      "events": 319,
+      "events": 314,
       "counts": {
         "ProcessExec": 106,
-        "ProcessExit": 107,
-        "ProcessFork": 106
+        "ProcessExit": 104,
+        "ProcessFork": 104
       }
     }
   },
   "query": {
     "kinds_exit_code": 0,
     "kinds": {
-      "FileOpen": 1725,
-      "FileUnlink": 22,
-      "ProcessExec": 207,
-      "ProcessExit": 207,
-      "ProcessFork": 207
+      "FileOpen": 1567,
+      "FileUnlink": 21,
+      "ProcessExec": 196,
+      "ProcessExit": 194,
+      "ProcessFork": 194
     },
     "file_paths_exit_code": 0,
-    "file_open_count": 1725,
+    "file_open_count": 1567,
     "top_paths": [
       "/etc/ld.so.cache",
       "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
@@ -160,23 +160,23 @@
       "/dev/null",
       "/usr/bin/cat",
       "/tmp/matrix-probe/scratch.txt",
+      "/usr/bin/dash",
       "/usr/lib/x86_64-linux-gnu/libselinux.so.1",
       "/proc/filesystems",
       "/usr/lib/x86_64-linux-gnu/libpcre2-8.so.0.14.0",
-      "/usr/bin/dash",
-      "/tmp/matrix-probe/created-by-matrix",
       "/usr/bin/rm",
       "/usr/lib/x86_64-linux-gnu/libcap.so.2.75",
-      "/usr/bin/head",
-      "/usr/bin/true",
+      "/tmp/matrix-probe/created-by-matrix",
       "/tmp/matrix-probe",
-      "/usr/bin/false",
+      "/usr/bin/head",
       "/usr/bin/ls",
-      "/etc/hostname",
+      "/usr/bin/false",
+      "/proc/739/fdinfo/26",
       "/usr/bin/sleep",
+      "/etc/hostname",
+      "/usr/bin/true",
       "/etc/passwd",
-      "/proc/744/fdinfo/26",
-      "/proc/1133/stat",
+      "/proc/1235/stat",
       "anon_inode:[pidfd]"
     ],
     "probe_path": "/tmp/matrix-probe/created-by-matrix",
@@ -184,19 +184,19 @@
   },
   "replay": {
     "exit_code": 0,
-    "lines": 2368,
-    "first_line": "{\"time\":\"2026-11-14T01:24:11.864658Z\",\"sensor\":\"file\",\"kind\":\"FileOpen\",\"schema_major\":1,\"schema_minor\":0,\"event_id\":\"ec3bad5e8d4f5de6e4e2f11544576c0e8a97d098e6acb77b3687f68fe0364acb\",\"boot_id\":\"cc02f9d395634e58bf0535d71726be12\",\"seq\":0,\"redaction\":{\"path_redacted\":false,\"argv_redacted\":false,\"message_redacted\":false},\"pid\":1128,\"tgid\":1128,\"cgroup_id\":3894,\"task_start_ns\":15990428881,\"path\":\"/sys/devices/kprobe/type\",\"process_exec\":\"/tmp/ebpf-fleet\",\"flags\":0,\"open_flags\":32768,\"mode\":1}",
+    "lines": 2172,
+    "first_line": "{\"time\":\"2026-11-14T01:37:40.859098Z\",\"sensor\":\"file\",\"kind\":\"FileOpen\",\"schema_major\":1,\"schema_minor\":0,\"event_id\":\"f5b1832fbeaacbb90e6e74fdfe8b20fb4b3fe7781e5591186b8ea9a8754b2b13\",\"boot_id\":\"20d1a49544824f309b0b9c9144aab515\",\"seq\":0,\"redaction\":{\"path_redacted\":false,\"argv_redacted\":false,\"message_redacted\":false},\"pid\":1232,\"tgid\":1232,\"cgroup_id\":4177,\"task_start_ns\":47730768851,\"path\":\"/sys/devices/kprobe/type\",\"process_exec\":\"/tmp/ebpf-fleet\",\"flags\":0,\"open_flags\":32768,\"mode\":1}",
     "first_kind": "FileOpen",
     "valid_json": true
   },
   "bundle_export": {
     "exit_code": 0,
-    "archive": "target/vm/matrix/2026-11-14e/debian-13/matrix.fleet.tar.gz",
+    "archive": "target/vm/matrix/2026-11-14g/debian-13/matrix.fleet.tar.gz",
     "host_query_ok": true
   },
   "artifacts": {
-    "dir": "target/vm/matrix/2026-11-14e/debian-13",
-    "json": "target/vm/matrix/2026-11-14e/debian-13.json",
+    "dir": "target/vm/matrix/2026-11-14g/debian-13",
+    "json": "target/vm/matrix/2026-11-14g/debian-13.json",
     "files": [
       "activity.err",
       "activity.out",
@@ -247,7 +247,7 @@
       "name": "cloud_init_ready",
       "ok": true,
       "required": true,
-      "detail": "cloud-init done; sudo+jq+tar available after 0s"
+      "detail": "cloud-init done; sudo+jq+tar available after 32s"
     },
     {
       "name": "binary_upload",
@@ -283,37 +283,37 @@
       "name": "record_events",
       "ok": true,
       "required": true,
-      "detail": "recorded 2368 events (0 decode errors)"
+      "detail": "recorded 2172 events (0 decode errors)"
     },
     {
       "name": "query_kinds",
       "ok": true,
       "required": true,
-      "detail": "kinds: {\"FileOpen\":1725,\"FileUnlink\":22,\"ProcessExec\":207,\"ProcessExit\":207,\"ProcessFork\":207}"
+      "detail": "kinds: {\"FileOpen\":1567,\"FileUnlink\":21,\"ProcessExec\":196,\"ProcessExit\":194,\"ProcessFork\":194}"
     },
     {
       "name": "file_open_paths",
       "ok": true,
       "required": true,
-      "detail": "FileOpen=1725; deterministic probe path '/tmp/matrix-probe/created-by-matrix' decoded"
+      "detail": "FileOpen=1567; deterministic probe path '/tmp/matrix-probe/created-by-matrix' decoded"
     },
     {
       "name": "replay",
       "ok": true,
       "required": true,
-      "detail": "replay exit 0, 2368 lines, first line kind=FileOpen"
+      "detail": "replay exit 0, 2172 lines, first line kind=FileOpen"
     },
     {
       "name": "process_probe",
       "ok": true,
       "required": true,
-      "detail": "process-only record: 319 events; counts {\"ProcessExec\":106,\"ProcessExit\":107,\"ProcessFork\":106}"
+      "detail": "process-only record: 314 events; counts {\"ProcessExec\":106,\"ProcessExit\":104,\"ProcessFork\":104}"
     },
     {
       "name": "exit_tracepoint",
       "ok": true,
       "required": false,
-      "detail": "sched_process_exit attached: ProcessFork=106 ProcessExec=106 ProcessExit=107"
+      "detail": "sched_process_exit attached: ProcessFork=104 ProcessExec=106 ProcessExit=104"
     },
     {
       "name": "btf",
@@ -337,13 +337,13 @@
       "name": "bundle_complete",
       "ok": true,
       "required": true,
-      "detail": "manifest complete=true, counts.events=2368 matches record stderr"
+      "detail": "manifest complete=true, counts.events=2172 matches record stderr"
     },
     {
       "name": "probe_bundle_complete",
       "ok": true,
       "required": true,
-      "detail": "probe manifest counts.events=319 matches record stderr"
+      "detail": "probe manifest counts.events=314 matches record stderr"
     },
     {
       "name": "manifest_host_facts",
@@ -361,7 +361,7 @@
       "name": "bundle_export",
       "ok": true,
       "required": true,
-      "detail": "guest bundle exported to target/vm/matrix/2026-11-14e/debian-13/matrix.fleet.tar.gz and extracted"
+      "detail": "guest bundle exported to target/vm/matrix/2026-11-14g/debian-13/matrix.fleet.tar.gz and extracted"
     },
     {
       "name": "bundle_portable",
@@ -375,5 +375,5 @@
   "notes": [
     "sched_process_exit raw tracepoint attached on 6.12.116+deb13-amd64 (ProcessExit events present)"
   ],
-  "duration_s": 34
+  "duration_s": 66
 }
