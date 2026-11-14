@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 — unreleased
+## 0.2.0 — 2026-11-14
 
 The first local-first release. The headline is the `ebpf-fleet` local
 recorder; fleet mode remains available as the scale-out path.

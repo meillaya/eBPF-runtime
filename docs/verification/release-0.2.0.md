@@ -1,8 +1,10 @@
 # Release evidence: ebpf-fleet 0.2.0
 
-Status: **locally built, signed, and VM-tested** on 2026-11-14.
-The public GitHub release is pending merge/push and the keyless CI workflow;
-this page records the offline artifact and its verifiable metadata.
+Status: **published, signed, and VM-tested** on 2026-11-14.
+Public release: <https://github.com/meillaya/eBPF-runtime/releases/tag/v0.2.0>.
+This page records the artifact and its verifiable metadata; the keyless
+GitHub Actions workflow is still blocked, so the published artifact uses the
+explicit local release key documented below.
 
 ## Artifact
 
@@ -63,9 +65,12 @@ the same artifact. This local key is a fallback, not the production identity.
   `--version` (0.2.0). This exercises the same installer path the public
   release will use.
 
-## Honest gaps before publishing
+## Publication status
 
+- Published at <https://github.com/meillaya/eBPF-runtime/releases/tag/v0.2.0>
+  with the binary, tarball, checksums, SBOM, public key, and cosign bundle.
 - The keyless GitHub release workflow has not run; GitHub Actions billing is
-  still blocking it.
+  still blocking it. The published artifact is signed with the checked-in
+  public key and verified by `scripts/install.sh`.
 - The binary is x86_64 only. arm64 needs a native aarch64 build/host.
 - Stack capture/symbolization is not in 0.2.

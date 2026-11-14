@@ -21,6 +21,16 @@ release exists, `scripts/install.sh` downloads and verifies the static
 artifact; the release process is documented in
 [docs/runbooks/release.md](docs/runbooks/release.md).
 
+Released static binaries are available on the
+[0.2.0 release](https://github.com/meillaya/eBPF-runtime/releases/tag/v0.2.0):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/meillaya/eBPF-runtime/main/scripts/install.sh | sudo sh
+sudo ebpf-fleet doctor
+```
+
+Or build from source:
+
 ```bash
 git clone https://github.com/meillaya/eBPF-runtime
 cd eBPF-runtime
