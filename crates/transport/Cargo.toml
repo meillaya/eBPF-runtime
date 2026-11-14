@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 [package]
 name = "transport"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.95.0"
 description = "Agent-side gRPC transport with mTLS and SPIFFE peer checks."

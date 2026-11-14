@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 [package]
 name = "control-plane"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.95.0"
 description = "Fleet control plane: mTLS ingest, PostgreSQL truth, HTTP API."
