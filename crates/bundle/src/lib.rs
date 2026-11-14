@@ -376,6 +376,124 @@ impl Bundle {
         &self.root
     }
 
+    /// Pack the bundle into a zstd-compressed tar archive.
+    pub fn pack(&self, output: impl AsRef<Path>) -> Result<(), BundleError> {
+        let output = output.as_ref().to_path_buf();
+        if output.starts_with(&self.root) {
+            return Err(BundleError::Invalid(
+                "pack output must be outside the bundle directory".to_string(),
+            ));
+        }
+        if output.exists() {
+            return Err(BundleError::Invalid(format!(
+                "pack output already exists: {}",
+                output.display()
+            )));
+        }
+        let parent = output
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        fs::create_dir_all(parent)?;
+        let name = output
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| BundleError::Invalid("pack output has no file name".to_string()))?;
+        let temp = parent.join(format!(".{name}.tmp-{}", std::process::id()));
+        if temp.exists() {
+            fs::remove_file(&temp)?;
+        }
+        let file = File::create(&temp)?;
+        let encoder = zstd::Encoder::new(file, 3)?;
+        let mut archive = tar::Builder::new(encoder.auto_finish());
+        archive.append_path_with_name(self.root.join("manifest.json"), "manifest.json")?;
+        for part in &self.manifest.files {
+            validate_relative_path(&part.path)?;
+            archive.append_path_with_name(self.root.join(&part.path), &part.path)?;
+        }
+        archive.finish()?;
+        drop(archive);
+        if let Err(error) = fs::rename(&temp, &output) {
+            let _ = fs::remove_file(&temp);
+            return Err(error.into());
+        }
+        Ok(())
+    }
+
+    /// Extract a packed bundle into a new directory and validate it.
+    pub fn unpack(
+        archive: impl AsRef<Path>,
+        destination: impl AsRef<Path>,
+    ) -> Result<Bundle, BundleError> {
+        let archive = archive.as_ref();
+        let destination = destination.as_ref().to_path_buf();
+        if destination.exists() {
+            return Err(BundleError::Invalid(format!(
+                "unpack destination already exists: {}",
+                destination.display()
+            )));
+        }
+        let parent = destination
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        fs::create_dir_all(parent)?;
+        let name = destination
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| {
+                BundleError::Invalid("unpack destination has no file name".to_string())
+            })?;
+        let temp = parent.join(format!(".{name}.tmp-{}", std::process::id()));
+        if temp.exists() {
+            fs::remove_dir_all(&temp)?;
+        }
+        fs::create_dir_all(&temp)?;
+        let result = (|| -> Result<(), BundleError> {
+            let file = File::open(archive)?;
+            let decoder = zstd::Decoder::new(file)?;
+            let mut tar = tar::Archive::new(decoder);
+            for entry in tar.entries()? {
+                let mut entry = entry?;
+                let path = entry.path()?.to_path_buf();
+                let path_text = path
+                    .to_str()
+                    .ok_or_else(|| BundleError::Invalid("archive path is not UTF-8".to_string()))?;
+                validate_relative_path(path_text)?;
+                if !entry.header().entry_type().is_file() {
+                    return Err(BundleError::Invalid(format!(
+                        "archive entry is not a regular file: {path_text}"
+                    )));
+                }
+                let target = temp.join(&path);
+                if let Some(parent) = target.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                entry.unpack(&target)?;
+            }
+            Ok(())
+        })();
+        if let Err(error) = result {
+            let _ = fs::remove_dir_all(&temp);
+            return Err(error);
+        }
+        let bundle = match Bundle::open(&temp) {
+            Ok(bundle) => bundle,
+            Err(error) => {
+                let _ = fs::remove_dir_all(&temp);
+                return Err(error);
+            }
+        };
+        if let Err(error) = fs::rename(&temp, &destination) {
+            let _ = fs::remove_dir_all(&temp);
+            return Err(error.into());
+        }
+        Ok(Bundle {
+            root: destination,
+            manifest: bundle.manifest,
+        })
+    }
+
     /// Execute SQL against the bundle's `events` table.
     pub async fn query(&self, sql: &str) -> Result<Vec<RecordBatch>, BundleError> {
         if self.manifest.files.is_empty() {
@@ -649,6 +767,25 @@ mod tests {
         assert!(bundle.manifest().complete);
         assert_eq!(bundle.manifest().host.kernel_release, "6.8.0-test");
         assert_eq!(Bundle::open(&root).unwrap().manifest().counts.events, 3);
+    }
+
+    #[test]
+    fn packs_and_unpacks_a_bundle() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("incident.fleet");
+        let mut writer =
+            BundleWriter::create(&root, HostInfo::default(), CaptureInfo::default()).unwrap();
+        writer
+            .write_events(&[event("a", "ProcessExec", 10, Some("/bin/bash"))])
+            .unwrap();
+        let bundle = writer.finish().unwrap();
+        let archive = dir.path().join("incident.fleet.tar.zst");
+        bundle.pack(&archive).unwrap();
+        let extracted = dir.path().join("restored.fleet");
+        let restored = Bundle::unpack(&archive, &extracted).unwrap();
+        assert_eq!(restored.manifest().counts.events, 1);
+        assert_eq!(restored.root(), extracted);
+        assert!(Bundle::open(&extracted).is_ok());
     }
 
     #[test]

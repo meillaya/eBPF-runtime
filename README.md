@@ -15,6 +15,11 @@ ClickHouse, OIDC, Kubernetes, or the dashboard.
 
 The build needs Linux 5.15 or newer with BTF at `/sys/kernel/btf/vmlinux`,
 Rust 1.95, clang 19, bpftool, and permission to load BPF programs.
+`scripts/build-static.sh` builds the local release binary as a static-pie
+artifact so it can run on a clean cloud image without the Nix glibc. Once a
+release exists, `scripts/install.sh` downloads and verifies the static
+artifact; the release process is documented in
+[docs/runbooks/release.md](docs/runbooks/release.md).
 
 ```bash
 git clone https://github.com/meillaya/eBPF-runtime
@@ -207,6 +212,8 @@ Set `agent.transport.enabled=false` only for a local-only rollout.
 | `ebpf-fleet query` | Run SQL over a bundle's Parquet `events` table. |
 | `ebpf-fleet replay` | Emit the recorded event JSON stream. |
 | `ebpf-fleet doctor` | Explain BTF, debugfs, bpffs, lockdown, LSM, and capability prerequisites. |
+| `ebpf-fleet pack` / `unpack` | Move a bundle as a checksummed `.tar.zst` archive. |
+| `ebpf-fleet diff` | Compare event-kind counts between two bundles. |
 | `ebpf-runtime check` | Load sensors and print the attach matrix. |
 | `ebpf-runtime run` | Stream single-node events and alerts. |
 | `ebpf-runtime rules check DIR` | Parse a rule directory. |
@@ -245,8 +252,8 @@ authenticated `/api/v1` routes. Its HTTP port also serves the dashboard.
 - Only the process and file sensors are produced. The ABI defines network,
   DNS, syscall, identity, and LSM records, but no BPF program emits them.
 - Local `record` currently writes events only. Alert rows, stack capture,
-  kernel-symbolized stacks, and `pack`/`unpack` are staged behind later 0.2
-  milestones; do not present them as available yet.
+  kernel-symbolized stacks, and the interactive `top` view are staged behind
+  later 0.2 milestones; do not present them as available yet.
 - Query is local and read-only. It does not load BPF programs or enforce
   policy.
 - One control plane serves one cluster in this version.

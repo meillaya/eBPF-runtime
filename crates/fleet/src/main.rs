@@ -45,6 +45,12 @@ enum Command {
     Replay(ReplayArgs),
     /// Check host prerequisites and explain what will fail.
     Doctor(DoctorArgs),
+    /// Pack a bundle into a zstd-compressed tar archive.
+    Pack(PackArgs),
+    /// Extract a packed bundle and validate it.
+    Unpack(UnpackArgs),
+    /// Compare event-kind counts between two bundles.
+    Diff(DiffArgs),
 }
 
 #[derive(Debug, Args)]
@@ -96,6 +102,32 @@ struct DoctorArgs {
     json: bool,
 }
 
+#[derive(Debug, Args)]
+struct PackArgs {
+    /// Bundle directory.
+    bundle: PathBuf,
+    /// Output archive. Defaults to `<bundle>.tar.zst`.
+    #[arg(short, long)]
+    out: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct UnpackArgs {
+    /// Packed `.tar.zst` archive.
+    archive: PathBuf,
+    /// Destination bundle directory. Defaults to the archive name without `.tar.zst`.
+    #[arg(short, long)]
+    dest: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct DiffArgs {
+    /// Earlier bundle.
+    before: PathBuf,
+    /// Later bundle.
+    after: PathBuf,
+}
+
 #[derive(Debug, Serialize)]
 struct Check {
     name: &'static str,
@@ -111,6 +143,9 @@ async fn main() -> ExitCode {
         Command::Query(args) => query(args).await,
         Command::Replay(args) => replay(args).await,
         Command::Doctor(args) => doctor(args),
+        Command::Pack(args) => pack(args),
+        Command::Unpack(args) => unpack(args),
+        Command::Diff(args) => diff(args).await,
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -277,6 +312,81 @@ async fn replay(args: ReplayArgs) -> Result<(), String> {
         eprintln!("note: replay pacing is not implemented yet; events were emitted immediately");
     }
     Ok(())
+}
+
+fn pack(args: PackArgs) -> Result<(), String> {
+    let bundle = Bundle::open(&args.bundle).map_err(|error| error.to_string())?;
+    let output = args
+        .out
+        .unwrap_or_else(|| PathBuf::from(format!("{}.tar.zst", args.bundle.display())));
+    bundle.pack(&output).map_err(|error| error.to_string())?;
+    println!("packed {} -> {}", bundle.root().display(), output.display());
+    Ok(())
+}
+
+fn unpack(args: UnpackArgs) -> Result<(), String> {
+    let destination = args.dest.unwrap_or_else(|| {
+        let text = args.archive.to_string_lossy();
+        let trimmed = text
+            .strip_suffix(".tar.zst")
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("{text}.fleet"));
+        PathBuf::from(trimmed)
+    });
+    let bundle = Bundle::unpack(&args.archive, &destination).map_err(|error| error.to_string())?;
+    println!(
+        "unpacked {} -> {} ({} events)",
+        args.archive.display(),
+        bundle.root().display(),
+        bundle.manifest().counts.events
+    );
+    Ok(())
+}
+
+async fn diff(args: DiffArgs) -> Result<(), String> {
+    let before = Bundle::open(&args.before).map_err(|error| error.to_string())?;
+    let after = Bundle::open(&args.after).map_err(|error| error.to_string())?;
+    let before_counts = kind_counts(&before).await?;
+    let after_counts = kind_counts(&after).await?;
+    let mut kinds = std::collections::BTreeSet::new();
+    kinds.extend(before_counts.keys().cloned());
+    kinds.extend(after_counts.keys().cloned());
+    println!(
+        "{:<24} {:>10} {:>10} {:>10}",
+        "kind", "before", "after", "delta"
+    );
+    for kind in kinds {
+        let left = before_counts.get(&kind).copied().unwrap_or(0);
+        let right = after_counts.get(&kind).copied().unwrap_or(0);
+        println!(
+            "{:<24} {:>10} {:>10} {:>10}",
+            kind,
+            left,
+            right,
+            right as i64 - left as i64
+        );
+    }
+    Ok(())
+}
+
+async fn kind_counts(bundle: &Bundle) -> Result<std::collections::BTreeMap<String, u64>, String> {
+    let batches = bundle
+        .query("select kind, count(*) as n from events group by kind order by kind")
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut counts = std::collections::BTreeMap::new();
+    for batch in &batches {
+        for row in 0..batch.num_rows() {
+            let kind = arrow::util::display::array_value_to_string(batch.column(0).as_ref(), row)
+                .map_err(|error| error.to_string())?;
+            let count = arrow::util::display::array_value_to_string(batch.column(1).as_ref(), row)
+                .map_err(|error| error.to_string())?
+                .parse::<u64>()
+                .map_err(|error| error.to_string())?;
+            counts.insert(kind, count);
+        }
+    }
+    Ok(counts)
 }
 
 fn doctor(args: DoctorArgs) -> Result<(), String> {
