@@ -20,7 +20,7 @@ import type {
   Role,
   Rollout,
 } from "./types";
-import { formatCompact, isOnline, relativeToMs } from "./lib/format";
+import { relativeToMs } from "./lib/format";
 import { AgentsView } from "./components/AgentsView";
 import { AlertsView } from "./components/AlertsView";
 import { AuditView } from "./components/AuditView";
@@ -29,15 +29,11 @@ import { Overview, type Range } from "./components/Overview";
 import { PoliciesView } from "./components/PoliciesView";
 import { AgentDrawer, AlertDrawer, EventDrawer } from "./components/Details";
 import {
-  Badge,
+  Banner,
   Button,
-  Card,
-  Icon,
-  Skeleton,
-  SkeletonTable,
-  Spinner,
+  LinkButton,
+  SkeletonDashboard,
   Toast,
-  type IconName,
 } from "./components/ui";
 import "./styles.css";
 
@@ -54,46 +50,13 @@ const devIdentity: AuthIdentity = {
   role: "admin",
 };
 
-const pageMeta: Record<Tab, { label: string; title: string; subtitle: string }> = {
-  overview: {
-    label: "Overview",
-    title: "Fleet overview",
-    subtitle: "Signals, health, and recent activity across the cluster.",
-  },
-  events: {
-    label: "Events",
-    title: "Event explorer",
-    subtitle: "Process, file, and kernel activity delivered by the agents.",
-  },
-  alerts: {
-    label: "Alerts",
-    title: "Alerts",
-    subtitle: "Rule matches that need a human decision.",
-  },
-  agents: {
-    label: "Agents",
-    title: "Agents",
-    subtitle: "Node identities, sensor coverage, and heartbeats.",
-  },
-  policies: {
-    label: "Policies",
-    title: "Policies",
-    subtitle: "Stage, validate, commit, and roll out rule packs.",
-  },
-  audit: {
-    label: "Audit",
-    title: "Audit trail",
-    subtitle: "Administrative actions recorded by the control plane.",
-  },
-};
-
-const navIcons: Record<Tab, IconName> = {
-  overview: "overview",
-  events: "activity",
-  alerts: "bell",
-  agents: "server",
-  policies: "shield",
-  audit: "list",
+const pageMeta: Record<Tab, { label: string; title: string }> = {
+  overview: { label: "Overview", title: "Fleet overview" },
+  events: { label: "Events", title: "Event register" },
+  alerts: { label: "Alerts", title: "Alerts" },
+  agents: { label: "Agents", title: "Agents" },
+  policies: { label: "Policies", title: "Policies" },
+  audit: { label: "Audit", title: "Audit trail" },
 };
 
 function errorMessage(reason: unknown): string {
@@ -109,115 +72,153 @@ function errorMessage(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
 }
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "?";
-  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+function Masthead({
+  cluster,
+  version,
+  health,
+  lastUpdated,
+  refreshing,
+  autoRefresh,
+  onAutoRefresh,
+  onRefresh,
+  identity,
+  onSignOut,
+}: {
+  cluster: string;
+  version?: string;
+  health: HealthSnapshot | null;
+  lastUpdated: number | null;
+  refreshing: boolean;
+  autoRefresh: number;
+  onAutoRefresh: (value: number) => void;
+  onRefresh: () => void;
+  identity: AuthIdentity;
+  onSignOut: () => void;
+}) {
+  return (
+    <header className="masthead">
+      <div className="wrap masthead-in">
+        <div className="brand">
+          <span className="wordmark">eBPF fleet</span>
+          <span className="cluster" title={version ? `control plane v${version}` : undefined}>
+            {cluster}
+          </span>
+        </div>
+        <div className="masthead-meta">
+          <span className="health">
+            <span className={health?.api ? "h" : "h down"}>
+              API <b>{health?.api ? "up" : "down"}</b>
+            </span>
+            <span className={health?.database ? "h" : "h down"}>
+              database <b>{health?.database ? "ready" : "not ready"}</b>
+            </span>
+          </span>
+          <span className="updated">
+            {lastUpdated ? `updated ${relativeToMs(lastUpdated)}` : "waiting for data"}
+          </span>
+          <button
+            type="button"
+            className="mast-btn"
+            onClick={onRefresh}
+            aria-busy={refreshing}
+            disabled={refreshing}
+          >
+            {refreshing ? "Refreshing" : "Refresh"}
+          </button>
+          <label className="auto">
+            auto
+            <select
+              value={autoRefresh}
+              onChange={(event) => onAutoRefresh(Number(event.target.value))}
+              aria-label="Auto refresh interval"
+            >
+              <option value={0}>off</option>
+              <option value={10}>10s</option>
+              <option value={15}>15s</option>
+              <option value={30}>30s</option>
+              <option value={60}>60s</option>
+            </select>
+          </label>
+          <span className="identity">
+            <b>{identity.name}</b>
+            <span className="role">{roleLabel(identity.role)}</span>
+            {authEnabled ? (
+              <LinkButton onClick={onSignOut} style={{ color: "#fff", minHeight: 44 }}>
+                Sign out
+              </LinkButton>
+            ) : (
+              <span className="dev">dev auth</span>
+            )}
+          </span>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function AuthFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="auth">
+      <header className="masthead">
+        <div className="wrap masthead-in">
+          <div className="brand">
+            <span className="wordmark">eBPF fleet</span>
+            <span className="cluster">control plane</span>
+          </div>
+        </div>
+      </header>
+      <main className="auth-main">
+        <div className="wrap">{children}</div>
+      </main>
+      <div className="wrap auth-version">
+        <span>eBPF fleet control plane</span>
+        <span>Linux kernel activity recorder and policy rollout</span>
+      </div>
+    </div>
+  );
 }
 
 function SignInScreen({ onLogin, error }: { onLogin: () => void; error?: string | null }) {
   return (
-    <div className="auth-shell">
-      <div className="auth-brand">
-        <span className="brand-mark">
-          <Icon name="layers" size={22} />
-        </span>
-        <div>
-          <span className="eyebrow">CONTROL PLANE</span>
-          <h1>eBPF fleet</h1>
-        </div>
-      </div>
-      <div className="auth-card">
-        <span className="auth-kicker">
-          <Icon name="shield" size={16} /> Identity required
-        </span>
-        <h2>Sign in to the fleet</h2>
+    <AuthFrame>
+      <div className="signed">
+        <h1 className="signed-title">Sign in to the fleet</h1>
         <p>
-          This dashboard uses your OIDC identity to decide whether you can read events, validate
-          policies, change rule packs, or view the audit trail.
+          Your OIDC identity decides what this console shows: events, alerts, the node fleet, and the
+          policy pack you can stage or roll out.
         </p>
-        {error ? <div className="auth-error">{error}</div> : null}
-        <Button variant="primary" icon="signout" onClick={onLogin}>
+        {error ? <p className="status-line err">{error}</p> : null}
+        <Button variant="primary" onClick={onLogin}>
           Sign in
         </Button>
-        <p className="auth-foot">
-          Your group must be one of the fleet viewer, analyst, policy admin, or admin groups.
-        </p>
       </div>
-      <p className="auth-version">eBPF fleet · control plane dashboard</p>
-    </div>
+    </AuthFrame>
   );
 }
 
 function NoRoleScreen({ onSignOut, name }: { onSignOut: () => void; name: string }) {
   return (
-    <div className="auth-shell">
-      <div className="auth-brand">
-        <span className="brand-mark">
-          <Icon name="layers" size={22} />
-        </span>
-        <div>
-          <span className="eyebrow">CONTROL PLANE</span>
-          <h1>eBPF fleet</h1>
-        </div>
-      </div>
-      <div className="auth-card">
-        <span className="auth-kicker">
-          <Icon name="lock" size={16} /> Signed in
-        </span>
-        <h2>No fleet role</h2>
+    <AuthFrame>
+      <div className="signed">
+        <h1 className="signed-title">No fleet role</h1>
         <p>
-          {name} authenticated successfully, but the token carries no recognized fleet group.
-          Ask an administrator to add one of the fleet viewer, analyst, policy admin, or admin
-          groups.
+          {name} authenticated, but the token carries no fleet group. An administrator needs to add one
+          of the viewer, analyst, policy admin, or admin groups.
         </p>
-        <Button variant="secondary" icon="signout" onClick={onSignOut}>
-          Sign out
-        </Button>
+        <Button onClick={onSignOut}>Sign out</Button>
       </div>
-    </div>
+    </AuthFrame>
   );
 }
 
 function BootScreen() {
   return (
-    <div className="auth-shell">
-      <div className="auth-brand">
-        <span className="brand-mark">
-          <Icon name="layers" size={22} />
-        </span>
-        <div>
-          <span className="eyebrow">CONTROL PLANE</span>
-          <h1>eBPF fleet</h1>
-        </div>
+    <AuthFrame>
+      <div className="boot">
+        <p className="boot-word">Checking identity</p>
+        <p className="boot-note">Reading the OIDC session and fleet role.</p>
       </div>
-      <Spinner label="Checking identity…" />
-    </div>
-  );
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="view">
-      <div className="kpi-grid">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div className="stat-card stat-loading" key={index}>
-            <Skeleton width={38} height={38} />
-            <Skeleton width="55%" height={12} />
-            <Skeleton width="42%" height={28} />
-            <Skeleton width="65%" height={11} />
-          </div>
-        ))}
-      </div>
-      <Card>
-        <div className="skeleton-head">
-          <Skeleton width={180} height={18} />
-          <Skeleton width="100%" height={12} />
-          <Skeleton width="72%" height={12} />
-        </div>
-        <SkeletonTable />
-      </Card>
-    </div>
+    </AuthFrame>
   );
 }
 
@@ -282,9 +283,7 @@ export default function App() {
       .then((identity) => {
         if (cancelled) return;
         setSession(
-          identity
-            ? { status: "ready", identity }
-            : { status: "signed-out", identity: null },
+          identity ? { status: "ready", identity } : { status: "signed-out", identity: null },
         );
       })
       .catch((reason) => {
@@ -299,8 +298,6 @@ export default function App() {
 
   const role = session.identity?.role ?? null;
   const canAudit = roleAtLeast(role, "admin");
-  const canManagePolicies = roleAtLeast(role, "policy-admin");
-  const onlineAgents = agents.filter((agent) => isOnline(agent.last_seen_epoch)).length;
 
   useEffect(() => {
     if (tab === "audit" && !canAudit) {
@@ -334,14 +331,13 @@ export default function App() {
     }
     const run = async () => {
       try {
-        const [eventPage, alertPage, agentPage, policyPage, rolloutPage] =
-          await Promise.all([
-            api.events(250),
-            api.alerts(),
-            api.agents(),
-            api.policies(),
-            api.rollouts(),
-          ]);
+        const [eventPage, alertPage, agentPage, policyPage, rolloutPage] = await Promise.all([
+          api.events(250),
+          api.alerts(),
+          api.agents(),
+          api.policies(),
+          api.rollouts(),
+        ]);
         if (cancelled) return;
         setEvents(eventPage.events);
         setAlerts(alertPage.alerts);
@@ -349,10 +345,7 @@ export default function App() {
         setPolicies(policyPage.policies);
         setRollouts(rolloutPage.rollouts);
 
-        const [metaResult, healthResult] = await Promise.allSettled([
-          api.meta(),
-          api.health(),
-        ]);
+        const [metaResult, healthResult] = await Promise.allSettled([api.meta(), api.health()]);
         if (cancelled) return;
         if (metaResult.status === "fulfilled") {
           setMeta(metaResult.value);
@@ -409,8 +402,8 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-    // The load is intentionally keyed by the visible surface and the manual
-    // refresh counter; the derived role and update handlers are stable.
+    // The load is keyed by the visible surface, the analytics window and the
+    // manual refresh counter; the derived role and update handlers are stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refresh, tab, range, session.status, session.identity, canAudit, handleSessionExpired]);
 
@@ -438,146 +431,54 @@ export default function App() {
 
   const identity = session.identity;
   const cluster = meta?.cluster_name ?? "fleet";
-  const activeTab = tab;
-  const current = pageMeta[activeTab];
+  const current = pageMeta[tab];
   const tabs: Tab[] = ["overview", "events", "alerts", "agents", "policies"];
   if (canAudit) tabs.push("audit");
 
-  const navCount = (item: Tab): string | null => {
-    if (item === "events") return events.length ? formatCompact(events.length) : null;
-    if (item === "alerts") return alerts.length ? formatCompact(alerts.length) : null;
-    if (item === "agents") return `${onlineAgents}/${agents.length}`;
-    if (item === "policies") return policies.length ? String(policies.length) : null;
-    return null;
-  };
-
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">
-            <Icon name="layers" size={22} />
-          </span>
-          <div className="brand-copy">
-            <span className="eyebrow">CONTROL PLANE</span>
-            <h1>eBPF fleet</h1>
-          </div>
-        </div>
-
-        <div className="cluster-pill" title={meta?.version ? `v${meta.version}` : undefined}>
-          <span className={`status-dot ${health?.api ? "dot-emerald" : "dot-amber"}`} />
-          <span>{cluster}</span>
-          {meta?.analytics ? <span className="cluster-tag">analytics</span> : null}
-        </div>
-
-        <nav className="side-nav" aria-label="Primary">
-          {tabs.map((item) => (
-            <button
-              type="button"
-              key={item}
-              className={`nav-item ${activeTab === item ? "active" : ""}`}
-              onClick={() => setTab(item)}
-              aria-current={activeTab === item ? "page" : undefined}
-            >
-              <Icon name={navIcons[item]} size={18} />
-              <span>{pageMeta[item].label}</span>
-              {navCount(item) ? <span className="nav-count">{navCount(item)}</span> : null}
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-foot">
-          <div className="sidebar-section-label">System</div>
-          <div className="system-row">
-            <span className={`status-dot ${health?.api ? "dot-emerald" : "dot-rose"}`} />
-            <span>API</span>
-            <span className="system-value">{health?.api ? "up" : "down"}</span>
-          </div>
-          <div className="system-row">
-            <span className={`status-dot ${health?.database ? "dot-emerald" : "dot-rose"}`} />
-            <span>Database</span>
-            <span className="system-value">{health?.database ? "ready" : "not ready"}</span>
-          </div>
-          <div className="sidebar-section-label refresh-label">Refresh</div>
-          <label className="refresh-select">
-            <span>Auto</span>
-            <select
-              value={autoRefresh}
-              onChange={(event) => setAutoRefresh(Number(event.target.value))}
-              aria-label="Auto refresh interval"
-            >
-              <option value={0}>Off</option>
-              <option value={10}>10s</option>
-              <option value={15}>15s</option>
-              <option value={30}>30s</option>
-              <option value={60}>60s</option>
-            </select>
-          </label>
-          <div className="last-updated">
-            {lastUpdated ? `Updated ${relativeToMs(lastUpdated)}` : "Waiting for data"}
-          </div>
-          {meta ? <div className="sidebar-version">control plane v{meta.version}</div> : null}
-        </div>
-      </aside>
-
-      <main className="main">
-        <header className="topbar">
-          <div className="page-heading">
-            <span className="eyebrow">FLEET / {current.label.toUpperCase()}</span>
-            <h2>{current.title}</h2>
-            <p>{current.subtitle}</p>
-          </div>
-          <div className="topbar-actions">
-            <div className="updated-chip" title={lastUpdated ? new Date(lastUpdated).toLocaleString() : undefined}>
-              <span className={`status-dot ${refreshing ? "dot-amber" : "dot-emerald"}`} />
-              {refreshing ? "Refreshing" : lastUpdated ? `Updated ${relativeToMs(lastUpdated)}` : "Waiting"}
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon="refresh"
-              loading={refreshing}
-              onClick={refreshNow}
-              title="Refresh now"
-            >
-              Refresh
-            </Button>
-            <div className="user-chip">
-              <span className="avatar">{initials(identity.name)}</span>
-              <span className="user-copy">
-                <strong>{identity.name}</strong>
-                <span>
-                  {roleLabel(identity.role)}
-                  {identity.email ? ` · ${identity.email}` : ""}
-                </span>
-              </span>
-              {authEnabled ? (
-                <Button variant="ghost" size="sm" icon="signout" onClick={handleLogout}>
-                  Sign out
-                </Button>
-              ) : (
-                <Badge tone="slate">dev auth</Badge>
-              )}
-            </div>
-          </div>
-        </header>
-
-        <div className="content">
-          {error ? (
-            <div className="error-banner" role="alert">
-              <Icon name="alert" size={17} />
-              <span>{error}</span>
-              <button type="button" className="icon-btn" onClick={() => setError(null)} aria-label="Dismiss error">
-                <Icon name="close" size={15} />
+    <>
+      <a className="skip" href="#main">
+        Skip to content
+      </a>
+      <Masthead
+        cluster={cluster}
+        version={meta?.version}
+        health={health}
+        lastUpdated={lastUpdated}
+        refreshing={refreshing}
+        autoRefresh={autoRefresh}
+        onAutoRefresh={setAutoRefresh}
+        onRefresh={refreshNow}
+        identity={identity}
+        onSignOut={handleLogout}
+      />
+      <nav className="navrow" aria-label="Primary">
+        <div className="wrap">
+          <div className="nav">
+            {tabs.map((item) => (
+              <button
+                type="button"
+                key={item}
+                onClick={() => setTab(item)}
+                aria-current={tab === item ? "page" : undefined}
+              >
+                {pageMeta[item].label}
               </button>
-            </div>
+            ))}
+          </div>
+        </div>
+      </nav>
+      <main id="main">
+        <div className="wrap">
+          <h1 className="sr-only">{current.title}</h1>
+          {error ? (
+            <Banner onDismiss={() => setError(null)}>{error}</Banner>
           ) : null}
-
           {loading ? (
-            <DashboardSkeleton />
+            <SkeletonDashboard />
           ) : (
             <>
-              {activeTab === "overview" ? (
+              {tab === "overview" ? (
                 <Overview
                   agents={agents}
                   events={events}
@@ -595,10 +496,10 @@ export default function App() {
                   onAgent={setSelectedAgent}
                 />
               ) : null}
-              {activeTab === "events" ? <EventsView events={events} onEvent={setSelectedEvent} /> : null}
-              {activeTab === "alerts" ? <AlertsView alerts={alerts} onAlert={setSelectedAlert} /> : null}
-              {activeTab === "agents" ? <AgentsView agents={agents} onAgent={setSelectedAgent} /> : null}
-              {activeTab === "policies" ? (
+              {tab === "events" ? <EventsView events={events} onEvent={setSelectedEvent} /> : null}
+              {tab === "alerts" ? <AlertsView alerts={alerts} onAlert={setSelectedAlert} /> : null}
+              {tab === "agents" ? <AgentsView agents={agents} onAgent={setSelectedAgent} /> : null}
+              {tab === "policies" ? (
                 <PoliciesView
                   policies={policies}
                   rollouts={rollouts}
@@ -610,11 +511,29 @@ export default function App() {
                   onSessionExpired={handleSessionExpired}
                 />
               ) : null}
-              {activeTab === "audit" ? <AuditView audit={audit} role={role} /> : null}
+              {tab === "audit" ? <AuditView audit={audit} role={role} /> : null}
             </>
           )}
         </div>
       </main>
+      <footer className="foot">
+        <div className="wrap foot-in">
+          <span>
+            {lastUpdated ? `snapshot ${new Date(lastUpdated).toLocaleString()}` : "no snapshot yet"}
+            {autoRefresh > 0 ? `, poll ${autoRefresh}s` : ", auto refresh off"}
+          </span>
+          <span>
+            {meta ? (
+              <>
+                control plane <b>v{meta.version}</b>
+                {meta.analytics ? " with analytics" : " without analytics"}
+              </>
+            ) : (
+              "control plane version unknown"
+            )}
+          </span>
+        </div>
+      </footer>
 
       <EventDrawer event={selectedEvent} alerts={alerts} onClose={() => setSelectedEvent(null)} />
       <AlertDrawer
@@ -630,8 +549,12 @@ export default function App() {
       />
       <AgentDrawer agent={selectedAgent} onClose={() => setSelectedAgent(null)} />
       {toast ? (
-        <Toast message={toast.message} tone={toast.tone} onClose={clearToast} />
+        <Toast
+          message={toast.message}
+          error={toast.tone === "rose"}
+          onClose={clearToast}
+        />
       ) : null}
-    </div>
+    </>
   );
 }

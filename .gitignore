@@ -28,3 +28,7 @@ result-*
 *.swp
 *.swo
 .DS_Store
+
+# Local design workspace and taste profile (not part of the product)
+web/redesign/
+.huashu-design/

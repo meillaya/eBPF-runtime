@@ -4,11 +4,20 @@ import {
   download,
   eventSearchText,
   formatClock,
-  kindTone,
-  relativeTime,
-  titleCase,
+  formatDuration,
+  formatNumber,
 } from "../lib/format";
-import { Badge, Button, Card, EmptyState, SearchInput, TableShell } from "./ui";
+import {
+  EmptyRow,
+  LinkButton,
+  Measure,
+  MeasureBand,
+  SearchField,
+  Section,
+  SelectField,
+  Table,
+  TableButton,
+} from "./ui";
 
 export function EventsView({
   events,
@@ -33,6 +42,28 @@ export function EventsView({
     [deferredSearch, events, kind],
   );
 
+  const sampleTimes = useMemo(
+    () =>
+      events
+        .map((event) => Date.parse(event.time))
+        .filter((timestamp) => Number.isFinite(timestamp)),
+    [events],
+  );
+  const oldestMs = sampleTimes.length ? Math.min(...sampleTimes) : null;
+  const newestMs = sampleTimes.length ? Math.max(...sampleTimes) : null;
+  const spanSeconds =
+    oldestMs !== null && newestMs !== null ? Math.max(0, (newestMs - oldestMs) / 1000) : 0;
+  const clockOf = (milliseconds: number) => formatClock(new Date(milliseconds).toISOString());
+
+  const clearFilters = () => {
+    setSearch("");
+    setKind("all");
+  };
+
+  const exportJson = () => {
+    download("ebpf-events.json", JSON.stringify(filtered, null, 2));
+  };
+
   const exportCsv = () => {
     const header = "time,kind,sensor,pid,tgid,event_id,process_exec,path";
     const lines = filtered.map((event) =>
@@ -53,132 +84,118 @@ export function EventsView({
   };
 
   return (
-    <div className="view">
-      <Card
-        title="Event explorer"
-        subtitle={`${filtered.length} shown${filtered.length !== events.length ? ` of ${events.length}` : ""} · newest first`}
-        actions={
-          <div className="toolbar-actions">
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="download"
-              onClick={() => download("ebpf-events.json", JSON.stringify(filtered, null, 2))}
-            >
-              JSON
-            </Button>
-            <Button variant="ghost" size="sm" icon="download" onClick={exportCsv}>
-              CSV
-            </Button>
-          </div>
-        }
-        bodyClassName="table-body"
-      >
-        <div className="table-toolbar">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Search path, process, kind, pid…"
-          />
-          <label className="select-wrap">
-            <span className="sr-only">Filter by event kind</span>
-            <select value={kind} onChange={(event) => setKind(event.target.value)}>
-              <option value="all">All kinds</option>
-              {kinds.map((value) => (
-                <option value={value} key={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-            <span className="select-chevron">▾</span>
-          </label>
-          {search || kind !== "all" ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearch("");
-                setKind("all");
-              }}
-            >
-              Clear
-            </Button>
-          ) : null}
-        </div>
+    <div>
+      <MeasureBand sub>
+        <Measure value={formatNumber(events.length)} label="events in sample" note="newest first" />
+        <Measure
+          value={formatDuration(spanSeconds)}
+          label="sample span"
+          note={
+            oldestMs !== null && newestMs !== null
+              ? `${clockOf(oldestMs)} to ${clockOf(newestMs)}`
+              : undefined
+          }
+        />
+      </MeasureBand>
 
-        {filtered.length ? (
-          <TableShell>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th className="time-col">Time</th>
-                  <th>Kind</th>
-                  <th>Process</th>
-                  <th className="hide-sm">Path</th>
-                  <th className="hide-sm">PID</th>
-                  <th className="hide-sm">Sensor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((event) => (
-                  <tr
-                    key={event.event_id}
-                    className="clickable-row"
-                    tabIndex={0}
-                    onClick={() => onEvent(event)}
-                    onKeyDown={(keyboard) => {
-                      if (keyboard.key === "Enter" || keyboard.key === " ") {
-                        keyboard.preventDefault();
-                        onEvent(event);
-                      }
-                    }}
-                  >
-                    <td className="mono muted-cell time-col" title={event.time}>
-                      {formatClock(event.time)}
-                      <span className="row-sub">{relativeTime(Date.parse(event.time) / 1000)}</span>
-                    </td>
-                    <td>
-                      <Badge tone={kindTone(event.kind)}>{event.kind}</Badge>
-                    </td>
-                    <td className="mono process-cell" title={event.process_exec}>
-                      {event.process_exec ?? "—"}
-                    </td>
-                    <td className="path-cell hide-sm" title={event.path ?? event.old_path}>
-                      {event.path ?? event.old_path ?? "—"}
-                    </td>
-                    <td className="mono muted-cell hide-sm">{event.pid}</td>
-                    <td className="muted-cell hide-sm">{titleCase(event.sensor)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableShell>
-        ) : (
-          <EmptyState
-            icon="search"
-            title={events.length ? "No events match" : "No events yet"}
-            description={
-              events.length
-                ? "Try a different search term or clear the kind filter."
-                : "Once the agent forwards its first batch, events appear here."
-            }
-            action={
-              search || kind !== "all" ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setSearch("");
-                    setKind("all");
-                  }}
-                >
-                  Clear filters
-                </Button>
-              ) : undefined
-            }
-          />
-        )}
-      </Card>
+      <div style={{ marginTop: 26 }}>
+        <Section
+          title="Event register"
+          meta={`${filtered.length} of ${events.length}, newest first`}
+        >
+          <div className="tools">
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              label="Search"
+              placeholder="path, process, kind, pid"
+            />
+            <SelectField
+              value={kind}
+              onChange={setKind}
+              label="Kind"
+              options={[
+                { value: "all", label: "All kinds" },
+                ...kinds.map((value) => ({ value, label: value })),
+              ]}
+            />
+            <div className="tools-end">
+              <TableButton type="button" onClick={exportJson}>
+                Export JSON
+              </TableButton>
+              <TableButton type="button" onClick={exportCsv}>
+                Export CSV
+              </TableButton>
+            </div>
+          </div>
+
+          <Table minWidth={760} label="Event register">
+            <colgroup>
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "25%" }} />
+              <col style={{ width: "43%" }} />
+              <col style={{ width: "8%" }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Kind</th>
+                <th scope="col">Process</th>
+                <th scope="col">Path</th>
+                <th scope="col" className="n">
+                  PID
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length ? (
+                filtered.map((event) => {
+                  const path = event.path ?? event.old_path;
+                  return (
+                    <tr
+                      key={event.event_id}
+                      data-row="event"
+                      tabIndex={0}
+                      onClick={() => onEvent(event)}
+                      onKeyDown={(keyboard) => {
+                        if (keyboard.key === "Enter" || keyboard.key === " ") {
+                          keyboard.preventDefault();
+                          onEvent(event);
+                        }
+                      }}
+                    >
+                      <td className="nowrap" title={event.time}>
+                        {formatClock(event.time)}
+                      </td>
+                      <td>{event.kind}</td>
+                      <td style={{ overflowWrap: "anywhere" }}>{event.process_exec ?? "—"}</td>
+                      <td className="rule-cell">
+                        {path ? <span title={path}>{path}</span> : "—"}
+                      </td>
+                      <td className="n">{event.pid}</td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <EmptyRow colSpan={5}>
+                  {events.length
+                    ? "No events match this filter."
+                    : "No events have been recorded yet."}
+                  {events.length ? (
+                    <>
+                      {" "}
+                      <LinkButton type="button" onClick={clearFilters}>
+                        Clear filters
+                      </LinkButton>
+                    </>
+                  ) : null}
+                </EmptyRow>
+              )}
+            </tbody>
+          </Table>
+        </Section>
+      </div>
     </div>
   );
 }

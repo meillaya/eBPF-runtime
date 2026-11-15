@@ -1,12 +1,28 @@
+import type { ReactNode } from "react";
 import type { Agent, Alert, Event } from "../types";
-import { isOnline, kindTone, relativeTime, relativeToIso, severityTone, statusTone, titleCase } from "../lib/format";
+import { formatClock, isOnline, relativeToIso, titleCase } from "../lib/format";
 import {
-  Badge,
   Button,
   CopyButton,
+  DetailBlock,
   Drawer,
   KeyValue,
+  RawJSON,
+  Table,
+  severityClass,
+  stateClass,
 } from "./ui";
+
+/* The register stamps times as YYYY-MM-DD HH:MM:SS, local time. */
+function stamp(value: string | number | null | undefined): string {
+  if (value == null || value === "") return "—";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return String(value);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
 
 export function EventDrawer({
   event,
@@ -18,73 +34,79 @@ export function EventDrawer({
   onClose: () => void;
 }) {
   const related = event ? alerts.filter((alert) => alert.event_id === event.event_id) : [];
+  const rows: Array<[string, ReactNode]> = [];
+  if (event) {
+    rows.push(["Time", stamp(event.time)]);
+    rows.push(["Sensor", event.sensor]);
+    rows.push(["Event id", event.event_id]);
+    rows.push(["PID, TGID", `${event.pid} / ${event.tgid}`]);
+    rows.push(["Process", event.process_exec ?? "—"]);
+    if (event.path) rows.push(["Path", event.path]);
+    if (event.old_path) rows.push(["Old path", event.old_path]);
+    if (event.parent_pid != null || event.child_pid != null) {
+      rows.push(["Parent, child", `${event.parent_pid ?? "—"} / ${event.child_pid ?? "—"}`]);
+    }
+    rows.push(["Cgroup id", String(event.cgroup_id)]);
+    if (event.boot_id) rows.push(["Boot id", event.boot_id]);
+    if (event.seq != null) rows.push(["Sequence", String(event.seq)]);
+    rows.push(["Schema", `${event.schema_major ?? "?"}.${event.schema_minor ?? "?"}`]);
+    if (event.open_flags != null) rows.push(["Open flags", `0x${event.open_flags.toString(16)}`]);
+    if (event.mode != null) rows.push(["Mode", `0${event.mode.toString(8)}`]);
+    if (event.exit_code != null) rows.push(["Exit code", String(event.exit_code)]);
+  }
+
   return (
     <Drawer
       open={Boolean(event)}
       onClose={onClose}
+      wide
       title={event ? event.kind : "Event"}
-      subtitle={event ? `${event.sensor} sensor · ${event.time}` : undefined}
-      size="lg"
-      footer={
-        event ? (
-          <div className="drawer-footer-actions">
-            <CopyButton value={JSON.stringify(event, null, 2)} label="Copy JSON" />
-          </div>
-        ) : undefined
-      }
+      subtitle={event ? `${event.sensor} sensor, ${stamp(event.time)}` : undefined}
+      footer={event ? <CopyButton value={JSON.stringify(event, null, 2)} /> : undefined}
     >
       {event ? (
-        <div className="detail-stack">
-          <div className="detail-hero">
-            <Badge tone={kindTone(event.kind)}>{event.kind}</Badge>
-            <span className="mono">{event.event_id}</span>
-          </div>
-          <KeyValue
-            rows={[
-              ["Time", event.time],
-              ["Sensor", titleCase(event.sensor)],
-              ["PID / TGID", `${event.pid} / ${event.tgid}`],
-              ["Process", event.process_exec ?? "—"],
-              ["Path", event.path ?? "—"],
-              ["Old path", event.old_path ?? "—"],
-              ["Parent / child", `${event.parent_pid ?? "—"} / ${event.child_pid ?? "—"}`],
-              ["Cgroup id", String(event.cgroup_id)],
-              ["Boot id", event.boot_id ?? "—"],
-              ["Sequence", event.seq != null ? String(event.seq) : "—"],
-              ["Schema", `${event.schema_major ?? "?"}.${event.schema_minor ?? "?"}`],
-              ["Open flags", event.open_flags != null ? `0x${event.open_flags.toString(16)}` : "—"],
-              ["Mode", event.mode != null ? `0${event.mode.toString(8)}` : "—"],
-              ["Exit code", event.exit_code != null ? String(event.exit_code) : "—"],
-            ]}
-          />
+        <>
+          <KeyValue className="detail" rows={rows} />
+
           {event.argv?.length ? (
-            <div>
-              <span className="eyebrow">Argument vector</span>
-              <pre className="json-block">{JSON.stringify(event.argv, null, 2)}</pre>
-            </div>
+            <DetailBlock title="Argument vector">
+              <RawJSON value={event.argv} />
+            </DetailBlock>
           ) : null}
-          {related.length ? (
-            <div>
-              <span className="eyebrow">Alerts for this event</span>
-              <div className="alert-list compact-list">
-                {related.map((alert) => (
-                  <div className="alert-item static" key={alert.alert_id}>
-                    <span className={`severity-dot dot-${severityTone(alert.severity)}`} />
-                    <span className="alert-main">
-                      <span className="alert-explanation">{alert.explanation || alert.rule_id}</span>
-                      <span className="alert-meta">{alert.rule_id}</span>
-                    </span>
-                    <Badge tone={severityTone(alert.severity)}>{alert.severity}</Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          <div>
-            <span className="eyebrow">Raw event</span>
-            <pre className="json-block">{JSON.stringify(event, null, 2)}</pre>
-          </div>
-        </div>
+
+          <DetailBlock title="Related alerts">
+            {related.length ? (
+              <Table className="mini" label="Alerts raised for this event">
+                <thead>
+                  <tr>
+                    <th scope="col">Severity</th>
+                    <th scope="col">Rule</th>
+                    <th scope="col" className="n">
+                      Fired
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {related.map((alert) => (
+                    <tr key={alert.alert_id}>
+                      <td>
+                        <span className={severityClass(alert.severity)}>{alert.severity}</span>
+                      </td>
+                      <td className="rule-cell">{alert.rule_id}</td>
+                      <td className="n nowrap">{formatClock(alert.fired_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            ) : (
+              <p className="detail-note">No alert was raised for this event.</p>
+            )}
+          </DetailBlock>
+
+          <DetailBlock title="Raw event">
+            <RawJSON value={event} />
+          </DetailBlock>
+        </>
       ) : null}
     </Drawer>
   );
@@ -99,46 +121,44 @@ export function AlertDrawer({
   onClose: () => void;
   onOpenEvent: (eventId: string) => void;
 }) {
+  const rows: Array<[string, ReactNode]> = alert
+    ? [
+        ["Rule", alert.rule_id],
+        ["Node", alert.node_name || "—"],
+        ["Cluster", alert.cluster || "—"],
+        ["Event", alert.event_id],
+        ["Fired", stamp(alert.fired_at)],
+        ["Severity", <span className={severityClass(alert.severity)}>{alert.severity}</span>],
+      ]
+    : [];
+
   return (
     <Drawer
       open={Boolean(alert)}
       onClose={onClose}
       title={alert ? alert.rule_id : "Alert"}
-      subtitle={alert ? relativeToIso(alert.fired_at) : undefined}
-      footer={
-        alert ? (
-          <div className="drawer-footer-actions">
-            <CopyButton value={JSON.stringify(alert, null, 2)} label="Copy JSON" />
-          </div>
-        ) : undefined
+      subtitle={
+        alert
+          ? `${titleCase(alert.severity)} severity, ${alert.node_name || "unknown node"}, ${relativeToIso(
+              alert.fired_at,
+            )}`
+          : undefined
       }
+      footer={alert ? <CopyButton value={JSON.stringify(alert, null, 2)} /> : undefined}
     >
       {alert ? (
-        <div className="detail-stack">
-          <div className="detail-hero">
-            <Badge tone={severityTone(alert.severity)} dot>
-              {titleCase(alert.severity)}
-            </Badge>
-            <span className="mono">{alert.alert_id}</span>
+        <>
+          <p className="detail-note">{alert.explanation || "No explanation was recorded."}</p>
+          <KeyValue className="detail" rows={rows} />
+          <div className="btn-row">
+            <Button type="button" onClick={() => onOpenEvent(alert.event_id)}>
+              Open event
+            </Button>
           </div>
-          <p className="detail-explanation">{alert.explanation || "No explanation supplied."}</p>
-          <KeyValue
-            rows={[
-              ["Rule", alert.rule_id],
-              ["Node", alert.node_name || "—"],
-              ["Cluster", alert.cluster || "—"],
-              ["Event", alert.event_id],
-              ["Fired", alert.fired_at],
-            ]}
-          />
-          <Button variant="secondary" size="sm" icon="activity" onClick={() => onOpenEvent(alert.event_id)}>
-            Open matching event
-          </Button>
-          <div>
-            <span className="eyebrow">Raw alert</span>
-            <pre className="json-block">{JSON.stringify(alert, null, 2)}</pre>
-          </div>
-        </div>
+          <DetailBlock title="Raw alert">
+            <RawJSON value={alert} />
+          </DetailBlock>
+        </>
       ) : null}
     </Drawer>
   );
@@ -152,57 +172,45 @@ export function AgentDrawer({
   onClose: () => void;
 }) {
   const online = agent ? isOnline(agent.last_seen_epoch) : false;
+  const rows: Array<[string, ReactNode]> = agent
+    ? [
+        ["Node", agent.node_name || "—"],
+        ["SPIFFE id", agent.spiffe_id],
+        ["Generation", agent.agent_generation],
+        ["Cluster", agent.cluster_id],
+        ["Last seen", stamp(agent.last_seen_epoch * 1000)],
+        [
+          "State",
+          <span className={stateClass(online ? "online" : "offline")}>
+            {online ? "online" : "offline"}
+          </span>,
+        ],
+        ["Agent id", agent.id],
+      ]
+    : [];
+
   return (
     <Drawer
       open={Boolean(agent)}
       onClose={onClose}
       title={agent ? agent.node_name || "Agent" : "Agent"}
       subtitle={agent ? agent.spiffe_id : undefined}
-      footer={
-        agent ? (
-          <div className="drawer-footer-actions">
-            <CopyButton value={JSON.stringify(agent, null, 2)} label="Copy JSON" />
-          </div>
-        ) : undefined
-      }
+      footer={agent ? <CopyButton value={JSON.stringify(agent, null, 2)} /> : undefined}
     >
       {agent ? (
-        <div className="detail-stack">
-          <div className="detail-hero">
-            <Badge tone={online ? "emerald" : "rose"} dot>
-              {online ? "online" : "offline"}
-            </Badge>
-            <span className="muted-cell">seen {relativeTime(agent.last_seen_epoch)}</span>
-          </div>
-          <KeyValue
-            rows={[
-              ["Node", agent.node_name || "—"],
-              ["SPIFFE id", agent.spiffe_id],
-              ["Generation", agent.agent_generation],
-              ["Cluster id", agent.cluster_id],
-              ["Last seen", new Date(agent.last_seen_epoch * 1000).toLocaleString()],
-              ["Agent id", agent.id],
-            ]}
-          />
-          <div>
-            <span className="eyebrow">Reported sensors</span>
-            <div className="chip-row">
-              {agent.sensors.length ? (
-                agent.sensors.map((sensor) => (
-                  <Badge tone={statusTone("capable")} key={sensor}>
-                    {sensor}
-                  </Badge>
-                ))
-              ) : (
-                <span className="muted-cell">No sensors were reported at registration.</span>
-              )}
-            </div>
-          </div>
-          <div>
-            <span className="eyebrow">Raw agent</span>
-            <pre className="json-block">{JSON.stringify(agent, null, 2)}</pre>
-          </div>
-        </div>
+        <>
+          <KeyValue className="detail" rows={rows} />
+          <DetailBlock title="Reported sensors">
+            <p className="detail-note">
+              {agent.sensors.length
+                ? agent.sensors.join(", ")
+                : "No sensors were reported at registration."}
+            </p>
+          </DetailBlock>
+          <DetailBlock title="Raw agent record">
+            <RawJSON value={agent} />
+          </DetailBlock>
+        </>
       ) : null}
     </Drawer>
   );

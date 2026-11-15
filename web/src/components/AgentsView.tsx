@@ -1,9 +1,29 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import type { Agent } from "../types";
-import { formatTimestamp, isOnline, relativeTime, shortId, truncateMiddle } from "../lib/format";
-import { Badge, Button, Card, EmptyState, SearchInput, Segmented } from "./ui";
+import { formatClock, formatNumber, formatTimestamp, isOnline, shortId } from "../lib/format";
+import {
+  EmptyRow,
+  FilterTabs,
+  LinkButton,
+  Measure,
+  MeasureBand,
+  SearchField,
+  Section,
+  Table,
+  stateClass,
+} from "./ui";
 
 type AgentFilter = "all" | "online" | "offline";
+
+const clockOf = (epochSeconds: number) => formatClock(new Date(epochSeconds * 1000).toISOString());
+
+function dayLabel(): string {
+  return new Date().toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export function AgentsView({
   agents,
@@ -15,7 +35,11 @@ export function AgentsView({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<AgentFilter>("all");
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+
   const online = agents.filter((agent) => isOnline(agent.last_seen_epoch)).length;
+  const offline = agents.length - online;
+  const sensorTypes = [...new Set(agents.flatMap((agent) => agent.sensors))];
+
   const filtered = useMemo(
     () =>
       agents.filter((agent) => {
@@ -31,124 +55,129 @@ export function AgentsView({
     [agents, deferredSearch, filter],
   );
 
-  return (
-    <div className="view">
-      <div className="mini-stats">
-        <div className="mini-stat">
-          <span>Registered</span>
-          <strong>{agents.length}</strong>
-        </div>
-        <div className="mini-stat">
-          <span>Online</span>
-          <strong className="text-emerald">{online}</strong>
-        </div>
-        <div className="mini-stat">
-          <span>Offline</span>
-          <strong className={agents.length - online ? "text-rose" : ""}>{agents.length - online}</strong>
-        </div>
-        <div className="mini-stat">
-          <span>Coverage</span>
-          <strong className="mini-stat-small">
-            {agents.length
-              ? `${new Set(agents.flatMap((agent) => agent.sensors)).size} sensor types`
-              : "—"}
-          </strong>
-        </div>
-      </div>
+  const clearFilters = () => {
+    setSearch("");
+    setFilter("all");
+  };
 
-      <Card
-        title="Agents"
-        subtitle="One row per SPIFFE identity. Offline means no heartbeat in the last two minutes."
-        bodyClassName="agents-body"
-      >
-        <div className="table-toolbar">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Search node, SPIFFE id, generation…"
-          />
-          <Segmented
-            ariaLabel="Filter agents"
-            size="sm"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: "all", label: "All" },
-              { value: "online", label: "Online" },
-              { value: "offline", label: "Offline" },
-            ]}
-          />
-        </div>
-        {filtered.length ? (
-          <div className="agent-grid">
-            {filtered.map((agent) => {
-              const agentOnline = isOnline(agent.last_seen_epoch);
-              return (
-                <button
-                  type="button"
-                  className={`agent-card ${agentOnline ? "agent-online" : "agent-offline"}`}
-                  key={agent.id}
-                  onClick={() => onAgent(agent)}
-                >
-                  <div className="agent-card-head">
-                    <span className={`status-dot ${agentOnline ? "dot-emerald" : "dot-rose"}`} />
-                    <span className="agent-node">{agent.node_name || "unnamed node"}</span>
-                    <Badge tone={agentOnline ? "emerald" : "rose"}>
-                      {agentOnline ? "online" : "offline"}
-                    </Badge>
-                  </div>
-                  <span className="agent-spiffe mono" title={agent.spiffe_id}>
-                    {truncateMiddle(agent.spiffe_id, 46)}
-                  </span>
-                  <div className="agent-meta-row">
-                    <span title={formatTimestamp(agent.last_seen_epoch)}>
-                      seen {relativeTime(agent.last_seen_epoch)}
-                    </span>
-                    <span className="mono" title={agent.agent_generation}>
-                      gen {shortId(agent.agent_generation, 8)}
-                    </span>
-                  </div>
-                  <div className="agent-sensors">
-                    {agent.sensors.length ? (
-                      agent.sensors.map((sensor) => (
-                        <Badge tone="slate" key={sensor}>
-                          {sensor}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="muted-cell">No sensors reported</span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
+  return (
+    <div>
+      <MeasureBand sub>
+        <Measure value={formatNumber(agents.length)} label="registered" note="SPIFFE identities" />
+        <Measure value={formatNumber(online)} label="online" note="heartbeat within 120s" />
+        <Measure
+          value={formatNumber(offline)}
+          label="offline"
+          note={offline ? "no heartbeat in 120s" : "all reporting"}
+        />
+        <Measure
+          value={formatNumber(sensorTypes.length)}
+          label="sensor types"
+          note={sensorTypes.length ? sensorTypes.join(", ") : "none reported"}
+        />
+      </MeasureBand>
+
+      <div style={{ marginTop: 26 }}>
+        <Section
+          title="Agents"
+          meta={`${filtered.length} of ${agents.length}, ${dayLabel()}`}
+        >
+          <div className="tools">
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              label="Search"
+              placeholder="node, SPIFFE id, generation"
+            />
+            <div className="field" style={{ gap: 4 }}>
+              <span>State</span>
+              <FilterTabs<AgentFilter>
+                ariaLabel="Filter agents by state"
+                value={filter}
+                onChange={setFilter}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "online", label: "Online" },
+                  { value: "offline", label: "Offline" },
+                ]}
+              />
+            </div>
           </div>
-        ) : (
-          <EmptyState
-            icon="server"
-            title={agents.length ? "No agents match" : "No agents registered"}
-            description={
-              agents.length
-                ? "Change the filter or clear the search."
-                : "Start an agent with a valid transport config to register this node."
-            }
-            action={
-              agents.length ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setSearch("");
-                    setFilter("all");
-                  }}
-                >
-                  Clear filters
-                </Button>
-              ) : undefined
-            }
-          />
-        )}
-      </Card>
+
+          <Table minWidth={780} label="Agent register">
+            <colgroup>
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "36%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "15%" }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">Node</th>
+                <th scope="col">SPIFFE id</th>
+                <th scope="col">Generation</th>
+                <th scope="col">Sensors</th>
+                <th scope="col" className="n">
+                  Last seen
+                </th>
+                <th scope="col">State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length ? (
+                filtered.map((agent) => {
+                  const agentOnline = isOnline(agent.last_seen_epoch);
+                  const stateWord = agentOnline ? "online" : "offline";
+                  return (
+                    <tr
+                      key={agent.id}
+                      data-row="agent"
+                      tabIndex={0}
+                      onClick={() => onAgent(agent)}
+                      onKeyDown={(keyboard) => {
+                        if (keyboard.key === "Enter" || keyboard.key === " ") {
+                          keyboard.preventDefault();
+                          onAgent(agent);
+                        }
+                      }}
+                    >
+                      <td>{agent.node_name || "unnamed node"}</td>
+                      <td className="rule-cell">{agent.spiffe_id}</td>
+                      <td className="nowrap" title={agent.agent_generation}>
+                        {shortId(agent.agent_generation, 8) || "—"}
+                      </td>
+                      <td className="nowrap">
+                        {agent.sensors.length ? (
+                          agent.sensors.join(", ")
+                        ) : (
+                          <span className="muted">none reported</span>
+                        )}
+                      </td>
+                      <td className="n nowrap" title={formatTimestamp(agent.last_seen_epoch)}>
+                        {clockOf(agent.last_seen_epoch)}
+                      </td>
+                      <td className="nowrap">
+                        <span className={stateClass(stateWord)}>{stateWord}</span>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <EmptyRow colSpan={6}>
+                  {agents.length ? "No agents match this filter." : "No agents registered."}{" "}
+                  {agents.length ? (
+                    <LinkButton type="button" onClick={clearFilters}>
+                      Clear filters
+                    </LinkButton>
+                  ) : null}
+                </EmptyRow>
+              )}
+            </tbody>
+          </Table>
+        </Section>
+      </div>
     </div>
   );
 }

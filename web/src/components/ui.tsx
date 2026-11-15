@@ -1,430 +1,340 @@
 import {
   useEffect,
   useId,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 
-export type IconName =
-  | "overview"
-  | "activity"
-  | "bell"
-  | "server"
-  | "shield"
-  | "list"
-  | "refresh"
-  | "search"
-  | "close"
-  | "chevron"
-  | "signout"
-  | "plus"
-  | "check"
-  | "alert"
-  | "copy"
-  | "download"
-  | "play"
-  | "clock"
-  | "database"
-  | "code"
-  | "filter"
-  | "spark"
-  | "lock"
-  | "menu"
-  | "external"
-  | "circle"
-  | "layers";
+/* The Register primitives: rules, registers and type. No icons, no cards, no badges. */
 
-const paths: Record<IconName, ReactNode> = {
-  overview: (
-    <>
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    </>
-  ),
-  activity: <path d="M3 12h4l2.2-6 4.1 12 2.4-6H21" />,
-  bell: (
-    <>
-      <path d="M6.5 9.5a5.5 5.5 0 0 1 11 0c0 4 1.5 5.5 2.5 6.5H4c1-1 2.5-2.5 2.5-6.5Z" />
-      <path d="M10 19a2.2 2.2 0 0 0 4 0" />
-    </>
-  ),
-  server: (
-    <>
-      <rect x="3" y="4" width="18" height="6" rx="2" />
-      <rect x="3" y="14" width="18" height="6" rx="2" />
-      <path d="M7 7h.01M7 17h.01" />
-    </>
-  ),
-  shield: (
-    <>
-      <path d="M12 3 4.5 6v5.4c0 4.6 3.1 7.9 7.5 9.6 4.4-1.7 7.5-5 7.5-9.6V6L12 3Z" />
-      <path d="m9 12 2 2 4-4" />
-    </>
-  ),
-  list: (
-    <>
-      <path d="M8 6h13M8 12h13M8 18h13" />
-      <path d="M3 6h.01M3 12h.01M3 18h.01" />
-    </>
-  ),
-  refresh: <path d="M20 11a8 8 0 0 0-14.6-4L3 10m0 0V4m0 6h6m-5 3a8 8 0 0 0 14.6 4L21 14m0 0v6m0-6h-6" />,
-  search: (
-    <>
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.2-3.2" />
-    </>
-  ),
-  close: <path d="m6 6 12 12M18 6 6 18" />,
-  chevron: <path d="m6 9 6 6 6-6" />,
-  signout: (
-    <>
-      <path d="M14 4h5v16h-5" />
-      <path d="M10 8l-4 4 4 4M6 12h10" />
-    </>
-  ),
-  plus: <path d="M12 5v14M5 12h14" />,
-  check: <path d="m4 12 5 5L20 6" />,
-  alert: (
-    <>
-      <path d="M12 4 3 20h18L12 4Z" />
-      <path d="M12 9v5M12 17h.01" />
-    </>
-  ),
-  copy: (
-    <>
-      <rect x="9" y="9" width="11" height="11" rx="2" />
-      <path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3" />
-    </>
-  ),
-  download: <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" />,
-  play: <path d="m8 5 11 7-11 7V5Z" />,
-  clock: (
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M12 8v5l3 2" />
-    </>
-  ),
-  database: (
-    <>
-      <ellipse cx="12" cy="6" rx="8" ry="3" />
-      <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
-    </>
-  ),
-  code: <path d="m8 6-5 6 5 6M16 6l5 6-5 6M14 4l-4 16" />,
-  filter: <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" />,
-  spark: <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" />,
-  lock: (
-    <>
-      <rect x="4" y="10" width="16" height="10" rx="2" />
-      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-    </>
-  ),
-  menu: <path d="M4 6h16M4 12h16M4 18h16" />,
-  external: <path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />,
-  circle: <circle cx="12" cy="12" r="8" />,
-  layers: (
-    <>
-      <path d="m12 3 9 5-9 5-9-5 9-5Z" />
-      <path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
-    </>
-  ),
-};
-
-export function Icon({
-  name,
-  size = 18,
-  className = "",
-}: {
-  name: IconName;
-  size?: number;
-  className?: string;
-}) {
-  return (
-    <svg
-      className={`icon ${className}`}
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {paths[name]}
-    </svg>
-  );
+export function classNames(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(" ");
 }
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "subtle";
-type ButtonSize = "sm" | "md";
+/* ------------------------------------------------------------------ buttons */
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  icon?: IconName;
-  loading?: boolean;
-  children?: ReactNode;
-}
+type ButtonVariant = "default" | "primary" | "danger";
 
 export function Button({
-  variant = "secondary",
-  size = "md",
-  icon,
-  loading = false,
+  variant = "default",
+  wide = false,
   className = "",
   children,
   type = "button",
   ...props
-}: ButtonProps) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+  wide?: boolean;
+}) {
   return (
     <button
       type={type}
-      className={`btn btn-${variant} btn-${size} ${className}`.trim()}
+      className={classNames(
+        "btn",
+        variant === "primary" ? "primary" : variant === "danger" ? "danger" : "",
+        wide ? "wide" : "",
+        className,
+      )}
       {...props}
-      disabled={props.disabled || loading}
     >
-      {loading ? <span className="spinner" aria-hidden="true" /> : icon ? <Icon name={icon} size={size === "sm" ? 15 : 17} /> : null}
-      {children ? <span>{children}</span> : null}
+      {children}
     </button>
   );
 }
 
-export function Badge({
-  tone = "slate",
-  dot = false,
+export function LinkButton({
+  className = "",
   children,
-  title,
-}: {
-  tone?: string;
-  dot?: boolean;
-  children: ReactNode;
-  title?: string;
-}) {
+  type = "button",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <span className={`badge badge-${tone}`} title={title}>
-      {dot ? <span className="badge-dot" aria-hidden="true" /> : null}
+    <button type={type} className={classNames("link", className)} {...props}>
       {children}
-    </span>
+    </button>
   );
 }
 
-export function Card({
-  title,
-  subtitle,
-  actions,
-  children,
+export function TableButton({
   className = "",
-  bodyClassName = "",
+  children,
+  type = "button",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button type={type} className={classNames("tbtn", className)} {...props}>
+      {children}
+    </button>
+  );
+}
+
+/* ----------------------------------------------------------------- measures */
+
+export function MeasureBand({ children, sub = false }: { children: ReactNode; sub?: boolean }) {
+  return <div className={classNames("band", sub && "sub")}>{children}</div>;
+}
+
+export function Measure({
+  value,
+  label,
+  note,
+  signal = false,
 }: {
-  title?: ReactNode;
-  subtitle?: ReactNode;
-  actions?: ReactNode;
-  children: ReactNode;
-  className?: string;
-  bodyClassName?: string;
+  value: ReactNode;
+  label: ReactNode;
+  note?: ReactNode;
+  signal?: boolean;
 }) {
   return (
-    <section className={`card ${className}`.trim()}>
-      {title || actions ? (
-        <div className="card-head">
-          <div>
-            {title ? <h3 className="card-title">{title}</h3> : null}
-            {subtitle ? <p className="card-subtitle">{subtitle}</p> : null}
+    <div className="measure">
+      <div className="measure-value">{value}</div>
+      <div className="measure-label">{label}</div>
+      {note ? <div className={classNames("measure-note", signal && "sig")}>{note}</div> : null}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- registers */
+
+export function Section({
+  title,
+  meta,
+  tools,
+  children,
+  className = "",
+  id,
+}: {
+  title: ReactNode;
+  meta?: ReactNode;
+  tools?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  id?: string;
+}) {
+  return (
+    <section className={classNames("section", className)} id={id}>
+      <div className="section-head">
+        <h2 className="section-title">{title}</h2>
+        {meta || tools ? (
+          <div className="section-tools">
+            {meta ? <span className="section-meta">{meta}</span> : null}
+            {tools}
           </div>
-          {actions ? <div className="card-actions">{actions}</div> : null}
-        </div>
-      ) : null}
-      <div className={`card-body ${bodyClassName}`.trim()}>{children}</div>
+        ) : null}
+      </div>
+      <div className="section-body">{children}</div>
     </section>
   );
 }
 
-export function EmptyState({
-  icon = "layers",
-  title,
-  description,
-  action,
-}: {
-  icon?: IconName;
-  title: string;
-  description?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="empty-state">
-      <span className="empty-icon">
-        <Icon name={icon} size={22} />
-      </span>
-      <h3>{title}</h3>
-      {description ? <p>{description}</p> : null}
-      {action ? <div className="empty-action">{action}</div> : null}
-    </div>
-  );
-}
-
-export function Skeleton({
-  width = "100%",
-  height = 14,
+export function Table({
+  children,
   className = "",
+  minWidth,
+  label,
 }: {
-  width?: string | number;
-  height?: string | number;
+  children: ReactNode;
   className?: string;
+  minWidth?: number;
+  label: string;
 }) {
   return (
-    <span
-      className={`skeleton ${className}`.trim()}
-      style={{ width, height }}
-      aria-hidden="true"
-    />
-  );
-}
-
-export function SkeletonTable({ rows = 6 }: { rows?: number }) {
-  return (
-    <div className="skeleton-table" aria-label="Loading">
-      {Array.from({ length: rows }).map((_, index) => (
-        <div className="skeleton-row" key={index}>
-          <Skeleton width="12%" />
-          <Skeleton width="20%" />
-          <Skeleton width="32%" />
-          <Skeleton width="18%" />
-        </div>
-      ))}
+    <div className="table-scroll">
+      <table
+        className={classNames("reg", className)}
+        style={minWidth ? { minWidth } : undefined}
+        aria-label={label}
+      >
+        {children}
+      </table>
     </div>
   );
 }
 
-export function Spinner({ label = "Loading" }: { label?: string }) {
+export function EmptyRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
   return (
-    <span className="spinner-wrap" role="status" aria-label={label}>
-      <span className="spinner" />
-      <span>{label}</span>
-    </span>
+    <tr>
+      <td className="empty-cell" colSpan={colSpan}>
+        {children}
+      </td>
+    </tr>
   );
 }
 
-export function ProgressBar({
-  value,
-  total,
-  tone = "teal",
-  label,
-}: {
-  value: number;
-  total: number;
-  tone?: string;
-  label?: string;
-}) {
-  const pct = total > 0 ? Math.max(0, Math.min(100, (value / total) * 100)) : 0;
-  return (
-    <div className={`progress-track progress-${tone}`} aria-label={label} role="img">
-      <span style={{ width: `${pct}%` }} />
-    </div>
-  );
-}
+/* ------------------------------------------------------------------- inputs */
 
-export function BarRow({
-  label,
-  value,
-  total,
-  tone = "teal",
-  suffix,
-}: {
-  label: ReactNode;
-  value: number;
-  total: number;
-  tone?: string;
-  suffix?: ReactNode;
-}) {
-  const pct = total > 0 ? Math.max(2, Math.min(100, (value / total) * 100)) : 0;
-  return (
-    <div className="bar-row">
-      <div className="bar-label">
-        <span>{label}</span>
-        <span className="bar-value">{suffix ?? value}</span>
-      </div>
-      <div className={`bar-track bar-${tone}`}>
-        <span style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-export function SearchInput({
+export function SearchField({
   value,
   onChange,
   placeholder = "Search",
+  label = "Search",
   id,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  label?: string;
   id?: string;
 }) {
   const generated = useId();
+  const inputId = id ?? generated;
   return (
-    <label className="search-input" htmlFor={id ?? generated}>
-      <Icon name="search" size={16} />
+    <label className="field search">
+      <span>{label}</span>
       <input
-        id={id ?? generated}
+        id={inputId}
+        type="search"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         spellCheck={false}
+        autoComplete="off"
       />
-      {value ? (
-        <button
-          type="button"
-          className="search-clear"
-          onClick={() => onChange("")}
-          aria-label="Clear search"
-        >
-          <Icon name="close" size={14} />
-        </button>
-      ) : null}
     </label>
   );
 }
 
-export interface SegmentOption<T extends string> {
-  value: T;
-  label: ReactNode;
+export function SelectField({
+  value,
+  onChange,
+  options,
+  label,
+  id,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  label: string;
+  id?: string;
+}) {
+  const generated = useId();
+  const selectId = id ?? generated;
+  return (
+    <label className="field" htmlFor={selectId}>
+      <span>{label}</span>
+      <select id={selectId} value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
-export function Segmented<T extends string>({
+export function FilterTabs<T extends string>({
   options,
   value,
   onChange,
   ariaLabel,
-  size = "md",
+  variant = "filters",
 }: {
-  options: SegmentOption<T>[];
+  options: Array<{ value: T; label: string }>;
   value: T;
   onChange: (value: T) => void;
   ariaLabel: string;
-  size?: "sm" | "md";
+  variant?: "filters" | "range";
 }) {
   return (
-    <div className={`segmented segmented-${size}`} role="group" aria-label={ariaLabel}>
+    <div className={variant} role="group" aria-label={ariaLabel}>
       {options.map((option) => (
         <button
-          type="button"
           key={option.value}
-          className={option.value === value ? "active" : ""}
-          onClick={() => onChange(option.value)}
+          type="button"
+          className={variant === "range" ? undefined : "fbtn"}
           aria-pressed={option.value === value}
+          onClick={() => onChange(option.value)}
         >
           {option.label}
         </button>
       ))}
     </div>
   );
+}
+
+export function Field({
+  label,
+  hint,
+  htmlFor,
+  children,
+}: {
+  label: ReactNode;
+  hint?: ReactNode;
+  htmlFor?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="field" htmlFor={htmlFor}>
+      <span>{label}</span>
+      {children}
+      {hint ? <span className="hint-line">{hint}</span> : null}
+    </label>
+  );
+}
+
+export function CheckField({
+  label,
+  checked,
+  onChange,
+}: {
+  label: ReactNode;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="check">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+/* ------------------------------------------------------------------- layers */
+
+function useDismiss(open: boolean, onClose: () => void, rootRef: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+      if (event.key !== "Tab" || !rootRef.current) return;
+      const focusable = rootRef.current.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    const previousActive = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    const timer = window.setTimeout(() => {
+      const target = rootRef.current?.querySelector<HTMLElement>(
+        "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)",
+      );
+      target?.focus();
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+      previousActive?.focus?.();
+    };
+  }, [open, onClose, rootRef]);
 }
 
 export function Drawer({
@@ -434,7 +344,7 @@ export function Drawer({
   onClose,
   children,
   footer,
-  size = "md",
+  wide = false,
 }: {
   open: boolean;
   title: ReactNode;
@@ -442,40 +352,29 @@ export function Drawer({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "md" | "lg";
+  wide?: boolean;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previous;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, onClose]);
-
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(open, onClose, ref);
   if (!open) return null;
   return createPortal(
-    <div className="overlay" role="presentation" onClick={onClose}>
+    <div className="layer">
+      <button type="button" className="scrim" aria-label="Close panel" onClick={onClose} />
       <aside
-        className={`drawer drawer-${size}`}
+        ref={ref}
+        className={classNames("drawer", wide && "wide")}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : "Details"}
-        onClick={(event) => event.stopPropagation()}
       >
         <header className="drawer-head">
           <div>
-            <h2>{title}</h2>
-            {subtitle ? <p>{subtitle}</p> : null}
+            <h2 className="drawer-title">{title}</h2>
+            {subtitle ? <p className="drawer-sub">{subtitle}</p> : null}
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close panel">
-            <Icon name="close" size={18} />
-          </button>
+          <Button className="drawer-close" onClick={onClose} aria-label="Close panel">
+            Close
+          </Button>
         </header>
         <div className="drawer-body">{children}</div>
         {footer ? <footer className="drawer-foot">{footer}</footer> : null}
@@ -485,7 +384,7 @@ export function Drawer({
   );
 }
 
-export function Modal({
+export function Dialog({
   open,
   title,
   subtitle,
@@ -500,53 +399,64 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, onClose]);
-
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(open, onClose, ref);
   if (!open) return null;
   return createPortal(
-    <div className="overlay overlay-center" role="presentation" onClick={onClose}>
+    <div className="layer center modal-layer">
+      <button type="button" className="scrim" aria-label="Close dialog" onClick={onClose} />
       <div
+        ref={ref}
         className="modal"
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : "Dialog"}
-        onClick={(event) => event.stopPropagation()}
       >
-        <header className="drawer-head">
+        <header className="modal-head">
           <div>
-            <h2>{title}</h2>
-            {subtitle ? <p>{subtitle}</p> : null}
+            <h2 className="drawer-title">{title}</h2>
+            {subtitle ? <p className="drawer-sub">{subtitle}</p> : null}
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close dialog">
-            <Icon name="close" size={18} />
-          </button>
+          <Button className="drawer-close" onClick={onClose} aria-label="Close dialog">
+            Close
+          </Button>
         </header>
-        <div className="drawer-body">{children}</div>
-        {footer ? <footer className="drawer-foot">{footer}</footer> : null}
+        <div className="modal-body">{children}</div>
+        {footer ? <footer className="modal-foot">{footer}</footer> : null}
       </div>
     </div>,
     document.body,
   );
 }
 
+/* ------------------------------------------------------------------- status */
+
+export function Banner({
+  children,
+  onDismiss,
+}: {
+  children: ReactNode;
+  onDismiss?: () => void;
+}) {
+  return (
+    <div className="banner" role="alert">
+      <span className="banner-text">{children}</span>
+      {onDismiss ? (
+        <TableButton type="button" onClick={onDismiss}>
+          Dismiss
+        </TableButton>
+      ) : null}
+    </div>
+  );
+}
+
 export function Toast({
   message,
-  tone = "teal",
+  error = false,
   onClose,
 }: {
   message: string;
-  tone?: string;
+  error?: boolean;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -554,44 +464,18 @@ export function Toast({
     return () => window.clearTimeout(timer);
   }, [onClose]);
   return (
-    <div className={`toast toast-${tone}`} role="status">
-      <span className="toast-icon">
-        <Icon name={tone === "rose" ? "alert" : "check"} size={16} />
-      </span>
+    <div className={classNames("toast", error && "err")} role="status">
       <span>{message}</span>
-      <button type="button" className="icon-btn" onClick={onClose} aria-label="Dismiss notification">
-        <Icon name="close" size={14} />
-      </button>
+      <LinkButton onClick={onClose}>Dismiss</LinkButton>
     </div>
   );
 }
 
-export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      icon="copy"
-      onClick={() => {
-        if (!navigator.clipboard) return;
-        void navigator.clipboard
-          .writeText(value)
-          .then(() => {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1600);
-          })
-          .catch(() => undefined);
-      }}
-    >
-      {copied ? "Copied" : label}
-    </Button>
-  );
-}
+/* ------------------------------------------------------------------ details */
 
-export function KeyValue({ rows }: { rows: Array<[string, ReactNode]> }) {
+export function KeyValue({ rows, className = "" }: { rows: Array<[string, ReactNode]>; className?: string }) {
   return (
-    <dl className="key-value">
+    <dl className={classNames("kv", className)}>
       {rows.map(([key, value]) => (
         <div key={key}>
           <dt>{key}</dt>
@@ -602,26 +486,154 @@ export function KeyValue({ rows }: { rows: Array<[string, ReactNode]> }) {
   );
 }
 
-export function Field({
-  label,
-  hint,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  htmlFor?: string;
-  children: ReactNode;
-}) {
+export function DetailBlock({ title, children }: { title: ReactNode; children: ReactNode }) {
   return (
-    <div className="field">
-      <label htmlFor={htmlFor}>{label}</label>
+    <div>
+      <h3 className="detail-title">{title}</h3>
       {children}
-      {hint ? <p className="field-hint">{hint}</p> : null}
     </div>
   );
 }
 
-export function TableShell({ children }: { children: ReactNode }) {
-  return <div className="table-shell">{children}</div>;
+export function RawJSON({ value }: { value: unknown }) {
+  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  return <pre className="json">{text}</pre>;
+}
+
+export function CodeBlock({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <pre className={classNames("code", className)}>{children}</pre>;
+}
+
+export function CopyButton({ value, label = "Copy JSON" }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <TableButton
+      type="button"
+      onClick={() => {
+        if (!navigator.clipboard) {
+          setCopied(false);
+          return;
+        }
+        void navigator.clipboard
+          .writeText(value)
+          .then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1600);
+          })
+          .catch(() => setCopied(false));
+      }}
+    >
+      {copied ? "Copied" : label}
+    </TableButton>
+  );
+}
+
+export function Meter({ value, total }: { value: number; total: number }) {
+  const pct = total > 0 ? Math.max(0, Math.min(100, (value / total) * 100)) : 0;
+  return (
+    <div className="meter" role="img" aria-label={`${value} of ${total}`}>
+      <span style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- skeleton */
+
+export function Skeleton({
+  width = "100%",
+  height = 14,
+  className = "",
+}: {
+  width?: string | number;
+  height?: string | number;
+  className?: string;
+}) {
+  return <span className={`sk ${className}`.trim()} style={{ width, height }} aria-hidden="true" />;
+}
+
+export function SkeletonDashboard() {
+  return (
+    <div aria-label="Loading fleet data" className="skeleton-dashboard">
+      <div className="band">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div className="measure" key={index}>
+            <div className="sk-value" />
+            <Skeleton width={88} height={12} />
+            <div style={{ marginTop: 6 }}>
+              <Skeleton width={132} height={12} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="grid12 body-grid">
+        <div className="col-8 stack">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div className="sk-table" key={index}>
+              <Skeleton width={160} height={14} />
+              <div style={{ marginTop: 10 }}>
+                {Array.from({ length: 5 }).map((_, row) => (
+                  <div className="sk-line" key={row} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="col-4 stack">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div className="sk-table" key={index}>
+              <Skeleton width={120} height={14} />
+              <div style={{ marginTop: 10 }}>
+                {Array.from({ length: 3 }).map((_, row) => (
+                  <div className="sk-line" key={row} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- helpers */
+
+export function severityClass(severity: string): string {
+  switch (severity) {
+    case "critical":
+      return "sev-critical";
+    case "high":
+      return "sev-high";
+    case "medium":
+      return "sev-medium";
+    case "low":
+    case "info":
+      return "sev-low";
+    default:
+      return "muted";
+  }
+}
+
+export function stateClass(status: string): string {
+  switch (status) {
+    case "applied":
+    case "promoted":
+    case "ready":
+    case "online":
+    case "ok":
+    case "accepted":
+      return "";
+    case "staged":
+    case "committed":
+    case "pending":
+    case "rolling_out":
+      return "state-strong";
+    case "rejected":
+    case "rolled_back":
+    case "failed":
+    case "offline":
+    case "blocked":
+      return "state-off";
+    default:
+      return "muted";
+  }
 }

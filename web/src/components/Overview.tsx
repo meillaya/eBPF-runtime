@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import type { KeyboardEvent } from "react";
 import type {
   Agent,
   Alert,
@@ -10,26 +10,25 @@ import type {
 } from "../types";
 import {
   countOf,
+  formatClock,
   formatCompact,
+  formatDuration,
   formatNumber,
   isOnline,
-  kindTone,
   parseDate,
-  percent,
-  relativeTime,
-  severityTone,
-  statusTone,
-  titleCase,
+  shortId,
 } from "../lib/format";
 import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Icon,
-  ProgressBar,
-  Segmented,
-  TableShell,
+  EmptyRow,
+  FilterTabs,
+  KeyValue,
+  LinkButton,
+  Measure,
+  MeasureBand,
+  Section,
+  Table,
+  severityClass,
+  stateClass,
 } from "./ui";
 
 export type Range = "1" | "6" | "24" | "168";
@@ -41,8 +40,15 @@ const rangeLabels: Record<Range, string> = {
   "168": "last 7 days",
 };
 
-const mixTones = ["teal", "sky", "violet", "amber", "rose", "emerald", "orange", "slate"];
+const rangeOptions: Array<{ value: Range; label: string }> = [
+  { value: "1", label: "1h" },
+  { value: "6", label: "6h" },
+  { value: "24", label: "24h" },
+  { value: "168", label: "7d" },
+];
+
 const severityOrder = ["critical", "high", "medium", "low", "info"];
+const familyOrder = ["process", "file", "unknown"];
 
 interface OverviewProps {
   agents: Agent[];
@@ -61,45 +67,79 @@ interface OverviewProps {
   onAgent: (agent: Agent) => void;
 }
 
-function Stat({
-  label,
-  value,
-  detail,
-  icon,
-  tone,
-  tab,
-  onClick,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: "server" | "activity" | "bell" | "shield";
-  tone: string;
-  tab: "events" | "alerts" | "agents" | "policies";
-  onClick: () => void;
-}) {
-  const content = (
-    <>
-      <div className={`stat-icon stat-${tone}`}>
-        <Icon name={icon} size={18} />
-      </div>
-      <span className="stat-label">{label}</span>
-      <strong className="stat-value">{value}</strong>
-      <span className="stat-detail">{detail}</span>
-    </>
-  );
-  return (
-    <a
-      className="stat-card stat-button"
-      href={`#${tab}`}
-      onClick={(event) => {
-        event.preventDefault();
-        onClick();
-      }}
-    >
-      {content}
-    </a>
-  );
+interface KindCount {
+  kind: string;
+  count: number;
+}
+
+interface SeverityCount {
+  severity: string;
+  count: number;
+}
+
+interface Family {
+  sensor: string;
+  count: number;
+  kinds: KindCount[];
+}
+
+/* Local clock for epoch-second records (agents, rollouts); ISO records use formatClock. */
+function clockFromEpoch(epochSeconds: number): string {
+  return formatClock(new Date(epochSeconds * 1000).toISOString());
+}
+
+function localKindCounts(events: Event[]): KindCount[] {
+  const counts = new Map<string, number>();
+  for (const event of events) counts.set(event.kind, (counts.get(event.kind) ?? 0) + 1);
+  return [...counts.entries()]
+    .map(([kind, count]) => ({ kind, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function localSeverityCounts(alerts: Alert[]): SeverityCount[] {
+  const counts = new Map<string, number>();
+  for (const alert of alerts) counts.set(alert.severity, (counts.get(alert.severity) ?? 0) + 1);
+  return [...counts.entries()]
+    .map(([severity, count]) => ({ severity, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+/* Two sensor families. Prefer the sensor reported in the event sample; fall back to the
+   kind's namespace when a rarer kind is absent from the 250-row sample (e.g. FileRename). */
+function inferSensor(kind: string): string {
+  if (/^process/i.test(kind)) return "process";
+  if (/^file/i.test(kind)) return "file";
+  return "unknown";
+}
+
+function familiesFromKinds(kinds: KindCount[], sensorByKind: Map<string, string>): Family[] {
+  const families = new Map<string, Family>();
+  for (const item of kinds) {
+    const sensor = sensorByKind.get(item.kind) ?? inferSensor(item.kind);
+    const family = families.get(sensor) ?? { sensor, count: 0, kinds: [] };
+    family.count += item.count;
+    family.kinds.push(item);
+    families.set(sensor, family);
+  }
+  const rank = (sensor: string) => {
+    const index = familyOrder.indexOf(sensor);
+    return index === -1 ? familyOrder.length : index;
+  };
+  return [...families.values()]
+    .sort((a, b) => rank(a.sensor) - rank(b.sensor))
+    .map((family) => ({
+      ...family,
+      kinds: [...family.kinds].sort((a, b) => b.count - a.count),
+    }));
+}
+
+function activateRow<T>(item: T, onOpen: (item: T) => void) {
+  return (event: KeyboardEvent<HTMLTableRowElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onOpen(item);
+    }
+  };
 }
 
 export function Overview({
@@ -110,7 +150,6 @@ export function Overview({
   rollouts,
   analytics,
   analyticsError,
-  health,
   range,
   onRange,
   onNavigate,
@@ -119,371 +158,383 @@ export function Overview({
   onAgent,
 }: OverviewProps) {
   const online = agents.filter((agent) => isOnline(agent.last_seen_epoch)).length;
+
   const eventBuckets = analytics?.events ?? [];
   const alertBuckets = analytics?.alerts ?? [];
   const analyticsTotal = eventBuckets.reduce((sum, bucket) => sum + countOf(bucket.count), 0);
   const alertTotal = alertBuckets.reduce((sum, bucket) => sum + countOf(bucket.count), 0);
-  const highPriority = alertBuckets.length
-    ? alertBuckets
-        .filter((bucket) => bucket.severity === "critical" || bucket.severity === "high")
-        .reduce((sum, bucket) => sum + countOf(bucket.count), 0)
-    : alerts.filter((alert) => alert.severity === "critical" || alert.severity === "high").length;
-  const localEventKinds = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const event of events) map.set(event.kind, (map.get(event.kind) ?? 0) + 1);
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [events]);
-  const localAlertSeverities = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const alert of alerts) map.set(alert.severity, (map.get(alert.severity) ?? 0) + 1);
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [alerts]);
-  const mix = eventBuckets.length
-    ? eventBuckets.map((bucket) => ({ kind: bucket.kind ?? "unknown", count: countOf(bucket.count) }))
-    : localEventKinds.map(([kind, count]) => ({ kind, count }));
-  const severities = alertBuckets.length
+
+  /* Alert severity split: analytics buckets for the window, latest sample when absent. */
+  const severities: SeverityCount[] = alertBuckets.length
     ? severityOrder
         .map((severity) => ({
           severity,
           count: countOf(alertBuckets.find((bucket) => bucket.severity === severity)?.count),
         }))
-        .filter((bucket) => bucket.count > 0)
-    : localAlertSeverities.map(([severity, count]) => ({ severity, count }));
-  const mixTotal = mix.reduce((sum, item) => sum + item.count, 0);
-  const alertSeverityTotal = severities.reduce((sum, item) => sum + item.count, 0);
-  const latestPolicy = policies[0];
-  const latestRollout = rollouts[0];
-  const latestRolloutStatus =
-    latestRollout && latestPolicy && latestRollout.version === latestPolicy.version
-      ? latestRollout
-      : undefined;
-
-  const activity = useMemo(() => {
-    const bucketCount = 24;
-    const times = events
-      .map((event) => parseDate(event.time))
-      .filter((time) => time > 0);
-    if (!times.length) {
-      const now = Date.now();
-      return {
-        values: Array.from({ length: bucketCount }, () => 0),
-        start: now - 60_000,
-        end: now,
-        total: 0,
-      };
-    }
-    const newest = Math.max(...times);
-    const oldest = Math.min(...times);
-    const span = Math.max(newest - oldest, 60_000);
-    const start = newest - span;
-    const bucketMs = span / bucketCount;
-    const values = Array.from({ length: bucketCount }, () => 0);
-    for (const time of times) {
-      const index = Math.min(bucketCount - 1, Math.max(0, Math.floor((time - start) / bucketMs)));
-      values[index] += 1;
-    }
-    return { values, start, end: newest, total: times.length };
-  }, [events]);
-  const activityMax = Math.max(1, ...activity.values);
-  const activityWindow = Math.max(1, Math.round((activity.end - activity.start) / 60_000));
+        .filter((entry) => entry.count > 0)
+    : localSeverityCounts(alerts);
+  const criticalCount = severities.find((entry) => entry.severity === "critical")?.count ?? 0;
 
   const topAlerts = alerts.slice(0, 5);
   const topEvents = events.slice(0, 8);
+
   const agentRows = [...agents].sort((a, b) => {
     const aOnline = isOnline(a.last_seen_epoch) ? 1 : 0;
     const bOnline = isOnline(b.last_seen_epoch) ? 1 : 0;
     return bOnline - aOnline || b.last_seen_epoch - a.last_seen_epoch;
   });
 
+  /* The applied version is the one a rollout can report on; latest policy otherwise. */
+  const appliedPolicies = policies.filter((policy) => policy.status === "applied");
+  const latestPolicy: Policy | undefined = (appliedPolicies.length ? appliedPolicies : policies)
+    .slice()
+    .sort((a, b) => b.version - a.version)
+    .at(0);
+  const policyRollout = latestPolicy
+    ? [...rollouts]
+        .filter((rollout) => rollout.version === latestPolicy.version)
+        .sort((a, b) => (b.started_at_epoch ?? 0) - (a.started_at_epoch ?? 0))[0]
+    : undefined;
+
+  const policyMeasureNote = latestPolicy
+    ? policyRollout
+      ? `${latestPolicy.status}, ${policyRollout.applied_agents} of ${policyRollout.expected_agents} agents`
+      : latestPolicy.status
+    : "nothing staged";
+
+  const ackPending = policyRollout
+    ? Math.max(
+        0,
+        policyRollout.expected_agents - policyRollout.applied_agents - policyRollout.rejected_agents,
+      )
+    : 0;
+  const ackText = policyRollout
+    ? [
+        `${formatNumber(policyRollout.applied_agents)} applied`,
+        ackPending ? `${formatNumber(ackPending)} pending` : "",
+        policyRollout.rejected_agents ? `${formatNumber(policyRollout.rejected_agents)} rejected` : "",
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "";
+
+  /* Event activity of the latest sample: mean rate over the sample span. */
+  const sampleTimes = events.map((event) => parseDate(event.time)).filter((time) => time > 0);
+  const hasSample = sampleTimes.length > 0;
+  const newestSample = hasSample ? Math.max(...sampleTimes) : 0;
+  const oldestSample = hasSample ? Math.min(...sampleTimes) : 0;
+  const sampleSpanMs = Math.max(newestSample - oldestSample, 60_000);
+  const ratePerMinute = hasSample ? events.length / (sampleSpanMs / 60_000) : 0;
+  const sampleSpanSeconds = Math.round(sampleSpanMs / 1000);
+
+  /* Event mix: analytics buckets for the window, latest sample when absent. */
+  const sensorByKind = new Map<string, string>();
+  for (const event of events) sensorByKind.set(event.kind, event.sensor);
+  const mixFromAnalytics = eventBuckets.length > 0;
+  const mixKinds: KindCount[] = mixFromAnalytics
+    ? eventBuckets.map((bucket) => ({ kind: bucket.kind ?? "unknown", count: countOf(bucket.count) }))
+    : localKindCounts(events);
+  const families = familiesFromKinds(mixKinds, sensorByKind);
+  const mixMeta = mixFromAnalytics
+    ? `${rangeLabels[range]}, analytics`
+    : analyticsError
+      ? "latest sample, analytics unavailable"
+      : "latest sample";
+
+  const fleetMeta = agents.length ? `${agents.length} nodes, ${online} online` : undefined;
+  const rolloutMeta = latestPolicy
+    ? `${latestPolicy.name} v${latestPolicy.version}, ${latestPolicy.status}`
+    : undefined;
+
   return (
-    <div className="view overview">
-      <div className="view-toolbar overview-toolbar">
-        <div>
-          <span className="eyebrow">Fleet pulse</span>
-          <p className="toolbar-note">
-            {analyticsError
-              ? "Analytics is unavailable; cards fall back to the latest sample."
-              : `Event and alert totals cover the ${rangeLabels[range]}.`}
-          </p>
-        </div>
-        <Segmented
-          ariaLabel="Analytics time range"
-          value={range}
-          onChange={onRange}
-          options={[
-            { value: "1", label: "1h" },
-            { value: "6", label: "6h" },
-            { value: "24", label: "24h" },
-            { value: "168", label: "7d" },
-          ]}
-        />
-      </div>
-
-      <div className="kpi-grid">
-        <Stat
-          label="Online agents"
+    <>
+      <MeasureBand>
+        <Measure
           value={`${online}/${agents.length}`}
-          detail={agents.length ? `${agents.length - online} offline` : "no agents registered"}
-          icon="server"
-          tone={online === agents.length && agents.length > 0 ? "emerald" : "amber"}
-          tab="agents"
-          onClick={() => onNavigate("agents")}
+          label="agents online"
+          note={agents.length ? `${agents.length - online} offline` : "no agents registered"}
         />
-        <Stat
-          label="Events"
+        <Measure
           value={formatCompact(analyticsTotal || events.length)}
-          detail={analyticsTotal ? rangeLabels[range] : "latest sample"}
-          icon="activity"
-          tone="sky"
-          tab="events"
-          onClick={() => onNavigate("events")}
+          label="events"
+          note={analyticsTotal ? rangeLabels[range] : "latest sample"}
         />
-        <Stat
-          label="Alerts"
+        <Measure
           value={formatCompact(alertTotal || alerts.length)}
-          detail={highPriority ? `${formatNumber(highPriority)} high priority` : "no high priority alerts"}
-          icon="bell"
-          tone={highPriority ? "rose" : "amber"}
-          tab="alerts"
-          onClick={() => onNavigate("alerts")}
+          label="alerts"
+          note={criticalCount ? `${formatNumber(criticalCount)} critical` : "none critical"}
+          signal={criticalCount > 0}
         />
-        <Stat
-          label="Policies"
-          value={formatNumber(policies.length)}
-          detail={
-            latestPolicy
-              ? `latest v${latestPolicy.version} · ${titleCase(latestPolicy.status)}`
-              : "nothing staged"
-          }
-          icon="shield"
-          tone="violet"
-          tab="policies"
-          onClick={() => onNavigate("policies")}
+        <Measure
+          value={latestPolicy ? `v${latestPolicy.version}` : "—"}
+          label="policy"
+          note={policyMeasureNote}
         />
-      </div>
+      </MeasureBand>
 
-      <div className="grid grid-2-1">
-        <Card
-          title="Event activity"
-          subtitle={`${formatNumber(activity.total)} events across the latest ${activityWindow}-minute sample`}
-          actions={<span className="card-meta">24 buckets</span>}
-        >
-          <div className="activity-chart" aria-label="Events per minute">
-            {activity.values.map((value, index) => (
-              <span
-                className="activity-bar"
-                key={index}
-                style={{ height: `${Math.max(3, (value / activityMax) * 100)}%` }}
-                title={`${value} events`}
-              />
-            ))}
-          </div>
-          <div className="activity-axis">
-            <span>{new Date(activity.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-            <span>{new Date(activity.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-          </div>
-        </Card>
-        <Card
-          title="Event mix"
-          subtitle={analyticsError ? "from the latest event sample" : rangeLabels[range]}
-          actions={
-            analyticsError ? <Badge tone="amber">sample</Badge> : <Badge tone="emerald">clickhouse</Badge>
-          }
-        >
-          {mix.length ? (
-            <>
-              <div className="mix-bar" aria-hidden="true">
-                {mix.slice(0, 6).map((item, index) => (
-                  <span
-                    key={item.kind}
-                    className={`mix-segment mix-${mixTones[index % mixTones.length]}`}
-                    style={{ width: `${percent(item.count, mixTotal)}%` }}
-                    title={`${item.kind}: ${item.count}`}
-                  />
-                ))}
-              </div>
-              <div className="mix-list">
-                {mix.slice(0, 6).map((item, index) => (
-                  <div className="mix-row" key={item.kind}>
-                    <span className={`legend-dot dot-${mixTones[index % mixTones.length]}`} />
-                    <span className="mix-name">{titleCase(item.kind)}</span>
-                    <span className="mix-count">{formatNumber(item.count)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <EmptyState icon="activity" title="No events yet" description="Once an agent is attached, events appear here." />
-          )}
-        </Card>
-      </div>
-
-      <div className="grid grid-2-1">
-        <Card
-          title="Recent alerts"
-          subtitle={alerts.length ? `${alerts.length} in the latest sample` : "rule matches from recent events"}
-          actions={
-            <Button variant="ghost" size="sm" onClick={() => onNavigate("alerts")}>
-              View all
-            </Button>
-          }
-        >
-          {severities.length ? (
-            <div className="severity-breakdown">
-              <div className="severity-mix" aria-hidden="true">
-                {severities.map((entry) => (
-                  <span
-                    key={entry.severity}
-                    className={`severity-seg mix-${severityTone(entry.severity)}`}
-                    style={{ width: `${percent(entry.count, alertSeverityTotal)}%` }}
-                    title={`${entry.severity}: ${entry.count}`}
-                  />
-                ))}
-              </div>
-              <div className="severity-legend">
-                {severities.map((entry) => (
-                  <span key={entry.severity}>
-                    <span className={`legend-dot dot-${severityTone(entry.severity)}`} />
-                    {titleCase(entry.severity)} <strong>{formatNumber(entry.count)}</strong>
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {topAlerts.length ? (
-            <div className="alert-list">
-              {topAlerts.map((alert) => (
-                <button className="alert-item" key={alert.alert_id} onClick={() => onAlert(alert)}>
-                  <span className={`severity-dot dot-${severityTone(alert.severity)}`} />
-                  <span className="alert-main">
-                    <span className="alert-explanation">{alert.explanation || alert.rule_id}</span>
-                    <span className="alert-meta">
-                      {alert.rule_id} · {alert.node_name} · {relativeTime(Date.parse(alert.fired_at) / 1000)}
-                    </span>
-                  </span>
-                  <Badge tone={severityTone(alert.severity)}>{alert.severity}</Badge>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <EmptyState icon="shield" title="No alerts" description="The current rule packs have not matched." />
-          )}
-        </Card>
-        <Card
-          title="Agent health"
-          subtitle={agents.length ? `${online} of ${agents.length} online` : "no registered nodes"}
-          actions={
-            <Button variant="ghost" size="sm" onClick={() => onNavigate("agents")}>
-              View all
-            </Button>
-          }
-        >
-          {agentRows.length ? (
-            <div className="agent-mini-list">
-              {agentRows.slice(0, 6).map((agent) => {
-                const agentOnline = isOnline(agent.last_seen_epoch);
-                return (
-                  <button className="agent-mini" key={agent.id} onClick={() => onAgent(agent)}>
-                    <span className={`status-dot ${agentOnline ? "dot-emerald" : "dot-rose"}`} />
-                    <span className="agent-mini-main">
-                      <span>{agent.node_name || agent.spiffe_id}</span>
-                      <span>{agent.sensors.join(", ") || "no sensors reported"}</span>
-                    </span>
-                    <span className="agent-mini-seen">{relativeTime(agent.last_seen_epoch)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <EmptyState icon="server" title="No agents" description="Start an agent to populate the fleet." />
-          )}
-        </Card>
-      </div>
-
-      <Card
-        title="Recent events"
-        subtitle="Newest decoded events from PostgreSQL"
-        actions={
-          <Button variant="ghost" size="sm" onClick={() => onNavigate("events")}>
-            Open event explorer
-          </Button>
-        }
-        bodyClassName="table-body"
-      >
-        {topEvents.length ? (
-          <TableShell>
-            <table className="data-table">
+      <div className="grid12 body-grid">
+        <div className="col-8 stack">
+          <Section
+            title="Recent alerts"
+            meta={alerts.length ? `${topAlerts.length} of ${alerts.length}, newest first` : undefined}
+            tools={<LinkButton onClick={() => onNavigate("alerts")}>All alerts</LinkButton>}
+          >
+            <Table label="Most recent alerts" minWidth={700}>
+              <colgroup>
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "24%" }} />
+                <col style={{ width: "44%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "11%" }} />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>Kind</th>
-                  <th>Process</th>
-                  <th>Path</th>
-                  <th>PID</th>
+                  <th scope="col">Severity</th>
+                  <th scope="col">Rule</th>
+                  <th scope="col">Explanation</th>
+                  <th scope="col">Node</th>
+                  <th scope="col" className="n">
+                    Fired
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {topEvents.map((event) => (
-                  <tr key={event.event_id} onClick={() => onEvent(event)} className="clickable-row">
-                    <td className="mono muted-cell">{relativeTime(Date.parse(event.time) / 1000)}</td>
-                    <td>
-                      <Badge tone={kindTone(event.kind)}>{event.kind}</Badge>
-                    </td>
-                    <td className="mono">{event.process_exec ?? "—"}</td>
-                    <td className="path-cell" title={event.path}>
-                      {event.path ?? "—"}
-                    </td>
-                    <td className="mono muted-cell">{event.pid}</td>
-                  </tr>
-                ))}
+                {topAlerts.length ? (
+                  topAlerts.map((alert) => (
+                    <tr
+                      key={alert.alert_id}
+                      data-row="alert"
+                      tabIndex={0}
+                      onClick={() => onAlert(alert)}
+                      onKeyDown={activateRow(alert, onAlert)}
+                    >
+                      <td className="nowrap">
+                        <span className={severityClass(alert.severity)}>{alert.severity}</span>
+                      </td>
+                      <td className="rule-cell">{alert.rule_id}</td>
+                      <td>
+                        <span className="clamp3" title={alert.explanation || alert.rule_id}>
+                          {alert.explanation || alert.rule_id}
+                        </span>
+                      </td>
+                      <td className="nowrap">{alert.node_name}</td>
+                      <td className="n nowrap">{formatClock(alert.fired_at)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <EmptyRow colSpan={5}>No alerts in the current sample.</EmptyRow>
+                )}
               </tbody>
-            </table>
-          </TableShell>
-        ) : (
-          <EmptyState icon="activity" title="No recent events" description="Events will appear as the agent forwards batches." />
-        )}
-      </Card>
+            </Table>
+          </Section>
 
-      <div className="overview-footer">
-        <div className="health-strip">
-          <span className={`status-dot ${health?.api ? "dot-emerald" : "dot-rose"}`} />
-          Control plane {health?.api ? "reachable" : "unreachable"}
-          <span className="separator" />
-          <span className={`status-dot ${health?.database ? "dot-emerald" : "dot-rose"}`} />
-          Database {health?.database ? "ready" : "not ready"}
-          {health?.detail ? <span className="health-detail">{health.detail}</span> : null}
+          <Section
+            title="Recent events"
+            meta={events.length ? `${topEvents.length} of ${events.length}, newest first` : undefined}
+            tools={<LinkButton onClick={() => onNavigate("events")}>All events</LinkButton>}
+          >
+            <Table label="Most recent events" minWidth={640}>
+              <colgroup>
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "24%" }} />
+                <col style={{ width: "42%" }} />
+                <col style={{ width: "9%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Time</th>
+                  <th scope="col">Kind</th>
+                  <th scope="col">Process</th>
+                  <th scope="col">Path</th>
+                  <th scope="col" className="n">
+                    PID
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {topEvents.length ? (
+                  topEvents.map((event) => {
+                    const path = event.path ?? event.old_path ?? "—";
+                    return (
+                      <tr
+                        key={event.event_id}
+                        data-row="event"
+                        tabIndex={0}
+                        onClick={() => onEvent(event)}
+                        onKeyDown={activateRow(event, onEvent)}
+                      >
+                        <td className="nowrap">{formatClock(event.time)}</td>
+                        <td>{event.kind}</td>
+                        <td>{event.process_exec ?? "—"}</td>
+                        <td className="rule-cell">
+                          <span title={path === "—" ? undefined : path}>{path}</span>
+                        </td>
+                        <td className="n">{event.pid}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <EmptyRow colSpan={5}>No events in the current sample.</EmptyRow>
+                )}
+              </tbody>
+            </Table>
+          </Section>
         </div>
-        <div className="policy-strip">
-          {latestPolicy ? (
-            <>
-              <Badge tone={statusTone(latestPolicy.status)}>{titleCase(latestPolicy.status)}</Badge>
-              <span>
-                {latestPolicy.name} v{latestPolicy.version}
-              </span>
-              {latestRolloutStatus ? (
-                <>
-                  <span className="separator" />
-                  <Badge tone={statusTone(latestRolloutStatus.status)}>
-                    {titleCase(latestRolloutStatus.status)}
-                  </Badge>
-                  <span>
-                    {latestRolloutStatus.applied_agents}/{latestRolloutStatus.expected_agents} applied
-                  </span>
-                  <div className="inline-progress">
-                    <ProgressBar
-                      value={latestRolloutStatus.applied_agents}
-                      total={latestRolloutStatus.expected_agents}
-                      tone={latestRolloutStatus.status === "rolled_back" ? "rose" : "teal"}
-                    />
+
+        <div className="col-4 stack">
+          <Section
+            title="Fleet"
+            meta={fleetMeta}
+            tools={<LinkButton onClick={() => onNavigate("agents")}>Agents</LinkButton>}
+          >
+            <Table label="Fleet register" minWidth={330}>
+              <colgroup>
+                <col style={{ width: "30%" }} />
+                <col style={{ width: "20%" }} />
+                <col style={{ width: "30%" }} />
+                <col style={{ width: "20%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Node</th>
+                  <th scope="col">Generation</th>
+                  <th scope="col" className="n">
+                    Last seen
+                  </th>
+                  <th scope="col">State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agentRows.length ? (
+                  agentRows.map((agent) => {
+                    const agentOnline = isOnline(agent.last_seen_epoch);
+                    return (
+                      <tr
+                        key={agent.id}
+                        data-row="agent"
+                        tabIndex={0}
+                        onClick={() => onAgent(agent)}
+                        onKeyDown={activateRow(agent, onAgent)}
+                      >
+                        <td>{agent.node_name || agent.spiffe_id}</td>
+                        <td className="nowrap" title={agent.agent_generation}>
+                          {shortId(agent.agent_generation, 8) || "—"}
+                        </td>
+                        <td className="n nowrap">{clockFromEpoch(agent.last_seen_epoch)}</td>
+                        <td className="nowrap">
+                          <span className={stateClass(agentOnline ? "online" : "offline")}>
+                            {agentOnline ? "online" : "offline"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <EmptyRow colSpan={4}>No agents registered.</EmptyRow>
+                )}
+              </tbody>
+            </Table>
+          </Section>
+
+          <Section
+            title="Rollout"
+            meta={rolloutMeta}
+            tools={<LinkButton onClick={() => onNavigate("policies")}>Policies</LinkButton>}
+          >
+            {policyRollout ? (
+              <KeyValue
+                rows={[
+                  [
+                    "Applied",
+                    `${formatNumber(policyRollout.applied_agents)} of ${formatNumber(
+                      policyRollout.expected_agents,
+                    )} agents`,
+                  ],
+                  ["Threshold", `${Math.round(policyRollout.min_ratio * 100)}% minimum`],
+                  ["Timeout", `${formatNumber(policyRollout.timeout_secs)} seconds`],
+                  [
+                    "Finished",
+                    policyRollout.finished_at_epoch
+                      ? clockFromEpoch(policyRollout.finished_at_epoch)
+                      : "pending",
+                  ],
+                  ["Acks", ackText],
+                ]}
+              />
+            ) : (
+              <p className="empty-cell">
+                {latestPolicy ? "No rollout recorded." : "No policy staged."}
+              </p>
+            )}
+          </Section>
+
+          <Section
+            title="Event rate"
+            meta="event register sample"
+            tools={
+              <FilterTabs
+                variant="range"
+                ariaLabel="Analytics window"
+                value={range}
+                onChange={onRange}
+                options={rangeOptions}
+              />
+            }
+          >
+            {hasSample ? (
+              <>
+                <div className="rate-line">
+                  <strong>{ratePerMinute.toFixed(1)}</strong> events per minute
+                </div>
+                <div
+                  className="rate-note"
+                  title={`${formatClock(new Date(oldestSample).toISOString())} to ${formatClock(new Date(newestSample).toISOString())}`}
+                >
+                  {formatNumber(events.length)} events, {formatDuration(sampleSpanSeconds)} sample
+                </div>
+              </>
+            ) : (
+              <p className="empty-cell">No events in the latest sample.</p>
+            )}
+          </Section>
+
+          <Section title="Event mix" meta={mixMeta}>
+            {families.length ? (
+              <div className="mix">
+                {families.map((family) => (
+                  <div key={family.sensor}>
+                    <table className="reg mini" aria-label={`${family.sensor} sensor event mix`}>
+                      <colgroup>
+                        <col style={{ width: "62%" }} />
+                        <col style={{ width: "38%" }} />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th scope="col">{family.sensor}</th>
+                          <th scope="col" className="n">
+                            {formatNumber(family.count)}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {family.kinds.map((kind) => (
+                          <tr key={kind.kind}>
+                            <td>{kind.kind}</td>
+                            <td className="n">{formatNumber(kind.count)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </>
-              ) : null}
-            </>
-          ) : (
-            <span className="muted-cell">No policy staged</span>
-          )}
+                ))}
+              </div>
+            ) : (
+              <p className="empty-cell">No event mix in the latest sample.</p>
+            )}
+          </Section>
         </div>
       </div>
-    </div>
+    </>
   );
 }

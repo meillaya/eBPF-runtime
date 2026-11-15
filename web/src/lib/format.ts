@@ -1,5 +1,3 @@
-import type { Severity } from "../types";
-
 const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat(undefined, {
   notation: "compact",
@@ -84,71 +82,11 @@ export function titleCase(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function truncateMiddle(value: string, max = 42): string {
-  if (value.length <= max) return value;
-  const side = Math.floor((max - 3) / 2);
-  return `${value.slice(0, side)}…${value.slice(-side)}`;
-}
 
-export function percent(value: number, total: number): number {
-  if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0) return 0;
-  return Math.max(0, Math.min(100, (value / total) * 100));
-}
 
-export function kindTone(kind: string): string {
-  if (/exec|fork|exit|process/i.test(kind)) return "sky";
-  if (/open|read|write|file|rename|unlink|truncate/i.test(kind)) return "violet";
-  if (/network|connect|accept|dns|socket/i.test(kind)) return "teal";
-  if (/syscall|identity|lsm|policy/i.test(kind)) return "amber";
-  return "slate";
-}
 
-export function severityTone(severity: Severity): string {
-  switch (severity) {
-    case "critical":
-      return "rose";
-    case "high":
-      return "orange";
-    case "medium":
-      return "amber";
-    case "low":
-      return "sky";
-    case "info":
-      return "slate";
-    default:
-      return "slate";
-  }
-}
 
-export function statusTone(status: string): string {
-  switch (status) {
-    case "applied":
-    case "promoted":
-    case "ready":
-    case "capable":
-    case "online":
-    case "ok":
-    case "accepted":
-      return "emerald";
-    case "rolling_out":
-    case "pending":
-    case "committed":
-    case "staged":
-      return "amber";
-    case "rejected":
-    case "rolled_back":
-    case "failed":
-    case "offline":
-    case "blocked":
-      return "rose";
-    default:
-      return "slate";
-  }
-}
 
-export function sensorTone(status: string): string {
-  return status === "capable" ? "emerald" : status === "blocked" ? "rose" : "amber";
-}
 
 export function parseDate(value: string | null | undefined): number {
   if (!value) return 0;
@@ -182,8 +120,4 @@ export function eventSearchText(event: {
 
 export function isOnline(lastSeenEpoch: number, windowSeconds = 120): boolean {
   return Date.now() / 1000 - lastSeenEpoch <= windowSeconds;
-}
-
-export function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
-  return `${formatNumber(count)} ${count === 1 ? singular : pluralForm}`;
 }

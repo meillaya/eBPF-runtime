@@ -1,15 +1,28 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import type { Alert } from "../types";
+import { formatClock, formatIsoTimestamp, formatNumber } from "../lib/format";
 import {
-  formatIsoTimestamp,
-  relativeToIso,
-  severityTone,
-  shortId,
-  titleCase,
-} from "../lib/format";
-import { Badge, Button, Card, EmptyState, SearchInput, Segmented, TableShell } from "./ui";
+  EmptyRow,
+  FilterTabs,
+  LinkButton,
+  Measure,
+  MeasureBand,
+  SearchField,
+  Section,
+  Table,
+  severityClass,
+} from "./ui";
 
 type SeverityFilter = "all" | "critical" | "high" | "medium" | "low" | "info";
+
+const severityOptions: Array<{ value: SeverityFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "critical", label: "Critical" },
+  { value: "high", label: "High" },
+  { value: "medium", label: "Medium" },
+  { value: "low", label: "Low" },
+  { value: "info", label: "Info" },
+];
 
 export function AlertsView({
   alerts,
@@ -36,82 +49,67 @@ export function AlertsView({
   const critical = alerts.filter((alert) => alert.severity === "critical").length;
   const high = alerts.filter((alert) => alert.severity === "high").length;
 
-  return (
-    <div className="view">
-      <div className="mini-stats">
-        <div className="mini-stat">
-          <span>Total alerts</span>
-          <strong>{alerts.length}</strong>
-        </div>
-        <div className="mini-stat">
-          <span>Critical</span>
-          <strong className={critical ? "text-rose" : ""}>{critical}</strong>
-        </div>
-        <div className="mini-stat">
-          <span>High</span>
-          <strong className={high ? "text-orange" : ""}>{high}</strong>
-        </div>
-        <div className="mini-stat">
-          <span>Latest</span>
-          <strong className="mini-stat-small">{alerts[0] ? relativeToIso(alerts[0].fired_at) : "—"}</strong>
-        </div>
-      </div>
+  const clearFilters = () => {
+    setSearch("");
+    setSeverity("all");
+  };
 
-      <Card
-        title="Alerts"
-        subtitle={`${filtered.length} shown${filtered.length !== alerts.length ? ` of ${alerts.length}` : ""}`}
-        bodyClassName="table-body"
-      >
-        <div className="table-toolbar">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Search rule, explanation, node, event…"
-          />
-          <Segmented
-            ariaLabel="Filter alerts by severity"
-            size="sm"
-            value={severity}
-            onChange={setSeverity}
-            options={[
-              { value: "all", label: "All" },
-              { value: "critical", label: "Critical" },
-              { value: "high", label: "High" },
-              { value: "medium", label: "Medium" },
-              { value: "low", label: "Low" },
-            ]}
-          />
-          {search || severity !== "all" ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearch("");
-                setSeverity("all");
-              }}
-            >
-              Clear
-            </Button>
-          ) : null}
-        </div>
-        {filtered.length ? (
-          <TableShell>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Severity</th>
-                  <th className="hide-sm">Rule</th>
-                  <th>Explanation</th>
-                  <th className="hide-sm">Node</th>
-                  <th>Fired</th>
-                  <th className="hide-sm">Event</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((alert) => (
+  return (
+    <div>
+      <MeasureBand sub>
+        <Measure value={formatNumber(alerts.length)} label="alerts" note="latest sample" />
+        <Measure value={formatNumber(critical)} label="critical alerts" />
+        <Measure value={formatNumber(high)} label="high alerts" />
+      </MeasureBand>
+
+      <div style={{ marginTop: 26 }}>
+        <Section
+          title="Alert register"
+          meta={`${filtered.length} of ${alerts.length}, newest first`}
+        >
+          <div className="tools">
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              label="Search"
+              placeholder="rule, explanation, node, event"
+            />
+            <div className="field" style={{ gap: 4 }}>
+              <span>Severity</span>
+              <FilterTabs
+                ariaLabel="Filter alerts by severity"
+                value={severity}
+                onChange={setSeverity}
+                options={severityOptions}
+              />
+            </div>
+          </div>
+
+          <Table minWidth={720} label="Alert register">
+            <colgroup>
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "44%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "11%" }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">Severity</th>
+                <th scope="col">Rule</th>
+                <th scope="col">Explanation</th>
+                <th scope="col">Node</th>
+                <th scope="col" className="n">
+                  Fired
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length ? (
+                filtered.map((alert) => (
                   <tr
                     key={alert.alert_id}
-                    className="clickable-row"
+                    data-row="alert"
                     tabIndex={0}
                     onClick={() => onAlert(alert)}
                     onKeyDown={(keyboard) => {
@@ -121,39 +119,40 @@ export function AlertsView({
                       }
                     }}
                   >
+                    <td className="nowrap">
+                      <span className={severityClass(alert.severity)}>{alert.severity}</span>
+                    </td>
+                    <td className="rule-cell">{alert.rule_id}</td>
                     <td>
-                      <Badge tone={severityTone(alert.severity)} dot>
-                        {titleCase(alert.severity)}
-                      </Badge>
+                      <span className="clamp2" title={alert.explanation}>
+                        {alert.explanation || "—"}
+                      </span>
                     </td>
-                    <td className="mono hide-sm">{alert.rule_id}</td>
-                    <td className="explanation-cell" title={alert.explanation}>
-                      {alert.explanation || "—"}
-                    </td>
-                    <td className="hide-sm">{alert.node_name || "—"}</td>
-                    <td className="muted-cell" title={formatIsoTimestamp(alert.fired_at)}>
-                      {relativeToIso(alert.fired_at)}
-                    </td>
-                    <td className="mono muted-cell hide-sm" title={alert.event_id}>
-                      {shortId(alert.event_id, 10)}
+                    <td className="nowrap">{alert.node_name || "—"}</td>
+                    <td className="n nowrap" title={formatIsoTimestamp(alert.fired_at)}>
+                      {formatClock(alert.fired_at)}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableShell>
-        ) : (
-          <EmptyState
-            icon="bell"
-            title={alerts.length ? "No alerts match" : "No alerts"}
-            description={
-              alerts.length
-                ? "Change the severity filter or clear the search."
-                : "Alert rows appear when a rule matches a forwarded event."
-            }
-          />
-        )}
-      </Card>
+                ))
+              ) : (
+                <EmptyRow colSpan={5}>
+                  {alerts.length
+                    ? "No alerts match this filter."
+                    : "No alerts have been raised yet."}
+                  {alerts.length ? (
+                    <>
+                      {" "}
+                      <LinkButton type="button" onClick={clearFilters}>
+                        Clear filters
+                      </LinkButton>
+                    </>
+                  ) : null}
+                </EmptyRow>
+              )}
+            </tbody>
+          </Table>
+        </Section>
+      </div>
     </div>
   );
 }
