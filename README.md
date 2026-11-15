@@ -193,10 +193,10 @@ endpoint, not a control-plane feed.
 
 ![Fleet dashboard](docs/verification/dashboard-rootful.png)
 
-- **Overview** shows fleet KPIs from ClickHouse analytics, a recent event
-  activity chart, event-mix and alert-severity breakdowns, recent alerts,
-  agent health, recent events, control-plane/database health, and the latest
-  policy/rollout state. The analytics window is selectable.
+- **Overview** shows the fleet counts, per-node heartbeat state, recent alerts
+  and recent events, the latest applied policy and rollout with
+  acknowledgements, the event rate and the process/file event mix for the
+  selected analytics window. API and database health live in the header.
 - **Events** has full-text filtering, kind filtering, JSON/CSV export, and a
   detail drawer with the raw event and any related alerts.
 - **Alerts** filters by severity and search, and opens a detail drawer with
@@ -211,9 +211,9 @@ endpoint, not a control-plane feed.
 The controls follow the token role: viewers get read-only surfaces, analysts
 can validate YAML, policy admins can stage/commit/roll out, and admins also
 get audit. The dashboard reads `/api/v1/meta` for the cluster name, build
-version, and whether ClickHouse analytics is configured. The topbar exposes a manual refresh, the sidebar exposes the
-auto-refresh interval, and the dashboard sign-in flow uses the same Dex
-issuer as the control plane.
+version, and whether ClickHouse analytics is configured. The header exposes
+API/database health, manual refresh and the auto-refresh interval, and the
+dashboard sign-in flow uses the same Dex issuer as the control plane.
 
 ## Deployment
 
